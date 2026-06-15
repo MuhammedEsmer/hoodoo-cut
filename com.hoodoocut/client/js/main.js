@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.0'; // tek kaynak: manifest.xml ile aynı tutulmalı
+    var ACS_VERSION = '0.9.1.0'; // tek kaynak: manifest.xml ile aynı tutulmalı (4 parçalı şema)
 
     var $ = function (id) { return document.getElementById(id); };
     var state = { lastCuts: null, cutArmed: false, mutesApplied: false,
@@ -969,7 +969,8 @@
                         var gOpts = {
                             sensitivity: (parseInt($('beatSens').value, 10) || 50) / 100,
                             useGrid: false,
-                            minGapSec: (parseInt($('beatMinGap').value, 10) || 120) / 1000
+                            minGapSec: (parseInt($('beatMinGap').value, 10) || 120) / 1000,
+                            mode: 'transient' // oyun vuruşları her frekansta olabilir → geniş-bant
                         };
                         hits = ACSAnalyzer.detectBeatsFile(fs, wav, gOpts).beats;
                         log('Oyun vuruşları bulundu: ' + hits.length);

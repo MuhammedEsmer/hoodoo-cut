@@ -340,45 +340,177 @@
         return beats;
     }
 
-    /* Ana beat tespiti.
-     * opts: { sensitivity 0..1, minGapSec, useGrid, manualBpm, subdivision } */
+    /* Otokorelasyonla tempo (BPM) tahmini: flux zarfinin kendisiyle gecikmeli
+     * carpimi en yuksek olan gecikme = periyot. Aralik-medyanindan daha saglam,
+     * ozellikle bazi vuruslar zayifken. */
+    function estimateBpmAutocorr(flux, hopSec) {
+        if (!flux || flux.length < 20) return 0;
+        var minLag = Math.max(1, Math.round((60 / 200) / hopSec)); // 200 BPM
+        var maxLag = Math.round((60 / 60) / hopSec);               // 60 BPM
+        var best = 0, bestLag = 0;
+        for (var lag = minLag; lag <= maxLag; lag++) {
+            var s = 0;
+            for (var i = lag; i < flux.length; i++) s += flux[i] * flux[i - lag];
+            // hafif, periyot artarken dusen agirlik (octave hatasini azaltir)
+            s = s / Math.sqrt(lag);
+            if (s > best) { best = s; bestLag = lag; }
+        }
+        if (!bestLag) return 0;
+        return Math.round((60 / (bestLag * hopSec)) * 10) / 10;
+    }
+
+    /* onset listesi + tempo -> nihai beat listesi (izgara ya da ham + subdivision) */
+    function finalizeBeats(onsets, detectedBpm, durationSec, opts) {
+        var bpm = (opts.manualBpm && opts.manualBpm > 0) ? opts.manualBpm : detectedBpm;
+        var subdivision = opts.subdivision || 1;
+        var minGap = opts.minGapSec || 0.12;
+        var beats;
+        if (opts.useGrid && bpm > 0) {
+            beats = buildGrid(onsets, bpm, durationSec, subdivision, minGap);
+        } else if (subdivision >= 2) {
+            var step = Math.round(subdivision);
+            beats = [];
+            for (var i = 0; i < onsets.length; i += step) beats.push(onsets[i]);
+        } else {
+            beats = onsets;
+        }
+        return { beats: beats, usedBpm: bpm };
+    }
+
+    /* Geniş-bant (broadband) tespit — oyun vuruşları (silah/blok, her frekans)
+     * için. RMS dB zarfından flux. */
     function detectBeatsFromDb(analysis, opts) {
         opts = opts || {};
         var winSec = analysis.windowMs / 1000;
         var flux = computeFlux(analysis.db);
         var sensitivity = (typeof opts.sensitivity === 'number') ? opts.sensitivity : 0.5;
-        var minGap = opts.minGapSec || 0.12;
-        var onsets = pickOnsets(flux, winSec, sensitivity, minGap);
+        var onsets = pickOnsets(flux, winSec, sensitivity, opts.minGapSec || 0.12);
         var detectedBpm = estimateBpm(onsets);
-        var bpm = (opts.manualBpm && opts.manualBpm > 0) ? opts.manualBpm : detectedBpm;
-        var subdivision = opts.subdivision || 1;
-
-        var beats;
-        if (opts.useGrid && bpm > 0) {
-            beats = buildGrid(onsets, bpm, analysis.durationSec, subdivision, minGap);
-        } else {
-            // ham vurus modu: subdivision>=2 ise her N onset'i al
-            if (subdivision >= 2) {
-                var step = Math.round(subdivision);
-                var thinned = [];
-                for (var i = 0; i < onsets.length; i += step) thinned.push(onsets[i]);
-                beats = thinned;
-            } else {
-                beats = onsets;
-            }
-        }
+        var fin = finalizeBeats(onsets, detectedBpm, analysis.durationSec, opts);
         return {
-            beats: beats,
-            onsetCount: onsets.length,
-            detectedBpm: detectedBpm,
-            usedBpm: bpm,
-            durationSec: analysis.durationSec
+            beats: fin.beats, onsetCount: onsets.length,
+            detectedBpm: detectedBpm, usedBpm: fin.usedBpm, durationSec: analysis.durationSec
         };
     }
 
+    /* ---- Müzik için: frekans-bandı odaklı tespit (kick + snare) ----
+     * Ham örnekleri band-pass filtreden geçirip ritmik enstrümanların
+     * enerjisine bakarız; melodi/vokal flux'u kirletmez. Stem-separation'ın
+     * (ML) hafif, bağımlılıksız DSP karşılığı. */
+
+    function decodeSampleAt(buf, off, bits, isFloat) {
+        if (isFloat && bits === 32) return buf.readFloatLE(off);
+        if (bits === 16) return buf.readInt16LE(off) / 32768;
+        if (bits === 24) {
+            var b0 = buf[off], b1 = buf[off + 1], b2 = buf[off + 2];
+            var iv = b0 | (b1 << 8) | (b2 << 16);
+            if (iv & 0x800000) iv |= ~0xFFFFFF;
+            return iv / 8388608;
+        }
+        if (bits === 32) return buf.readInt32LE(off) / 2147483648;
+        if (bits === 8) return (buf[off] - 128) / 128;
+        throw new Error('Desteklenmeyen bit derinligi: ' + bits);
+    }
+
+    /* RBJ cookbook band-pass (sabit 0 dB tepe). */
+    function biquadBandpass(sampleRate, f0, Q) {
+        var w0 = 2 * Math.PI * f0 / sampleRate;
+        var cosw = Math.cos(w0), sinw = Math.sin(w0);
+        var alpha = sinw / (2 * Q);
+        var a0 = 1 + alpha;
+        return {
+            b0: alpha / a0, b1: 0, b2: -alpha / a0,
+            a1: (-2 * cosw) / a0, a2: (1 - alpha) / a0
+        };
+    }
+    function mkFilter(c) { return { c: c, x1: 0, x2: 0, y1: 0, y2: 0 }; }
+    function filtOne(f, x) {
+        var c = f.c;
+        var y = c.b0 * x + c.b1 * f.x1 + c.b2 * f.x2 - c.a1 * f.y1 - c.a2 * f.y2;
+        f.x2 = f.x1; f.x1 = x; f.y2 = f.y1; f.y1 = y;
+        return y;
+    }
+
+    /* WAV'ı stream ederek kick+snare bandı enerji-akışı (flux) zarfı çıkar. */
+    function computeBandFlux(fs, filePath, hopMs) {
+        hopMs = hopMs || 10;
+        var fd = fs.openSync(filePath, 'r');
+        try {
+            var fmt = readWavHeader(fs, fd);
+            var bytesPerSample = fmt.bitsPerSample / 8;
+            var frameBytes = bytesPerSample * fmt.numChannels;
+            var hop = Math.max(1, Math.round(fmt.sampleRate * hopMs / 1000));
+            var totalFrames = Math.floor(fmt.dataSize / frameBytes);
+            var isFloat = (fmt.audioFormat === 3), bits = fmt.bitsPerSample;
+
+            var kick = mkFilter(biquadBandpass(fmt.sampleRate, 80, 1.0));
+            var snare = mkFilter(biquadBandpass(fmt.sampleRate, 2500, 0.8));
+
+            var energy = [];
+            var acc = 0, accN = 0;
+            var CHUNK = 65536;
+            var buf = Buffer.alloc(CHUNK * frameBytes);
+            var framesRead = 0, filePos = fmt.dataOffset;
+
+            while (framesRead < totalFrames) {
+                var want = Math.min(CHUNK, totalFrames - framesRead);
+                var bytes = fs.readSync(fd, buf, 0, want * frameBytes, filePos);
+                if (bytes <= 0) break;
+                var frames = Math.floor(bytes / frameBytes);
+                for (var f = 0; f < frames; f++) {
+                    var base = f * frameBytes, mono = 0;
+                    for (var ch = 0; ch < fmt.numChannels; ch++) {
+                        mono += decodeSampleAt(buf, base + ch * bytesPerSample, bits, isFloat);
+                    }
+                    mono /= fmt.numChannels;
+                    var k = filtOne(kick, mono);
+                    var s = filtOne(snare, mono);
+                    acc += k * k + 0.5 * s * s; // kick agirlikli
+                    accN++;
+                    if (accN >= hop) { energy.push(acc / accN); acc = 0; accN = 0; }
+                }
+                framesRead += frames; filePos += bytes;
+            }
+            if (accN > hop / 2) energy.push(acc / accN);
+
+            // log-sikistirilmis pozitif fark (flux)
+            var flux = new Array(energy.length);
+            flux[0] = 0;
+            for (var i = 1; i < energy.length; i++) {
+                var d = Math.log(1 + energy[i] * 1000) - Math.log(1 + energy[i - 1] * 1000);
+                flux[i] = d > 0 ? d : 0;
+            }
+            var sorted = flux.slice(0).sort(function (a, b) { return a - b; });
+            var norm = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] || 1e-9;
+            for (i = 0; i < flux.length; i++) flux[i] /= norm;
+
+            return { flux: flux, hopSec: hop / fmt.sampleRate, durationSec: totalFrames / fmt.sampleRate };
+        } finally {
+            fs.closeSync(fd);
+        }
+    }
+
+    function detectBeatsBand(fs, filePath, opts) {
+        opts = opts || {};
+        var fr = computeBandFlux(fs, filePath, 10);
+        var sensitivity = (typeof opts.sensitivity === 'number') ? opts.sensitivity : 0.5;
+        var onsets = pickOnsets(fr.flux, fr.hopSec, sensitivity, opts.minGapSec || 0.12);
+        var detectedBpm = estimateBpmAutocorr(fr.flux, fr.hopSec) || estimateBpm(onsets);
+        var fin = finalizeBeats(onsets, detectedBpm, fr.durationSec, opts);
+        return {
+            beats: fin.beats, onsetCount: onsets.length,
+            detectedBpm: detectedBpm, usedBpm: fin.usedBpm, durationSec: fr.durationSec
+        };
+    }
+
+    /* mode: 'music' (varsayilan) -> kick/snare bandi odakli (ritim);
+     *       'transient'         -> genis-bant (oyun vuruslari). */
     function detectBeatsFile(fs, filePath, opts) {
-        var analysis = computeWindowDb(fs, filePath, 10); // 10ms pencere: beat icin yeterli cozunurluk
-        return detectBeatsFromDb(analysis, opts);
+        opts = opts || {};
+        if (opts.mode === 'transient') {
+            return detectBeatsFromDb(computeWindowDb(fs, filePath, 10), opts);
+        }
+        return detectBeatsBand(fs, filePath, opts);
     }
 
     /* ---- HIZALAMA PLANI: oyun vuruslarini muzik beat'lerine oturt ----
@@ -449,7 +581,11 @@
         pickOnsets: pickOnsets,
         estimateBpm: estimateBpm,
         detectBeatsFromDb: detectBeatsFromDb,
+        detectBeatsBand: detectBeatsBand,
         detectBeatsFile: detectBeatsFile,
+        computeBandFlux: computeBandFlux,
+        estimateBpmAutocorr: estimateBpmAutocorr,
+        biquadBandpass: biquadBandpass,
         planBeatAlign: planBeatAlign
     };
 });

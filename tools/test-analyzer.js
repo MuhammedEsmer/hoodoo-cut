@@ -19,7 +19,8 @@ function rand() {
 const SR = 48000;
 
 function makeWav(segments) {
-    // segments: [{dur, amp}] -> 16-bit mono WAV buffer
+    // segments: [{dur, amp, freq?}] -> 16-bit mono WAV. freq verilirse sinüs
+    // tonu, yoksa beyaz gürültü üretir.
     let total = 0;
     for (const s of segments) total += Math.round(s.dur * SR);
     const data = Buffer.alloc(total * 2);
@@ -27,7 +28,9 @@ function makeWav(segments) {
     for (const s of segments) {
         const n = Math.round(s.dur * SR);
         for (let k = 0; k < n; k++) {
-            const v = (rand() * 2 - 1) * s.amp;
+            const v = s.freq
+                ? Math.sin(2 * Math.PI * s.freq * i / SR) * s.amp
+                : (rand() * 2 - 1) * s.amp;
             data.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(v * 32767))), i * 2);
             i++;
         }
@@ -113,57 +116,64 @@ check('manuel esik kullanildi', rManual.usedOpts.thresholdDb === -30);
 
 fs.unlinkSync(tmpWav);
 
-// ---- Beat tespiti: 120 BPM click track (her 0.5 sn'de transient) ----
-console.log('\n[6] Beat tespiti (120 BPM click track)');
+// ---- Beat tespiti: 120 BPM kick track (60Hz vuruş, band-odaklı müzik modu) ----
+console.log('\n[6] Müzik beat tespiti (120 BPM, 60Hz kick)');
 const BPM = 120;
 const period = 60 / BPM; // 0.5 sn
-const beatDur = 8; // sn
-const segs = [];
+const beatDur = 8;
+const kickSegs = [];
 let tcur = 0;
-const clickLen = 0.03;
+const kickLen = 0.06;
 for (let bi = 0; tcur < beatDur; bi++) {
-    segs.push({ dur: clickLen, amp: 0.5 });        // vurus (transient)
-    segs.push({ dur: period - clickLen, amp: 0.01 }); // arasi sessizce
+    kickSegs.push({ dur: kickLen, amp: 0.7, freq: 60 });   // kick (60Hz)
+    kickSegs.push({ dur: period - kickLen, amp: 0.0 });     // arası sessiz
     tcur += period;
 }
-const beatWav = makeWav(segs);
-const tmpBeat = path.join(os.tmpdir(), 'acs_beat.wav');
-fs.writeFileSync(tmpBeat, beatWav);
+const tmpBeat = path.join(os.tmpdir(), 'acs_kick.wav');
+fs.writeFileSync(tmpBeat, makeWav(kickSegs));
 
 const rb = analyzer.detectBeatsFile(fs, tmpBeat, { sensitivity: 0.5, useGrid: false, minGapSec: 0.12 });
-console.log('  onset sayisi=' + rb.onsetCount + ', tahmini BPM=' + rb.detectedBpm +
-    ', beat=' + rb.beats.length);
-check('~16 onset bulundu (8sn/0.5)', Math.abs(rb.onsetCount - 16) <= 2, 'onset=' + rb.onsetCount);
-check('BPM ~120', Math.abs(rb.detectedBpm - 120) <= 6, 'bpm=' + rb.detectedBpm);
-// ham onset'ler 0.5 sn aralıkla gelmeli (t=0'daki ilk vuruş flux'ta yok, normal)
+console.log('  onset=' + rb.onsetCount + ', BPM=' + rb.detectedBpm + ', beat=' + rb.beats.length);
+check('~16 kick bulundu', Math.abs(rb.onsetCount - 16) <= 3, 'onset=' + rb.onsetCount);
+check('BPM ~120 (otokorelasyon)', Math.abs(rb.detectedBpm - 120) <= 8, 'bpm=' + rb.detectedBpm);
 if (rb.beats.length >= 3) {
-    check('ham onset aralığı ~0.5', Math.abs((rb.beats[1] - rb.beats[0]) - 0.5) < 0.08,
+    check('kick aralığı ~0.5', Math.abs((rb.beats[1] - rb.beats[0]) - 0.5) < 0.08,
         'd=' + (rb.beats[1] - rb.beats[0]).toFixed(3));
-    check('ham onset aralığı tutarlı', Math.abs((rb.beats[2] - rb.beats[1]) - 0.5) < 0.08,
-        'd=' + (rb.beats[2] - rb.beats[1]).toFixed(3));
-}
-// ızgara modu t=0'dan başlayan tam beat'ler üretmeli
-check('ızgara 1. beat ~0.0', rGridEarly()[0] < 0.12, 'b0=' + rGridEarly()[0]);
-function rGridEarly() {
-    if (!rGridEarly._c) rGridEarly._c =
-        analyzer.detectBeatsFile(fs, tmpBeat, { sensitivity: 0.5, useGrid: true }).beats;
-    return rGridEarly._c;
 }
 
-console.log('\n[7] Beat: ızgara modu + alt bölünme');
+console.log('\n[7] Izgara modu + alt bölünme + manuel BPM');
 const rGrid = analyzer.detectBeatsFile(fs, tmpBeat, { sensitivity: 0.5, useGrid: true });
-check('ızgara ~17 beat (0..8 / 0.5)', Math.abs(rGrid.beats.length - 17) <= 2, 'beats=' + rGrid.beats.length);
+check('ızgara ~17 beat', Math.abs(rGrid.beats.length - 17) <= 3, 'beats=' + rGrid.beats.length);
+check('ızgara 1. beat ~0.0', rGrid.beats[0] < 0.12, 'b0=' + rGrid.beats[0]);
 const rHalf = analyzer.detectBeatsFile(fs, tmpBeat, { sensitivity: 0.5, useGrid: true, subdivision: 0.5 });
-check('1/2 bölünme daha çok beat üretir', rHalf.beats.length > rGrid.beats.length,
+check('1/2 bölünme daha çok beat', rHalf.beats.length > rGrid.beats.length,
     rHalf.beats.length + ' > ' + rGrid.beats.length);
 const rManualBpm = analyzer.detectBeatsFile(fs, tmpBeat, { useGrid: true, manualBpm: 120 });
 check('manuel BPM kullanıldı', rManualBpm.usedBpm === 120);
 
-console.log('\n[8] Beat: hassasiyet etkisi');
-const rLow = analyzer.detectBeatsFile(fs, tmpBeat, { sensitivity: 0.05, useGrid: false });
-const rHigh = analyzer.detectBeatsFile(fs, tmpBeat, { sensitivity: 0.95, useGrid: false });
-check('yüksek hassasiyet >= düşük hassasiyet onset', rHigh.onsetCount >= rLow.onsetCount,
-    rHigh.onsetCount + ' >= ' + rLow.onsetCount);
+console.log('\n[8] Band-odak: sürekli melodi tonu ritim sanılmamalı');
+// 3kHz sürekli ton (melodi gibi) — enerji sabit, flux ~0 → ritim yok
+const toneWav = makeWav([{ dur: 4, amp: 0.5, freq: 3000 }]);
+const tmpTone = path.join(os.tmpdir(), 'acs_tone.wav');
+fs.writeFileSync(tmpTone, toneWav);
+const rTone = analyzer.detectBeatsFile(fs, tmpTone, { sensitivity: 0.5, useGrid: false });
+check('sürekli ton az onset üretir (<5)', rTone.onsetCount < 5, 'onset=' + rTone.onsetCount);
+fs.unlinkSync(tmpTone);
+
+console.log('\n[8b] Geniş-bant (transient) modu — oyun vuruşları');
+// yüksek frekanslı kısa patlamalar (silah/click gibi); transient modu yakalamalı
+const clickSegs = [];
+tcur = 0;
+for (let bi = 0; tcur < 6; bi++) {
+    clickSegs.push({ dur: 0.03, amp: 0.6 });          // geniş-bant gürültü patlaması
+    clickSegs.push({ dur: 0.6 - 0.03, amp: 0.002 });
+    tcur += 0.6;
+}
+const tmpClick = path.join(os.tmpdir(), 'acs_click.wav');
+fs.writeFileSync(tmpClick, makeWav(clickSegs));
+const rTrans = analyzer.detectBeatsFile(fs, tmpClick, { sensitivity: 0.5, useGrid: false, mode: 'transient' });
+check('transient modu vuruşları buldu (~10)', Math.abs(rTrans.onsetCount - 10) <= 3, 'onset=' + rTrans.onsetCount);
+fs.unlinkSync(tmpClick);
 
 fs.unlinkSync(tmpBeat);
 

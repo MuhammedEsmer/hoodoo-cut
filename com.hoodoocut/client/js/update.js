@@ -21,11 +21,13 @@
         return null;
     }
 
-    /* "0.9.1" vs "0.9.0" -> 1 (a>b), -1, 0. Baştaki 'v' atılır. */
+    /* "0.9.1.2" vs "0.9.1.1" -> 1 (a>b), -1, 0. Baştaki 'v' atılır.
+     * Parça sayısı serbest (3 ya da 4 parçalı sürümleri de karşılaştırır). */
     function cmpSemver(a, b) {
         var pa = ('' + a).replace(/^v/i, '').split('.');
         var pb = ('' + b).replace(/^v/i, '').split('.');
-        for (var i = 0; i < 3; i++) {
+        var n = Math.max(pa.length, pb.length);
+        for (var i = 0; i < n; i++) {
             var x = parseInt(pa[i], 10) || 0;
             var y = parseInt(pb[i], 10) || 0;
             if (x > y) return 1;
