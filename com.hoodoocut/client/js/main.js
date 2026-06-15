@@ -29,12 +29,12 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.2.0'; // tek kaynak: manifest.xml ile aynı tutulmalı (4 parçalı şema)
+    var ACS_VERSION = '0.9.3.0'; // tek kaynak: manifest.xml ile aynı tutulmalı (4 parçalı şema)
 
     var $ = function (id) { return document.getElementById(id); };
     var state = { lastCuts: null, cutArmed: false, mutesApplied: false,
                   lastBeats: null, beatArmed: false, audioCounts: [], videoCounts: [],
-                  taps: [] };
+                  taps: [], csvRows: [] };
 
     /* ---- yardımcılar ---- */
 
@@ -784,6 +784,9 @@
         $('beatMusicTracks').innerHTML = mh;
         $('beatGameTracks').innerHTML = gh;
         card.style.display = 'block';
+        // müzik track'i değişince CSV'den otomatik yeniden eşleştir
+        var mr = document.getElementsByName('beatMusic');
+        for (var q = 0; q < mr.length; q++) mr[q].addEventListener('change', autoMatchCsv);
     }
 
     function getBeatMusic() {
@@ -933,6 +936,86 @@
         } else {
             $('tapInfo').textContent = 'devam et… (1 vuruş)';
         }
+    }
+
+    /* ---- CSV BPM kaynağı (dış araçtan) ---- */
+
+    function populateCsvPick(rows) {
+        var sel = $('csvPick');
+        if (!rows.length) { sel.style.display = 'none'; sel.innerHTML = ''; return; }
+        var html = '<option value="">— CSV\'den parça seç —</option>';
+        for (var i = 0; i < rows.length; i++) {
+            html += '<option value="' + i + '">' +
+                rows[i].label.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</option>';
+        }
+        sel.innerHTML = html;
+        sel.style.display = 'block';
+    }
+
+    function loadCsvFromPath(p) {
+        if (!fs) { log('CSV: Node erişimi yok.'); return; }
+        if (!p) { log('CSV: önce dosya yolu gir.'); return; }
+        try {
+            var text = fs.readFileSync(p, 'utf8');
+            state.csvRows = ACSAnalyzer.parseBpmCsv(text);
+            if (!state.csvRows.length) {
+                log('CSV: geçerli satır bulunamadı (sütun düzenini kontrol et).');
+                populateCsvPick([]);
+                return;
+            }
+            try { localStorage.setItem('hoodoo_csv_path', p); } catch (e) {}
+            populateCsvPick(state.csvRows);
+            log('CSV yüklendi: ' + state.csvRows.length + ' parça.');
+            autoMatchCsv();
+        } catch (e) {
+            log('CSV okunamadı: ' + (e && e.message ? e.message : e));
+        }
+    }
+
+    /* Seçili müzik track'inin dosya adına göre CSV'de otomatik eşleştir. */
+    function autoMatchCsv() {
+        if (!state.csvRows || !state.csvRows.length) return;
+        var music = getBeatMusic();
+        if (music < 0) return;
+        evalJsx('ACS_getAudioClipName(' + music + ')', function (res) {
+            var p = res.split('|');
+            if (p[0] !== 'OK') return;
+            var clip = ACSAnalyzer.normalizeName(p[2] || p[1]); // medya yolu öncelikli
+            if (!clip) return;
+            for (var i = 0; i < state.csvRows.length; i++) {
+                var cf = ACSAnalyzer.normalizeName(state.csvRows[i].filename);
+                if (cf && (cf === clip || clip.indexOf(cf) >= 0 || cf.indexOf(clip) >= 0)) {
+                    $('csvPick').value = String(i);
+                    $('beatBpm').value = state.csvRows[i].bpm;
+                    $('tapInfo').textContent = 'CSV: ' + state.csvRows[i].bpm + ' BPM (otomatik eşleşti)';
+                    log('CSV eşleşti: "' + state.csvRows[i].filename + '" → ' + state.csvRows[i].bpm + ' BPM');
+                    return;
+                }
+            }
+            log('CSV: müzik dosyası (' + clip + ') listede bulunamadı; listeden elle seçebilirsin.');
+        });
+    }
+
+    function onCsvPick() {
+        var i = parseInt($('csvPick').value, 10);
+        if (isNaN(i) || !state.csvRows[i]) return;
+        $('beatBpm').value = state.csvRows[i].bpm;
+        $('tapInfo').textContent = 'CSV: ' + state.csvRows[i].bpm + ' BPM seçildi';
+        log('CSV\'den seçildi: ' + state.csvRows[i].label);
+    }
+
+    function browseCsv() {
+        try {
+            if (window.cep && window.cep.fs && window.cep.fs.showOpenDialog) {
+                var r = window.cep.fs.showOpenDialog(false, false, 'CSV seç', '', ['csv']);
+                if (r && r.data && r.data.length) {
+                    $('csvPath').value = r.data[0];
+                    loadCsvFromPath(r.data[0]);
+                    return;
+                }
+            }
+        } catch (e) {}
+        log('Gözat açılamadı; CSV yolunu alana yapıştırıp "Yükle"ye bas.');
     }
 
     /* Oyunu beat'e hizala: oyun sesindeki vuruşları bul, her birini en yakın
@@ -1146,6 +1229,9 @@
     $('btnBeatDetect').addEventListener('click', beatDetect);
     $('btnBeatApply').addEventListener('click', beatApply);
     $('btnTap').addEventListener('click', onTap);
+    $('btnCsvLoad').addEventListener('click', function () { loadCsvFromPath($('csvPath').value.trim()); });
+    $('btnCsvBrowse').addEventListener('click', browseCsv);
+    $('csvPick').addEventListener('change', onCsvPick);
     $('btnRefreshBeat').addEventListener('click', function () {
         log('Track listesi yenileniyor…');
         checkConnection();
@@ -1244,4 +1330,9 @@
     applyMode('olculu');
     checkConnection();
     checkForUpdate();
+    // hatırlanan CSV yolunu yükle
+    try {
+        var savedCsv = localStorage.getItem('hoodoo_csv_path');
+        if (savedCsv) { $('csvPath').value = savedCsv; loadCsvFromPath(savedCsv); }
+    } catch (e) {}
 })();

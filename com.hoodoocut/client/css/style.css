@@ -108,6 +108,18 @@ select:focus { outline: none; border-color: #1473e6; }
 
 .mono { font-family: Consolas, monospace; min-width: 52px; text-align: right; }
 
+input.txt {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 6px;
+  background: #1d1d1d;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  color: #e6e6e6;
+  font-size: 11px;
+}
+input.txt:focus { outline: none; border-color: #1473e6; }
+
 /* Kesim haritası: yeşil zemin = kalan, kırmızı = kesilecek */
 .previewBar {
   position: relative;

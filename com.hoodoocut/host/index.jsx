@@ -147,6 +147,27 @@ function ACS_restoreMutes() {
     }
 }
 
+/* Bir ses track'inin ilk klibinin adını + medya yolunu döner (CSV BPM
+ * eşleştirmesi için). "OK|klipAdi|medyaYolu" */
+function ACS_getAudioClipName(idx) {
+    try {
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        idx = parseInt(idx, 10);
+        if (isNaN(idx) || idx < 0 || idx >= seq.audioTracks.numTracks) return 'ERR|Gecersiz track';
+        var tr = seq.audioTracks[idx];
+        if (!tr || tr.clips.numItems === 0) return 'ERR|Track bos';
+        var it = tr.clips[0];
+        var nm = '';
+        try { nm = it.name; } catch (e1) {}
+        var mp = '';
+        try { if (it.projectItem && it.projectItem.getMediaPath) mp = it.projectItem.getMediaPath(); } catch (e2) {}
+        return 'OK|' + nm + '|' + mp;
+    } catch (e) {
+        return 'ERR|' + e.toString();
+    }
+}
+
 /* ---- Export ---- */
 
 /* Coklu preset deneyen export: presetsStr "yol1||yol2||..." formatinda.

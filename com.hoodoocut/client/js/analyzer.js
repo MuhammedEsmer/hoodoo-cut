@@ -607,8 +607,49 @@
         };
     }
 
+    /* ---- CSV'den BPM listesi (dış araçtan: songbpm/Mixed In Key vb.) ----
+     * Sütun: Dosya, Sanatçı, İz adı, BPM, Ton, Camelot. SORUN: Dosya/İz adı
+     * virgül içerebilir (tırnaksız) → soldan ayrıştırma bozulur. ÇÖZÜM: sağdaki
+     * 3 alan (BPM, Ton, Camelot) virgül içermez → SAĞDAN ayrıştır. Dosya adını
+     * sol kısımdaki ses uzantısından (.mp3/.wav...) çıkar. Saf fonksiyon. */
+    function parseBpmCsv(text) {
+        var out = [];
+        if (!text) return out;
+        text = text.replace(/^﻿/, ''); // BOM
+        var lines = text.split(/\r?\n/);
+        for (var li = 0; li < lines.length; li++) {
+            var line = lines[li].replace(/\s+$/, '');
+            if (!line) continue;
+            var f = line.split(',');
+            if (f.length < 4) continue;
+            var bpm = parseInt((f[f.length - 3] || '').trim(), 10);
+            if (isNaN(bpm) || bpm < 30 || bpm > 300) continue; // başlık ya da bozuk satır atlanır
+            var key = (f[f.length - 2] || '').trim();
+            var camelot = (f[f.length - 1] || '').trim();
+            var left = f.slice(0, f.length - 3).join(',');
+            var m = left.match(/(.*?\.(?:mp3|wav|flac|m4a|aif|aiff|ogg|aac|wma))/i);
+            var filename = (m ? m[1] : left).trim();
+            out.push({
+                filename: filename, bpm: bpm, key: key, camelot: camelot,
+                label: filename + ' — ' + bpm + ' BPM' + (camelot ? ' (' + camelot + ')' : '')
+            });
+        }
+        return out;
+    }
+
+    /* Dosya adını normalize et (uzantı + yol + büyük/küçük) — eşleştirme için. */
+    function normalizeName(s) {
+        if (!s) return '';
+        s = ('' + s).replace(/\\/g, '/');
+        s = s.substring(s.lastIndexOf('/') + 1);          // yol at
+        s = s.replace(/\.(mp3|wav|flac|m4a|aif|aiff|ogg|aac|wma|mov|mp4)$/i, ''); // uzantı at
+        return s.toLowerCase().trim();
+    }
+
     return {
         MODES: MODES,
+        parseBpmCsv: parseBpmCsv,
+        normalizeName: normalizeName,
         computeWindowDb: computeWindowDb,
         autoThresholdDb: autoThresholdDb,
         detectSilences: detectSilences,

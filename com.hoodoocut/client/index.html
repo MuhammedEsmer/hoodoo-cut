@@ -116,6 +116,19 @@
     </section>
 
     <section class="card">
+      <div class="row spread">
+        <h2>BPM Kaynağı (CSV — opsiyonel)</h2>
+        <button id="btnCsvBrowse" class="ghost">Gözat</button>
+      </div>
+      <div class="row">
+        <input type="text" id="csvPath" class="txt" placeholder="key_bpm.csv yolunu yapıştır">
+        <button id="btnCsvLoad" class="ghost" style="width:auto">Yükle</button>
+      </div>
+      <select id="csvPick" style="display:none;margin-top:6px"></select>
+      <p class="hint">Dış araçtan (songbpm, Mixed In Key vb.) çıkardığın BPM listesini yükle. Müzik dosyana göre BPM otomatik seçilir; bulunamazsa listeden seçersin. Dosya/İz adı, BPM, Ton, Camelot sütunları desteklenir (virgüllü adlar dahil).</p>
+    </section>
+
+    <section class="card">
       <h2>Beat Ayarları</h2>
       <div class="row">
         <span style="min-width:74px">Hassasiyet</span>

@@ -217,5 +217,22 @@ check('beat aralığı ~0.5', rphase.beats.length >= 3 &&
     Math.abs((rphase.beats[2] - rphase.beats[1]) - 0.5) < 0.03, 'd=' + (rphase.beats[2] - rphase.beats[1]));
 fs.unlinkSync(tmpOff);
 
+console.log('\n[11] CSV BPM ayrıştırma (virgüllü şarkı adı dahil)');
+const csvText =
+    'Dosya,Sanatçı adı,İz adı,VURUŞ/DAKIKA,Ton,Camelot\n' +
+    'Endless Blocks, Endless Sky.mp3,metalquality000,Endless Blocks, Endless Sky,113,B♭ major,6B\n' +
+    'phonk_track.wav,artist,Phonk Track,140,A minor,8A\n';
+const rows = analyzer.parseBpmCsv(csvText);
+console.log('  satır=' + rows.length + ' → ' + rows.map(r => r.filename + ':' + r.bpm).join(' | '));
+check('2 satır (başlık atlandı)', rows.length === 2, 'len=' + rows.length);
+if (rows.length === 2) {
+    check('virgüllü ad: BPM=113', rows[0].bpm === 113, 'bpm=' + rows[0].bpm);
+    check('virgüllü ad: dosya doğru', rows[0].filename === 'Endless Blocks, Endless Sky.mp3', 'f=' + rows[0].filename);
+    check('virgüllü ad: Camelot=6B', rows[0].camelot === '6B', 'c=' + rows[0].camelot);
+    check('temiz satır: BPM=140', rows[1].bpm === 140, 'bpm=' + rows[1].bpm);
+}
+check('normalize eşleşmesi', analyzer.normalizeName('C:/x/Phonk_Track.WAV') === 'phonk_track',
+    analyzer.normalizeName('C:/x/Phonk_Track.WAV'));
+
 console.log('\nSonuc: ' + pass + ' PASS, ' + fail + ' FAIL');
 process.exit(fail > 0 ? 1 : 0);
