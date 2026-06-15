@@ -503,6 +503,42 @@
         };
     }
 
+    /* ---- BPM BILINIYORken: ızgarayı müziğe FAZ olarak kilitle ----
+     * Tempo tahmini gerÇek müzikte zor; ama kullanıcı BPM'i verirse (tap/manuel)
+     * periyot kesindir, geriye sadece "beat 1 nerede" (faz) kalır. Kick/snare
+     * band-flux'ı bir darbe-treniyle çapraz-korele edip enerjiye en çok denk
+     * gelen fazı seçeriz (comb filter). Yoğun mikslerde bile sağlam. */
+    function alignGridToMusic(fs, filePath, bpm, opts) {
+        opts = opts || {};
+        if (!bpm || bpm <= 0) return { beats: [], usedBpm: 0, detectedBpm: 0, durationSec: 0, onsetCount: 0 };
+        var fr = computeBandFlux(fs, filePath, 10);
+        var subdivision = opts.subdivision || 1;
+        var period = (60 / bpm) * subdivision;       // saniye
+        var periodHops = period / fr.hopSec;
+        var n = fr.flux.length;
+        var steps = Math.max(1, Math.round(periodHops));
+
+        var bestPhase = 0, bestScore = -1;
+        for (var p = 0; p < steps; p++) {
+            var score = 0;
+            for (var t = p; t < n; t += periodHops) {
+                var idx = Math.round(t);
+                if (idx < n) score += fr.flux[idx];
+            }
+            if (score > bestScore) { bestScore = score; bestPhase = p; }
+        }
+        var phaseSec = bestPhase * fr.hopSec;
+        var beats = [];
+        for (var tt = phaseSec; tt <= fr.durationSec + 1e-6; tt += period) {
+            beats.push(Math.round(tt * 1000) / 1000);
+        }
+        return {
+            beats: beats, usedBpm: bpm, detectedBpm: bpm,
+            durationSec: fr.durationSec, phaseSec: Math.round(phaseSec * 1000) / 1000,
+            onsetCount: beats.length
+        };
+    }
+
     /* mode: 'music' (varsayilan) -> kick/snare bandi odakli (ritim);
      *       'transient'         -> genis-bant (oyun vuruslari). */
     function detectBeatsFile(fs, filePath, opts) {
@@ -582,6 +618,7 @@
         estimateBpm: estimateBpm,
         detectBeatsFromDb: detectBeatsFromDb,
         detectBeatsBand: detectBeatsBand,
+        alignGridToMusic: alignGridToMusic,
         detectBeatsFile: detectBeatsFile,
         computeBandFlux: computeBandFlux,
         estimateBpmAutocorr: estimateBpmAutocorr,

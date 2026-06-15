@@ -203,5 +203,19 @@ check('kırpma aralıkları örtüşmüyor/artan', okOrder, JSON.stringify(plan.
 const plan0 = analyzer.planBeatAlign([], planBeats, {});
 check('vuruş yoksa boş plan', plan0.removeIntervals.length === 0 && plan0.removedSec === 0);
 
+console.log('\n[10] BPM bilinince faz kilidi (alignGridToMusic)');
+// 0.3 sn lead-in + 120 BPM kick → faz 0.3'e kilitlenmeli
+const offSegs = [{ dur: 0.3, amp: 0.0 }];
+let toff = 0.3;
+while (toff < 8) { offSegs.push({ dur: 0.06, amp: 0.7, freq: 60 }); offSegs.push({ dur: 0.44, amp: 0.0 }); toff += 0.5; }
+const tmpOff = path.join(os.tmpdir(), 'acs_off.wav');
+fs.writeFileSync(tmpOff, makeWav(offSegs));
+const rphase = analyzer.alignGridToMusic(fs, tmpOff, 120, {});
+console.log('  faz=' + rphase.phaseSec + '  beat0=' + rphase.beats[0] + '  adet=' + rphase.beats.length);
+check('faz ~0.3 bulundu (downbeat)', Math.abs(rphase.phaseSec - 0.3) < 0.06, 'faz=' + rphase.phaseSec);
+check('beat aralığı ~0.5', rphase.beats.length >= 3 &&
+    Math.abs((rphase.beats[2] - rphase.beats[1]) - 0.5) < 0.03, 'd=' + (rphase.beats[2] - rphase.beats[1]));
+fs.unlinkSync(tmpOff);
+
 console.log('\nSonuc: ' + pass + ' PASS, ' + fail + ' FAIL');
 process.exit(fail > 0 ? 1 : 0);

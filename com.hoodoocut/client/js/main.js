@@ -29,11 +29,12 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.1.0'; // tek kaynak: manifest.xml ile aynı tutulmalı (4 parçalı şema)
+    var ACS_VERSION = '0.9.2.0'; // tek kaynak: manifest.xml ile aynı tutulmalı (4 parçalı şema)
 
     var $ = function (id) { return document.getElementById(id); };
     var state = { lastCuts: null, cutArmed: false, mutesApplied: false,
-                  lastBeats: null, beatArmed: false, audioCounts: [], videoCounts: [] };
+                  lastBeats: null, beatArmed: false, audioCounts: [], videoCounts: [],
+                  taps: [] };
 
     /* ---- yardımcılar ---- */
 
@@ -871,29 +872,33 @@
 
     function runBeatAnalysis(wav) {
         try {
-            var opts = {
-                sensitivity: (parseInt($('beatSens').value, 10) || 50) / 100,
-                useGrid: $('beatGrid').checked,
-                subdivision: parseFloat($('beatSubdiv').value) || 1,
-                minGapSec: (parseInt($('beatMinGap').value, 10) || 120) / 1000
-            };
+            var subdiv = parseFloat($('beatSubdiv').value) || 1;
             var bpmVal = parseInt($('beatBpm').value, 10);
-            if (!isNaN(bpmVal) && bpmVal > 0) opts.manualBpm = bpmVal;
-
-            var r = ACSAnalyzer.detectBeatsFile(fs, wav, opts);
+            var r, kaynak;
+            if (!isNaN(bpmVal) && bpmVal > 0) {
+                // BPM biliniyor → periyot kesin, sadece fazı müziğe kilitle (güvenilir)
+                r = ACSAnalyzer.alignGridToMusic(fs, wav, bpmVal, { subdivision: subdiv });
+                kaynak = 'BPM ' + bpmVal + ' (tap/elle), faz ' + r.phaseSec + 's';
+                log('Beat: ızgara müziğe hizalandı — ' + kaynak + ', ' + r.beats.length + ' nokta');
+            } else {
+                // BPM yok → otomatik tahmin (yoğun müzikte daha az isabetli)
+                var opts = {
+                    sensitivity: (parseInt($('beatSens').value, 10) || 50) / 100,
+                    useGrid: $('beatGrid').checked,
+                    subdivision: subdiv,
+                    minGapSec: (parseInt($('beatMinGap').value, 10) || 120) / 1000
+                };
+                r = ACSAnalyzer.detectBeatsFile(fs, wav, opts);
+                kaynak = 'otomatik BPM≈' + r.detectedBpm + ' (tahminî — BPM girersen daha iyi)';
+                log('Beat analizi: ' + r.onsetCount + ' onset, ' + kaynak + ', ' + r.beats.length + ' nokta');
+            }
             state.lastBeats = r.beats;
-            log('Beat analizi bitti: ' + r.onsetCount + ' onset, BPM≈' + r.detectedBpm +
-                (opts.manualBpm ? ' (manuel ' + opts.manualBpm + ')' : '') +
-                ', ' + r.beats.length + ' kesim noktası');
 
             if (r.beats.length === 0) {
-                showBeatResult(true, 'Beat bulunamadı. Hassasiyeti artırın ya da manuel BPM girin.<br>' +
-                    'Onset: ' + r.onsetCount + ', tahmini BPM: ' + (r.detectedBpm || '?'));
+                showBeatResult(true, 'Beat bulunamadı. BPM girip tekrar deneyin (en güvenilir yol).');
             } else {
                 showBeatResult(true,
-                    '<b>' + r.beats.length + ' beat</b> noktası — BPM ≈ <b>' +
-                    (opts.manualBpm || r.detectedBpm || '?') + '</b>' +
-                    ($('beatGrid').checked ? ' (ızgara)' : ' (ham)') + '<br>' +
+                    '<b>' + r.beats.length + ' beat</b> noktası — ' + kaynak + '<br>' +
                     previewBeatBar(r.beats, r.durationSec) +
                     'Süre: ' + fmtSec(r.durationSec));
                 $('btnBeatApply').style.display = 'block';
@@ -904,6 +909,30 @@
             showBeatResult(false, 'Analiz başarısız. Günlüğe bakın.');
         }
         resetBeatDetect();
+    }
+
+    /* Tap tempo: kullanıcı müzik çalarken ritme tıklar → vuruş aralıklarından
+     * BPM hesaplanır ve BPM alanına yazılır (faz analizde müziğe göre bulunur). */
+    function onTap() {
+        var now = Date.now();
+        if (state.taps.length && now - state.taps[state.taps.length - 1] > 2000) {
+            state.taps = []; // 2 sn ara → yeni ölçüm
+        }
+        state.taps.push(now);
+        if (state.taps.length > 8) state.taps.shift(); // son 8 vuruş
+        if (state.taps.length >= 2) {
+            var iv = [];
+            for (var i = 1; i < state.taps.length; i++) iv.push(state.taps[i] - state.taps[i - 1]);
+            iv.sort(function (a, b) { return a - b; });
+            var med = iv[Math.floor(iv.length / 2)];
+            if (med > 0) {
+                var bpm = Math.round(60000 / med);
+                $('beatBpm').value = bpm;
+                $('tapInfo').textContent = 'BPM ≈ ' + bpm + ' (' + state.taps.length + ' vuruş)';
+            }
+        } else {
+            $('tapInfo').textContent = 'devam et… (1 vuruş)';
+        }
     }
 
     /* Oyunu beat'e hizala: oyun sesindeki vuruşları bul, her birini en yakın
@@ -1116,6 +1145,7 @@
     $('btnCut').addEventListener('click', cut);
     $('btnBeatDetect').addEventListener('click', beatDetect);
     $('btnBeatApply').addEventListener('click', beatApply);
+    $('btnTap').addEventListener('click', onTap);
     $('btnRefreshBeat').addEventListener('click', function () {
         log('Track listesi yenileniyor…');
         checkConnection();

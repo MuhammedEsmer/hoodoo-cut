@@ -136,7 +136,7 @@
           </select>
         </div>
         <div class="field">
-          <span>Manuel BPM (boş = oto)</span>
+          <span>BPM (tap/elle, boş = oto tahmin)</span>
           <div class="unit"><input type="number" id="beatBpm" min="40" max="240" step="1" placeholder="oto"><i>bpm</i></div>
         </div>
         <div class="field">
@@ -144,6 +144,11 @@
           <div class="unit"><input type="number" id="beatMinGap" min="30" max="2000" value="120" step="10"><i>ms</i></div>
         </div>
       </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnTap" class="ghost" style="width:auto">🖱️ Tap Tempo</button>
+        <span id="tapInfo" class="hint" style="margin:0">Müzik çalarken ritme tıkla (4+ vuruş) → BPM otomatik dolar</span>
+      </div>
+      <p class="hint">BPM girersen (tap ya da elle) ritim çok daha güvenilir bulunur: araç periyodu bilir, sadece "beat 1 nerede"yi müziğe göre hizalar. Boş bırakırsan otomatik tahmin eder (yoğun müzikte daha az isabetli).</p>
     </section>
 
     <section class="card">
