@@ -5,6 +5,9 @@ tools/hoodoo-cert.p12
 # Build çıktısı (GitHub Release'e elle yüklenir, repoya gerek yok)
 dist/
 
+# Test müziği (üretilebilir, büyük binary — repoya girmesin)
+test-music/
+
 # Diğer
 node_modules/
 *.log
