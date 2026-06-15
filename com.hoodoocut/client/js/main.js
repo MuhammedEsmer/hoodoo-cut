@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.4.0'; // tek kaynak: manifest.xml ile aynı tutulmalı (4 parçalı şema)
+    var ACS_VERSION = '0.9.3.1'; // tek kaynak: manifest.xml ile aynı (küçük değişiklik = 4. hane artar)
 
     var $ = function (id) { return document.getElementById(id); };
     var state = { lastCuts: null, cutArmed: false, mutesApplied: false };
