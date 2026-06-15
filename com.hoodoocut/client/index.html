@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>HooDoo Cut</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>HooDoo Cut</h1>
+    <div id="status"><span class="dot" id="statusDot"></span><span id="statusText">Bağlanıyor…</span></div>
+  </header>
+
+  <div id="updateBar" class="updatebar" style="display:none"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="cut">✂️ Sessizlik</button>
+    <button class="tab" data-tab="beat">🥁 Beat</button>
+  </div>
+
+  <div id="tabCut">
+  <section class="card" id="audioTracksCard" style="display:none">
+    <div class="row spread">
+      <h2>Analiz Sesi</h2>
+      <button id="btnRefreshTracks" class="ghost">Yenile</button>
+    </div>
+    <div id="audioTracks"></div>
+    <p class="hint">Sessizlik tespiti yalnızca işaretli ses track'lerine göre yapılır; <b>kesim yine tüm track'lerde uygulanır</b>. Örn. oyun sesi A2'deyse ve konuşmaya göre kesilecekse yalnız A1'i işaretleyin. Seçim için track'ler analiz sırasında geçici olarak mute edilip eski haline döndürülür.</p>
+  </section>
+
+  <section class="card">
+    <h2>Ses Eşiği</h2>
+    <div class="row">
+      <input type="range" id="thresholdSlider" min="-65" max="-15" value="-40" step="1">
+      <span id="thresholdValue" class="mono">-40 dB</span>
+    </div>
+    <label class="row">
+      <input type="checkbox" id="autoThreshold" checked>
+      <span>Otomatik hesapla</span>
+    </label>
+    <p class="hint" id="thresholdInfo">Analizde hesaplanan eşik kaydırıcıya yansır. Kaydırıcıyı elle oynatırsanız otomatik kapanır, sizin değeriniz kullanılır.</p>
+  </section>
+
+  <section class="card">
+    <h2>Kesme Şablonu</h2>
+    <div class="modes" id="modes">
+      <button class="chip" data-mode="sakin">Sakin</button>
+      <button class="chip active" data-mode="olculu">Ölçülü</button>
+      <button class="chip" data-mode="tempolu">Tempolu</button>
+      <button class="chip" data-mode="enerjik">Enerjik</button>
+      <button class="chip" data-mode="atlamali">Atlamalı</button>
+      <button class="chip custom" data-mode="ozel1">Özel 1</button>
+      <button class="chip custom" data-mode="ozel2">Özel 2</button>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <span>Şundan uzun sessizliği kes</span>
+        <div class="unit"><input type="number" id="pMinSilence" min="50" max="5000" step="10"><i>ms</i></div>
+      </div>
+      <div class="field">
+        <span>Şundan kısa sesi yoksay</span>
+        <div class="unit"><input type="number" id="pMinSpeech" min="0" max="2000" step="10"><i>ms</i></div>
+      </div>
+      <div class="field">
+        <span>Konuşma sonrası pay</span>
+        <div class="unit"><input type="number" id="pKeepAfter" min="0" max="2000" step="10"><i>ms</i></div>
+      </div>
+      <div class="field">
+        <span>Konuşma öncesi pay</span>
+        <div class="unit"><input type="number" id="pKeepBefore" min="0" max="2000" step="10"><i>ms</i></div>
+      </div>
+    </div>
+    <div class="row spread" style="margin-top:8px">
+      <p class="hint" style="margin:0">Şablona tıkla → değerler dolar. Elle değiştir → özel ayar. <b>Özel 1/2</b> kalıcıdır.</p>
+      <button id="btnSavePreset" class="ghost">💾 Kaydet</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Kapsam</h2>
+    <div class="row">
+      <label class="row"><input type="radio" name="scope" value="all" checked><span>Tüm sequence</span></label>
+      <label class="row"><input type="radio" name="scope" value="selection"><span>Seçili clipler</span></label>
+    </div>
+    <p class="hint">Bölge bölge farklı tarz için: timeline'da klipleri seçin → "Seçili clipler" → şablon seçin → Analiz → Kes. Başka bölge için tekrarlayın.</p>
+  </section>
+
+  <section class="card">
+    <button id="btnAnalyze" class="primary">🔍 Analiz Et</button>
+    <div id="analysisResult" class="result" style="display:none"></div>
+    <div id="manageRow" style="display:none">
+      <h2 style="margin-top:10px">Sessizlik Yönetimi</h2>
+      <label class="row"><input type="radio" name="manage" value="remove_close" checked><span>Sil ve boşlukları kapat</span></label>
+      <label class="row"><input type="radio" name="manage" value="remove_keep"><span>Sil, boşluklar kalsın (süre değişmez)</span></label>
+      <label class="row"><input type="radio" name="manage" value="mute"><span>Sustur (ses kliplerini devre dışı bırak)</span></label>
+      <label class="row"><input type="radio" name="manage" value="cutonly"><span>Sadece kes (hiçbir şey silme)</span></label>
+      <label class="row" style="margin-top:8px"><input type="checkbox" id="makeBackup"><span>İşlemden önce yedek sequence oluştur</span></label>
+    </div>
+    <button id="btnCut" class="danger" style="display:none">✂️ Sessizlikleri Kes</button>
+    <p class="hint">Kesim Ctrl+Z ile geri alınabilir (parçalı işlendiği için birkaç kez basmak gerekebilir).</p>
+  </section>
+  </div><!-- /tabCut -->
+
+  <div id="tabBeat" style="display:none">
+    <section class="card" id="beatTracksCard" style="display:none">
+      <div class="row spread">
+        <h2>Track Seçimi</h2>
+        <button id="btnRefreshBeat" class="ghost">Yenile</button>
+      </div>
+      <div class="field"><span>🎵 Müzik (ritim kaynağı — kesilmez)</span></div>
+      <div id="beatMusicTracks" class="tracklist"></div>
+      <div class="field" style="margin-top:8px"><span>🎮 Kesilecek oyun ses track'leri</span></div>
+      <div id="beatGameTracks" class="tracklist"></div>
+      <label class="row" style="margin-top:6px"><input type="checkbox" id="beatCutVideo" checked><span>Videoyu da kes (senkron için — önerilir)</span></label>
+      <p class="hint">Müzik track'i yalnız ritim bulmak için kullanılır, asla kesilmez. Oyun ses + video aynı noktada birlikte kesilir, böylece görüntü kaymaz.</p>
+    </section>
+
+    <section class="card">
+      <h2>Beat Ayarları</h2>
+      <div class="row">
+        <span style="min-width:74px">Hassasiyet</span>
+        <input type="range" id="beatSens" min="0" max="100" value="50" step="1">
+        <span id="beatSensVal" class="mono">50</span>
+      </div>
+      <div class="row">
+        <label class="row" style="margin:0"><input type="checkbox" id="beatGrid" checked><span>BPM ızgarasına oturt (düzenli ritim)</span></label>
+      </div>
+      <div class="grid2" style="margin-top:6px">
+        <div class="field">
+          <span>Yoğunluk</span>
+          <select id="beatSubdiv">
+            <option value="2">2 beat'te bir</option>
+            <option value="1" selected>Her beat</option>
+            <option value="0.5">1/2 (iki kat)</option>
+            <option value="0.25">1/4 (dört kat)</option>
+          </select>
+        </div>
+        <div class="field">
+          <span>Manuel BPM (boş = oto)</span>
+          <div class="unit"><input type="number" id="beatBpm" min="40" max="240" step="1" placeholder="oto"><i>bpm</i></div>
+        </div>
+        <div class="field">
+          <span>Min. aralık</span>
+          <div class="unit"><input type="number" id="beatMinGap" min="30" max="2000" value="120" step="10"><i>ms</i></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <button id="btnBeatDetect" class="primary">🥁 Beat'leri Bul</button>
+      <div id="beatResult" class="result" style="display:none"></div>
+      <button id="btnBeatApply" class="danger" style="display:none">🎯 Oyunu Beat'e Hizala</button>
+      <p class="hint">Önce müzik beat'lerini bul; sonra "Hizala" oyun sesindeki vuruşları bulup her birini en yakın beat'e <b>çeker</b> (vuruştan önceki fazlalığı silerek). Yalnız oyun ses + video etkilenir, müzik korunur. İşlemden önce otomatik yedek alınır; Ctrl+Z ile de geri alınabilir. <b>İlk denemeyi kısa bir kopyada yapın.</b></p>
+    </section>
+  </div><!-- /tabBeat -->
+
+  <section class="card">
+    <div class="row spread">
+      <h2>Günlük</h2>
+      <button id="btnCopyLog" class="ghost">Kopyala</button>
+    </div>
+    <pre id="log"></pre>
+  </section>
+
+  <script src="js/CSInterface.js"></script>
+  <script src="js/analyzer.js"></script>
+  <script src="js/update.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# İmzalama gizli dosyaları (maintainer'da lokal kalır, repoya GİRMEMELİ)
+tools/ZXPSignCmd.exe
+tools/hoodoo-cert.p12
+
+# Build çıktısı (GitHub Release'e elle yüklenir, repoya gerek yok)
+dist/
+
+# Diğer
+node_modules/
+*.log
+Thumbs.db
+.DS_Store
