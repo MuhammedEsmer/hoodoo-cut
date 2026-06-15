@@ -1,22 +1,24 @@
 # HooDoo Cut — Dağıtım ve Güncelleme
 
-## Kullanıcılar için: kurulum (.zxp)
+## Kullanıcılar için: kurulum (tek tıkla)
 
-1. [Releases](https://github.com/YOUR_GITHUB_USERNAME/hoodoo-cut/releases) sayfasından
-   en son `HooDooCut_vX.Y.Z.zxp` dosyasını indir.
-2. Bir ZXP yükleyici kur (biri yeterli):
-   - **Anastasiy's Extension Manager** — https://install.anastasiy.com/
-   - veya **ZXPInstaller** — https://zxpinstaller.com/
-3. `.zxp` dosyasını yükleyiciye sürükle (ya da çift tıkla). Kurar.
-4. Premiere Pro'yu (yeniden) başlat → **Window → Extensions → HooDoo Cut**.
+1. [Releases](https://github.com/MuhammedEsmer/hoodoo-cut/releases) sayfasından
+   en son **`HooDooCut-Kurulum-vX.Y.Z.zip`** dosyasını indir.
+2. ZIP'e sağ tık → **"Tümünü ayıkla" (Extract All)** ile bir klasöre çıkar.
+   (Önemli: ZIP'in içinden çalıştırma; önce çıkar.)
+3. Çıkan klasördeki **`Kur.bat`** dosyasına **çift tıkla**.
+   - Windows "korudu" uyarısı çıkarsa: **More info → Run anyway**.
+4. "KURULUM TAMAM" yazınca Premiere Pro'yu kapatıp aç →
+   **Window → Extensions → HooDoo Cut**.
 
-> Debug modu / registry ayarı **gerekmez**; paket imzalıdır.
+> Başka bir program (ZXPInstaller vb.) gerekmez. `Kur.bat` dosyaları doğru yere
+> kopyalar ve gerekli ayarı (CEP debug modu) açar. Admin yetkisi gerekmez.
 
 ## Güncelleme (kullanıcı)
 
 Panel her açılışta GitHub'daki en son sürümü kontrol eder. Yeni sürüm varsa
-üstte yeşil bir çubukta **"Yeni sürüm: vX.Y.Z — İndir"** görünür. İndir'e basınca
-Releases sayfası açılır; yeni `.zxp`'yi indirip aynı şekilde kurarsın (üzerine yazar).
+üstte yeşil çubukta **"Yeni sürüm: vX.Y.Z — İndir"** görünür. İndir → yeni
+`Kurulum.zip`'i indirip aynı şekilde `Kur.bat`'a çift tıkla (üzerine yazar).
 
 ---
 
@@ -42,17 +44,19 @@ Releases sayfası açılır; yeni `.zxp`'yi indirip aynı şekilde kurarsın (ü
 1. **Sürümü artır** (iki yerde aynı olmalı):
    - `com.hoodoocut/CSXS/manifest.xml` → `ExtensionBundleVersion` ve `Extension Version`
    - `com.hoodoocut/client/js/main.js` → `ACS_VERSION`
-2. **Paketle + imzala:**
+2. **Kurulum paketini oluştur:**
    ```powershell
-   .\build-zxp.ps1
+   .\build-installer.ps1
    ```
-   → `dist\HooDooCut_vX.Y.Z.zxp` oluşur.
+   → `dist\HooDooCut-Kurulum-vX.Y.Z.zip` oluşur (Kur.bat + dosyalar).
+   *(İstersen ek olarak imzalı `.zxp` için `.\build-zxp.ps1` de çalıştırabilirsin —
+   ZXPInstaller kullanmak isteyenler için; zorunlu değil.)*
 3. **Kodu push'la** ve **GitHub Release** oluştur:
    ```powershell
    git add -A; git commit -m "vX.Y.Z"; git push
    ```
-   GitHub web'de **Releases → Draft a new release** → tag `vX.Y.Z` → `dist\HooDooCut_vX.Y.Z.zxp`
-   dosyasını ek olarak yükle → Publish.
+   GitHub web'de **Releases → Draft a new release** → tag `vX.Y.Z` →
+   `dist\HooDooCut-Kurulum-vX.Y.Z.zip` dosyasını ek olarak yükle → Publish.
 4. Kullanıcıların paneli bir sonraki açılışta güncellemeyi görür.
 
 > **Önemli:** `tools\hoodoo-cert.p12` (imza sertifikan) `.gitignore`'da; repoya

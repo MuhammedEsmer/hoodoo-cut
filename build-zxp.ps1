@@ -22,16 +22,21 @@ Write-Host "HooDoo Cut surum: $version"
 
 New-Item -ItemType Directory -Force $tools, $dist | Out-Null
 
-# 1) ZXPSignCmd
+# 1) ZXPSignCmd (Adobe resmi araci; klasor yapisi 4.1.3'te x64 oldu)
 $signer = "$tools\ZXPSignCmd.exe"
-if (-not (Test-Path $signer)) {
-    Write-Host "ZXPSignCmd indiriliyor..."
-    $url = "https://raw.githubusercontent.com/Adobe-CEP/CEP-Resources/master/ZXPSignCMD/4.1.2/win64/ZXPSignCmd.exe"
-    try { curl.exe -sL -o $signer $url } catch {}
+$url = "https://raw.githubusercontent.com/Adobe-CEP/CEP-Resources/master/ZXPSignCMD/4.1.3/x64/ZXPSignCmd.exe"
+if ((-not (Test-Path $signer)) -or ((Get-Item $signer).Length -lt 1000000)) {
+    Write-Host "ZXPSignCmd indiriliyor (curl)..."
+    try { curl.exe -fsSL -o $signer $url } catch {}
+    if ((-not (Test-Path $signer)) -or ((Get-Item $signer).Length -lt 1000000)) {
+        Write-Host "curl olmadi, PowerShell ile deneniyor..."
+        try { Invoke-WebRequest -Uri $url -OutFile $signer -UseBasicParsing } catch {}
+    }
 }
-if ((-not (Test-Path $signer)) -or ((Get-Item $signer).Length -lt 100000)) {
-    throw "ZXPSignCmd indirilemedi. Elle indirip '$signer' olarak koyun: https://github.com/Adobe-CEP/CEP-Resources/tree/master/ZXPSignCMD"
+if ((-not (Test-Path $signer)) -or ((Get-Item $signer).Length -lt 1000000)) {
+    throw "ZXPSignCmd indirilemedi. Tarayicidan elle indirip '$signer' olarak kaydedin:`n$url"
 }
+Write-Host "ZXPSignCmd hazir ($([math]::Round((Get-Item $signer).Length/1MB,1)) MB)"
 
 # 2) Self-signed sertifika
 $cert = "$tools\hoodoo-cert.p12"
