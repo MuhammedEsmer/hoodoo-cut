@@ -1,8 +1,6 @@
-# HooDoo Cut — Premiere Pro Kurgu Eklentisi
+# HooDoo Cut — Premiere Pro Sessizlik Kesme Eklentisi
 
-Premiere Pro içinde çalışan CEP paneli. İki sekme:
-- **✂️ Sessizlik:** sessiz kısımları otomatik tespit edip keser.
-- **🥁 Beat:** müziğin ritmini bulup oyun ses+video'yu beat noktalarında keser.
+Premiere Pro içinde çalışan, sessiz kısımları otomatik tespit edip kesen CEP paneli.
 
 ffmpeg **gerektirmez**: sesi Premiere'in kendi export motoru çıkarır, analiz panel
 içindeki Node.js ile yapılır.
@@ -25,31 +23,14 @@ içindeki Node.js ile yapılır.
   tüm track'lerde uygulanır.
 - **Sessizlik yönetimi (4 mod):** Sil ve boşlukları kapat / Sil boşluk kalsın /
   Sustur (ses klipleri disable edilir, süre değişmez) / Sadece kes.
-- **Linkli çıktı:** işlem sonunda her video parçası aynı aralıktaki ses
-  parçalarıyla yeniden linklenir (`sequence.linkSelection()`) — ticari AutoCut
-  çıktısı gibi, parçalar timeline'da bağlı davranır.
+- **Linkler korunur:** native çok-track razor video+ses parçalarını bağlı keser;
+  kompaksiyon idempotent taşımayla senkronu korur (ayrı relink adımı gerekmez).
 - **Yedek sequence:** işlemden önce otomatik kopya (kapatılabilir).
 - **Kesim haritası:** analiz sonrası yeşil/kırmızı önizleme şeridi.
 - **Kapsam seçimi:** tüm sequence ya da sadece timeline'da seçili clipler.
   Bölge bölge farklı şablon: bölgeyi seç → şablon → analiz → kes, tekrarla.
 - **Parçalı işleme:** uzun videolarda Premiere kilitlenmez; butonda canlı
   ilerleme görünür. Razor, kalibre edilmiş SMPTE timecode hesabıyla hızlandırılır.
-
-### 🥁 Beat sekmesi (müziğe göre kesim)
-
-- **Beat tespiti:** seçili müzik track'inin enerji-akışından (flux) onset/vuruş
-  bulur; opsiyonel BPM tahmini + düzenli ızgaraya oturtma. Hassasiyet, yoğunluk
-  (2 beat / her beat / 1/2 / 1/4), manuel BPM, min. aralık ayarları.
-- **Referans/hedef ayrımı:** müzik track'i yalnız analiz için; **asla kesilmez/taşınmaz**.
-- **Oyunu beat'e hizala (asıl işlev):** oyun sesindeki vuruşları (blok/silah)
-  tespit eder, her birini en yakın müzik beat'ine **çeker**. Yöntem condense-only:
-  vuruştan önceki fazla süreyi siler (`planBeatAlign` saf fonksiyonu hesaplar) →
-  track-özel razor + sil + kompaksiyon (`ACS_beatRazorBatch` / `ACS_alignRemoveBatch`
-  / `ACS_alignCompact*`). Yalnız oyun ses + video etkilenir, müzik korunur, V+A
-  birlikte kesildiği için senkron bozulmaz. İşlemden önce otomatik yedek.
-  Sınır: zaman *eklenemez* — vuruş beat'in gerisindeyse atlanır (raporlanır).
-- Altyapı paylaşımı: aynı WAV export + akış-okuma + track-mute + hızlı razor +
-  link-güvenli kompaksiyon. `planBeatAlign` Premiere'siz unit-testli.
 
 ## Kurulum (geliştirme)
 
@@ -108,8 +89,6 @@ node tools\test-analyzer.js
 - **Performans tavanı:** Premiere'in scripting API'si tek-thread ve işlem başına
   maliyeti yüksek (Adobe'nin kendi mühendisi "kök yavaşlık" diyor). Optimizasyonlar
   bunu azaltır ama sıfırlayamaz; çok uzun videoda silme fazı yine duraksayabilir.
-- Geçişler (J-Cut / L-Cut / Constant Power) bilinçli olarak YOK — kullanıcı
-  istemiyor, eklenmeyecek.
 - Çoklu track senaryolarında (bir track'te ses varken diğerinde boşluk)
   boşluk kapatma kısmı sınırlı; "boşluk kalsın" ve "sustur" modları her
   durumda güvenli.

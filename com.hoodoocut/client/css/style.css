@@ -46,32 +46,6 @@ h2 { font-size: 12px; font-weight: 600; color: #bbb; margin-bottom: 8px; }
 }
 .updatebar button { width: auto; padding: 4px 12px; font-size: 11px; background: #2e7d32; }
 
-.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
-.tab {
-  flex: 1;
-  padding: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  background: #2b2b2b;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  color: #aaa;
-  cursor: pointer;
-}
-.tab.active { background: #1473e6; border-color: #1473e6; color: #fff; }
-
-.tracklist { display: flex; flex-direction: column; gap: 2px; }
-select {
-  width: 100%;
-  padding: 5px 6px;
-  background: #1d1d1d;
-  border: 1px solid #4a4a4a;
-  border-radius: 4px;
-  color: #e6e6e6;
-  font-size: 12px;
-}
-select:focus { outline: none; border-color: #1473e6; }
-
 .modes { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .chip {
   flex: 1 1 30%;
@@ -108,18 +82,6 @@ select:focus { outline: none; border-color: #1473e6; }
 
 .mono { font-family: Consolas, monospace; min-width: 52px; text-align: right; }
 
-input.txt {
-  flex: 1;
-  min-width: 0;
-  padding: 5px 6px;
-  background: #1d1d1d;
-  border: 1px solid #4a4a4a;
-  border-radius: 4px;
-  color: #e6e6e6;
-  font-size: 11px;
-}
-input.txt:focus { outline: none; border-color: #1473e6; }
-
 /* Kesim haritası: yeşil zemin = kalan, kırmızı = kesilecek */
 .previewBar {
   position: relative;
@@ -135,8 +97,6 @@ input.txt:focus { outline: none; border-color: #1473e6; }
   bottom: 0;
   background: #c75450;
 }
-.previewBar.beat { background: #2a2a2a; }
-.previewBar.beat i { background: #36b3ff; }
 
 .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .row.spread { justify-content: space-between; }

@@ -13,12 +13,6 @@
 
   <div id="updateBar" class="updatebar" style="display:none"></div>
 
-  <div class="tabs">
-    <button class="tab active" data-tab="cut">✂️ Sessizlik</button>
-    <button class="tab" data-tab="beat">🥁 Beat</button>
-  </div>
-
-  <div id="tabCut">
   <section class="card" id="audioTracksCard" style="display:none">
     <div class="row spread">
       <h2>Analiz Sesi</h2>
@@ -99,78 +93,6 @@
     <button id="btnCut" class="danger" style="display:none">✂️ Sessizlikleri Kes</button>
     <p class="hint">Kesim Ctrl+Z ile geri alınabilir (parçalı işlendiği için birkaç kez basmak gerekebilir).</p>
   </section>
-  </div><!-- /tabCut -->
-
-  <div id="tabBeat" style="display:none">
-    <section class="card" id="beatTracksCard" style="display:none">
-      <div class="row spread">
-        <h2>Track Seçimi</h2>
-        <button id="btnRefreshBeat" class="ghost">Yenile</button>
-      </div>
-      <div class="field"><span>🎵 Müzik (ritim kaynağı — kesilmez)</span></div>
-      <div id="beatMusicTracks" class="tracklist"></div>
-      <div class="field" style="margin-top:8px"><span>🎮 Kesilecek oyun ses track'leri</span></div>
-      <div id="beatGameTracks" class="tracklist"></div>
-      <label class="row" style="margin-top:6px"><input type="checkbox" id="beatCutVideo" checked><span>Videoyu da kes (senkron için — önerilir)</span></label>
-      <p class="hint">Müzik track'i yalnız ritim bulmak için kullanılır, asla kesilmez. Oyun ses + video aynı noktada birlikte kesilir, böylece görüntü kaymaz.</p>
-    </section>
-
-    <section class="card">
-      <div class="row spread">
-        <h2>BPM Kaynağı (CSV — opsiyonel)</h2>
-        <button id="btnCsvBrowse" class="ghost">Gözat</button>
-      </div>
-      <div class="row">
-        <input type="text" id="csvPath" class="txt" placeholder="key_bpm.csv yolunu yapıştır">
-        <button id="btnCsvLoad" class="ghost" style="width:auto">Yükle</button>
-      </div>
-      <select id="csvPick" style="display:none;margin-top:6px"></select>
-      <p class="hint">Dış araçtan (songbpm, Mixed In Key vb.) çıkardığın BPM listesini yükle. Müzik dosyana göre BPM otomatik seçilir; bulunamazsa listeden seçersin. Dosya/İz adı, BPM, Ton, Camelot sütunları desteklenir (virgüllü adlar dahil).</p>
-    </section>
-
-    <section class="card">
-      <h2>Beat Ayarları</h2>
-      <div class="row">
-        <span style="min-width:74px">Hassasiyet</span>
-        <input type="range" id="beatSens" min="0" max="100" value="50" step="1">
-        <span id="beatSensVal" class="mono">50</span>
-      </div>
-      <div class="row">
-        <label class="row" style="margin:0"><input type="checkbox" id="beatGrid" checked><span>BPM ızgarasına oturt (düzenli ritim)</span></label>
-      </div>
-      <div class="grid2" style="margin-top:6px">
-        <div class="field">
-          <span>Yoğunluk</span>
-          <select id="beatSubdiv">
-            <option value="2">2 beat'te bir</option>
-            <option value="1" selected>Her beat</option>
-            <option value="0.5">1/2 (iki kat)</option>
-            <option value="0.25">1/4 (dört kat)</option>
-          </select>
-        </div>
-        <div class="field">
-          <span>BPM (tap/elle, boş = oto tahmin)</span>
-          <div class="unit"><input type="number" id="beatBpm" min="40" max="240" step="1" placeholder="oto"><i>bpm</i></div>
-        </div>
-        <div class="field">
-          <span>Min. aralık</span>
-          <div class="unit"><input type="number" id="beatMinGap" min="30" max="2000" value="120" step="10"><i>ms</i></div>
-        </div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button id="btnTap" class="ghost" style="width:auto">🖱️ Tap Tempo</button>
-        <span id="tapInfo" class="hint" style="margin:0">Müzik çalarken ritme tıkla (4+ vuruş) → BPM otomatik dolar</span>
-      </div>
-      <p class="hint">BPM girersen (tap ya da elle) ritim çok daha güvenilir bulunur: araç periyodu bilir, sadece "beat 1 nerede"yi müziğe göre hizalar. Boş bırakırsan otomatik tahmin eder (yoğun müzikte daha az isabetli).</p>
-    </section>
-
-    <section class="card">
-      <button id="btnBeatDetect" class="primary">🥁 Beat'leri Bul</button>
-      <div id="beatResult" class="result" style="display:none"></div>
-      <button id="btnBeatApply" class="danger" style="display:none">🎯 Oyunu Beat'e Hizala</button>
-      <p class="hint">Önce müzik beat'lerini bul; sonra "Hizala" oyun sesindeki vuruşları bulup her birini en yakın beat'e <b>çeker</b> (vuruştan önceki fazlalığı silerek). Yalnız oyun ses + video etkilenir, müzik korunur. İşlemden önce otomatik yedek alınır; Ctrl+Z ile de geri alınabilir. <b>İlk denemeyi kısa bir kopyada yapın.</b></p>
-    </section>
-  </div><!-- /tabBeat -->
 
   <section class="card">
     <div class="row spread">
