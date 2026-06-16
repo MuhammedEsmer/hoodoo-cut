@@ -63,11 +63,11 @@
                     var j = JSON.parse(data);
                     var tag = (j.tag_name || '').replace(/^v/i, '');
                     if (!tag) { cb(null, 'etiket yok'); return; }
-                    var zxp = null;
+                    var zip = null; // otomatik kurulum için Kurulum.zip
                     if (j.assets) {
                         for (var i = 0; i < j.assets.length; i++) {
-                            if (/\.zxp$/i.test(j.assets[i].name)) {
-                                zxp = j.assets[i].browser_download_url;
+                            if (/\.zip$/i.test(j.assets[i].name || '')) {
+                                zip = j.assets[i].browser_download_url;
                                 break;
                             }
                         }
@@ -75,7 +75,7 @@
                     cb({
                         latest: tag,
                         newer: cmpSemver(tag, current) > 0,
-                        url: zxp || j.html_url,
+                        zip: zip,
                         page: j.html_url
                     }, null);
                 } catch (e) { cb(null, e.message); }

@@ -14,11 +14,22 @@
 > Başka bir program (ZXPInstaller vb.) gerekmez. `Kur.bat` dosyaları doğru yere
 > kopyalar ve gerekli ayarı (CEP debug modu) açar. Admin yetkisi gerekmez.
 
-## Güncelleme (kullanıcı)
+## Güncelleme (kullanıcı) — tek tıkla otomatik
 
-Panel her açılışta GitHub'daki en son sürümü kontrol eder. Yeni sürüm varsa
-üstte yeşil çubukta **"Yeni sürüm: vX.Y.Z — İndir"** görünür. İndir → yeni
-`Kurulum.zip`'i indirip aynı şekilde `Kur.bat`'a çift tıkla (üzerine yazar).
+Panel her açılışta GitHub'daki en son **Release**'i kontrol eder. Yeni sürüm
+varsa üstte yeşil çubukta **"Yeni sürüm: vX.Y.Z — Güncelle"** görünür.
+**Güncelle**'ye basınca panel yeni paketi kendisi indirir, çıkarır ve kurulum
+klasörünü günceller; "Premiere'i yeniden başlatın" der. Kullanıcı başka bir şey
+yapmaz (Kur.bat'a gerek yok).
+
+Notlar:
+- Bildirim için GitHub'da yeni bir **Release** (tag + `HooDooCut-Kurulum-vX.Y.Z.zip`)
+  yayınlanmış olmalı; yalnız `git push` yetmez.
+- Tek-tıkla otomatik kurulum, panelin **bu özelliği içeren bir sürümde** olmasını
+  gerektirir (v0.9.3.2+). Daha eski bir sürümden ilk güncelleme indirme sayfasını
+  açar; ondan sonraki güncellemeler tek tıkla olur.
+- Geliştirici makinesinde (junction kurulum) otomatik güncelleme bilinçli olarak
+  kapalıdır; orada `git pull` kullanılır.
 
 ---
 

@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.3.1'; // tek kaynak: manifest.xml ile aynı (küçük değişiklik = 4. hane artar)
+    var ACS_VERSION = '0.9.3.2'; // tek kaynak: manifest.xml ile aynı (küçük değişiklik = 4. hane artar)
 
     var $ = function (id) { return document.getElementById(id); };
     var state = { lastCuts: null, cutArmed: false, mutesApplied: false };
@@ -790,7 +790,9 @@
         }
     });
 
-    /* ---- güncelleme kontrolü ---- */
+    /* ---- güncelleme kontrolü + otomatik kurulum ---- */
+    function setUpdateBar(html) { var b = $('updateBar'); b.innerHTML = html; b.style.display = 'flex'; }
+
     function checkForUpdate() {
         if (typeof ACSUpdate === 'undefined') return;
         if (!ACSUpdate.configured) {
@@ -801,16 +803,78 @@
             if (err) { log('Güncelleme kontrolü atlandı: ' + err); return; }
             if (info && info.newer) {
                 log('GÜNCELLEME VAR: v' + info.latest + ' (mevcut v' + ACS_VERSION + ')');
-                var bar = $('updateBar');
-                bar.innerHTML = '🔔 Yeni sürüm: <b>v' + info.latest + '</b> (sen: v' + ACS_VERSION +
-                    ') <button id="btnUpdate">İndir</button>';
-                bar.style.display = 'flex';
-                $('btnUpdate').addEventListener('click', function () {
-                    csInterface.openURLInDefaultBrowser(info.url);
-                });
+                setUpdateBar('🔔 Yeni sürüm: <b>v' + info.latest + '</b> (sen: v' + ACS_VERSION +
+                    ') <button id="btnUpdate">Güncelle</button>');
+                $('btnUpdate').addEventListener('click', function () { startSelfUpdate(info); });
             } else {
                 log('Sürüm güncel: v' + ACS_VERSION);
             }
+        });
+    }
+
+    /* PowerShell string literal (tek tırnak, içteki tırnağı kaçır) */
+    function psStr(s) { return "'" + String(s).replace(/'/g, "''") + "'"; }
+
+    /* indir + çıkar + kurulum klasörünü güncelle (PowerShell) */
+    function updaterScript(zipUrl, installDir) {
+        return [
+            '$ErrorActionPreference = "Stop"',
+            '$url = ' + psStr(zipUrl),
+            '$dst = ' + psStr(installDir),
+            '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12',
+            '$tmp = Join-Path $env:TEMP ("hoodoo_upd_" + [guid]::NewGuid().ToString("N"))',
+            'New-Item -ItemType Directory -Force $tmp | Out-Null',
+            '$zip = Join-Path $tmp "pkg.zip"',
+            'Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing',
+            'Expand-Archive -Path $zip -DestinationPath $tmp -Force',
+            '$srcExt = Join-Path $tmp "com.hoodoocut"',
+            'if (-not (Test-Path $srcExt)) { throw "pakette com.hoodoocut yok" }',
+            'Copy-Item -Path (Join-Path $srcExt "*") -Destination $dst -Recurse -Force',
+            'Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue',
+            'Write-Output "DONE"'
+        ].join("\r\n");
+    }
+
+    function startSelfUpdate(info) {
+        if (!info.zip) { // otomatik kurulum paketi yok → sayfayı aç
+            log('Otomatik kurulum paketi (zip) bulunamadı; indirme sayfası açılıyor.');
+            csInterface.openURLInDefaultBrowser(info.page);
+            return;
+        }
+        if (!fs || !nodeRequire) { csInterface.openURLInDefaultBrowser(info.page); return; }
+
+        var installDir = csInterface.getSystemPath(SystemPath.EXTENSION);
+        // Geliştirme koruması: kurulum yolu junction ise (dev) otomatik güncelleme yapma
+        var isLink = false;
+        try { fs.readlinkSync(installDir); isLink = true; } catch (e) {}
+        if (isLink) {
+            log('Geliştirme modu (junction) — otomatik güncelleme atlandı. "git pull" kullan.');
+            setUpdateBar('🔧 Geliştirme modu (junction): otomatik güncelleme kapalı.');
+            return;
+        }
+        var cp;
+        try { cp = nodeRequire('child_process'); } catch (e) {
+            csInterface.openURLInDefaultBrowser(info.page); return;
+        }
+
+        setUpdateBar('⏳ Güncelleniyor… v' + info.latest + ' indiriliyor');
+        log('Otomatik güncelleme başladı (' + info.zip + ')');
+
+        var psPath = path.join(os.tmpdir(), 'hoodoo_update.ps1');
+        try { fs.writeFileSync(psPath, updaterScript(info.zip, installDir), 'utf8'); }
+        catch (e) { log('Güncelleyici yazılamadı: ' + e.message); setUpdateBar('⚠️ Güncelleme başarısız.'); return; }
+
+        var cmd = 'powershell -ExecutionPolicy Bypass -NoProfile -File "' + psPath + '"';
+        cp.exec(cmd, { timeout: 180000, windowsHide: true }, function (err, stdout, stderr) {
+            if (err) {
+                log('Güncelleme HATASI: ' + (((stderr || '') + '').trim() || err.message));
+                setUpdateBar('⚠️ Güncelleme başarısız — <button id="btnUpd2">sayfayı aç</button>');
+                var b = $('btnUpd2');
+                if (b) b.addEventListener('click', function () { csInterface.openURLInDefaultBrowser(info.page); });
+                return;
+            }
+            log('Güncelleme tamamlandı: v' + info.latest + ' kuruldu.');
+            setUpdateBar('✅ v' + info.latest + ' kuruldu — Premiere\'i yeniden başlatın.');
         });
     }
 
