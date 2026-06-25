@@ -116,5 +116,24 @@ check('manuel esik kullanildi', rManual.usedOpts.thresholdDb === -30);
 
 fs.unlinkSync(tmpWav);
 
+console.log('\n[6] Band-pass: sessizlikteki düşük-frekans hum yok sayılmalı');
+// konuşma | 50Hz hum'lu "sessizlik" | konuşma — band-pass 50Hz'i elemeli,
+// yoksa hum yüzünden orta bölge "sesli" sanılır ve sessizlik bulunmaz.
+const bpWav = makeWav([
+    { dur: 2, amp: 0.6 },             // konuşma (geniş-bant, gür)
+    { dur: 2, amp: 0.3, freq: 50 },  // 50Hz hum (filtresiz "sesli" görünür; band-pass elemeli)
+    { dur: 2, amp: 0.6 }             // konuşma
+]);
+const tmpBp = path.join(os.tmpdir(), 'acs_bp.wav');
+fs.writeFileSync(tmpBp, bpWav);
+const rbp = analyzer.analyzeFile(fs, tmpBp, 'olculu', {});
+console.log('  bulunan kesim: ' + JSON.stringify(rbp.cuts));
+check('50Hz hum bölgesi sessizlik sayıldı', rbp.cuts.length === 1, 'adet=' + rbp.cuts.length);
+if (rbp.cuts.length === 1) {
+    check('kesim ortada (~2.3–3.7)', rbp.cuts[0].start > 2.0 && rbp.cuts[0].end < 4.0,
+        JSON.stringify(rbp.cuts[0]));
+}
+fs.unlinkSync(tmpBp);
+
 console.log('\nSonuc: ' + pass + ' PASS, ' + fail + ' FAIL');
 process.exit(fail > 0 ? 1 : 0);

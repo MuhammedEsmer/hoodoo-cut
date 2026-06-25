@@ -66,9 +66,29 @@
         return fmt;
     }
 
+    /* RBJ cookbook biquad: high-pass / low-pass. Konusma bandina (≈hpHz–lpHz)
+     * filtre uygulayip dusuk-frekans ugultu/hum'u eler -> sessizlik tespiti
+     * cok daha dogru olur. Q=0.707 (Butterworth). */
+    function biquadHP(sr, f0, Q) {
+        var w0 = 2 * Math.PI * f0 / sr, c = Math.cos(w0), s = Math.sin(w0), al = s / (2 * Q), a0 = 1 + al;
+        return { b0: (1 + c) / 2 / a0, b1: -(1 + c) / a0, b2: (1 + c) / 2 / a0,
+                 a1: (-2 * c) / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0 };
+    }
+    function biquadLP(sr, f0, Q) {
+        var w0 = 2 * Math.PI * f0 / sr, c = Math.cos(w0), s = Math.sin(w0), al = s / (2 * Q), a0 = 1 + al;
+        return { b0: (1 - c) / 2 / a0, b1: (1 - c) / a0, b2: (1 - c) / 2 / a0,
+                 a1: (-2 * c) / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0 };
+    }
+    function biquad(f, x) {
+        var y = f.b0 * x + f.b1 * f.x1 + f.b2 * f.x2 - f.a1 * f.y1 - f.a2 * f.y2;
+        f.x2 = f.x1; f.x1 = x; f.y2 = f.y1; f.y1 = y;
+        return y;
+    }
+
     /* Dosyayi stream ederek pencere basina RMS dB dizisi cikar.
+     * filt: { hpHz, lpHz } verilirse konusma bandina band-pass uygulanir.
      * Donus: { db: [..], windowMs, sampleRate, durationSec } */
-    function computeWindowDb(fs, filePath, windowMs) {
+    function computeWindowDb(fs, filePath, windowMs, filt) {
         windowMs = windowMs || 20;
         var fd = fs.openSync(filePath, 'r');
         try {
@@ -87,6 +107,12 @@
 
             var isFloat = (fmt.audioFormat === 3);
             var bits = fmt.bitsPerSample;
+
+            var hp = null, lp = null;
+            if (filt) {
+                hp = biquadHP(fmt.sampleRate, filt.hpHz || 120, 0.707);
+                lp = biquadLP(fmt.sampleRate, filt.lpHz || 5000, 0.707);
+            }
 
             while (framesRead < totalFrames) {
                 var want = Math.min(CHUNK_FRAMES, totalFrames - framesRead);
@@ -112,6 +138,7 @@
                         mono += v;
                     }
                     mono /= fmt.numChannels;
+                    if (hp) mono = biquad(lp, biquad(hp, mono)); // konuşma bandı
                     acc += mono * mono;
                     accCount++;
                     if (accCount >= windowFrames) {
@@ -169,9 +196,20 @@
     function detectSilences(analysis, opts) {
         var db = analysis.db;
         var winSec = analysis.windowMs / 1000;
+        // Histerezis (Schmitt tetikleyici): konuşmaya GİRMEK için yüksek eşik,
+        // sessizliğe GEÇMEK için düşük eşik. Eşik etrafında gezinen seviyelerde
+        // titreyen/kelime ortasından kesen davranışı engeller.
         var quiet = new Array(db.length);
         var i;
-        for (i = 0; i < db.length; i++) quiet[i] = db[i] < opts.thresholdDb;
+        var hyst = (typeof opts.hysteresisDb === 'number') ? opts.hysteresisDb : 0;
+        var lowThr = opts.thresholdDb - hyst / 2;
+        var highThr = opts.thresholdDb + hyst / 2;
+        var loud = (db.length > 0 && db[0] >= opts.thresholdDb);
+        for (i = 0; i < db.length; i++) {
+            if (db[i] > highThr) loud = true;
+            else if (db[i] < lowThr) loud = false;
+            quiet[i] = !loud;
+        }
 
         // Kisa "ses patlamalarini" (klavye, click) sessizlige yedir:
         // iki sessiz blok arasindaki minSpeech'ten kisa sesli kosulari sustur.
@@ -229,7 +267,8 @@
     /* Tek cagrilik kolay API: dosyadan analiz + esik + tespit. */
     function analyzeFile(fs, filePath, modeName, overrides) {
         var mode = MODES[modeName] || MODES.olculu;
-        var analysis = computeWindowDb(fs, filePath, 20);
+        // Konuşma bandına band-pass (uğultu/hum elenir) — doğru tespit için
+        var analysis = computeWindowDb(fs, filePath, 20, { hpHz: 120, lpHz: 5000 });
         var auto = autoThresholdDb(analysis.db);
         function pick(key) {
             return (overrides && typeof overrides[key] === 'number')
@@ -241,7 +280,9 @@
             minSilenceSec: pick('minSilenceSec'),
             keepBeforeSec: pick('keepBeforeSec'),
             keepAfterSec: pick('keepAfterSec'),
-            minSpeechSec: pick('minSpeechSec')
+            minSpeechSec: pick('minSpeechSec'),
+            hysteresisDb: (overrides && typeof overrides.hysteresisDb === 'number')
+                ? overrides.hysteresisDb : 3
         };
         var result = detectSilences(analysis, opts);
         return {

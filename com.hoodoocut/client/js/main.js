@@ -29,10 +29,11 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.3.2'; // tek kaynak: manifest.xml ile aynı (küçük değişiklik = 4. hane artar)
+    var ACS_VERSION = '0.9.3.3'; // tek kaynak: manifest.xml ile aynı (küçük değişiklik = 4. hane artar)
 
     var $ = function (id) { return document.getElementById(id); };
-    var state = { lastCuts: null, cutArmed: false, mutesApplied: false };
+    var state = { lastCuts: null, cutArmed: false, mutesApplied: false,
+                  exportCache: null, pendingSig: null };
 
     /* ---- yardımcılar ---- */
 
@@ -368,26 +369,39 @@
     }
 
     function doExport(selRanges, audioSel) {
-        var btn = $('btnAnalyze');
-        if (audioSel !== 'all') {
-            btn.textContent = '⏳ Ses track\'leri ayarlanıyor…';
-            evalJsx('ACS_muteForAnalysis("' + audioSel + '")', function (res) {
-                var p = res.split('|');
-                if (p[0] !== 'OK') {
-                    exportFailed('track seçimi uygulanamadı: ' + p.slice(1).join('|'));
-                    return;
-                }
-                state.mutesApplied = true;
-                if ((parseInt(p[2], 10) || 0) > 0) {
-                    log('UYARI: ' + p[2] + ' track mute edilemedi; analiz istenmeyen sesi içerebilir.');
-                }
-                var names = audioSel.split(',').map(function (x) { return 'A' + (parseInt(x, 10) + 1); });
-                log('Analiz sesi: ' + names.join(', ') + ' (diğerleri geçici mute)');
+        // WAV önbelleği: sequence (proje~seq~süre~track~sesSeçimi) değişmemişse
+        // yeniden export etme — tekrar analizlerde ~10 sn kazandırır.
+        evalJsx('ACS_getEnv()', function (envRes) {
+            var ep = envRes.split('|');
+            var sig = (ep[0] === 'OK') ? (ep[1] + '~' + ep[2] + '~' + ep[5] + '~' + ep[6] + '~' + audioSel) : null;
+            var wavPath = path.join(os.tmpdir(), 'acs_audio.wav');
+            if (sig && state.exportCache === sig && fs.existsSync(wavPath)) {
+                log('Önbellek: sequence değişmemiş, yeniden export atlandı.');
+                runAnalysis(wavPath, selRanges);
+                return;
+            }
+            state.pendingSig = sig;
+            var btn = $('btnAnalyze');
+            if (audioSel !== 'all') {
+                btn.textContent = '⏳ Ses track\'leri ayarlanıyor…';
+                evalJsx('ACS_muteForAnalysis("' + audioSel + '")', function (res) {
+                    var p = res.split('|');
+                    if (p[0] !== 'OK') {
+                        exportFailed('track seçimi uygulanamadı: ' + p.slice(1).join('|'));
+                        return;
+                    }
+                    state.mutesApplied = true;
+                    if ((parseInt(p[2], 10) || 0) > 0) {
+                        log('UYARI: ' + p[2] + ' track mute edilemedi; analiz istenmeyen sesi içerebilir.');
+                    }
+                    var names = audioSel.split(',').map(function (x) { return 'A' + (parseInt(x, 10) + 1); });
+                    log('Analiz sesi: ' + names.join(', ') + ' (diğerleri geçici mute)');
+                    exportNow(selRanges);
+                });
+            } else {
                 exportNow(selRanges);
-            });
-        } else {
-            exportNow(selRanges);
-        }
+            }
+        });
     }
 
     function exportNow(selRanges) {
@@ -403,6 +417,7 @@
             if (p[0] === 'OK') {
                 log('Ses dışa aktarıldı (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn, ' +
                     Math.round(parseInt(p[2], 10) / 1024 / 1024) + ' MB, ' + p[3] + ')');
+                state.exportCache = state.pendingSig;
                 restoreThen(function () { runAnalysis(wavPath, selRanges); });
                 return;
             }
@@ -432,6 +447,7 @@
                     }
                     log('Ses dışa aktarıldı (AME, ' + ((Date.now() - t0) / 1000).toFixed(1) +
                         ' sn, ' + Math.round(size / 1024 / 1024) + ' MB)');
+                    state.exportCache = state.pendingSig;
                     restoreThen(function () { runAnalysis(wavPath, selRanges); });
                 });
             });
