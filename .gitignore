@@ -13,3 +13,7 @@ node_modules/
 *.log
 Thumbs.db
 .DS_Store
+
+# Obsidian kasasi (docs/) - kisisel calisma alani durumu
+docs/.obsidian/workspace*.json
+docs/.trash/

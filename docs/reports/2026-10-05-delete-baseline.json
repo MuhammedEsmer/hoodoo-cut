@@ -1,0 +1,45 @@
+{
+  "kind": "mock Premiere DOM; no Adobe runtime timing",
+  "mode": "legacy",
+  "intervals": 367,
+  "videoTracks": 3,
+  "audioTracks": 3,
+  "clipsPerTrack": 1101,
+  "runs": [
+    {
+      "milliseconds": 9.5037,
+      "reads": 77364,
+      "removed": 2202
+    },
+    {
+      "milliseconds": 7.6483,
+      "reads": 77364,
+      "removed": 2202
+    },
+    {
+      "milliseconds": 6.837,
+      "reads": 77364,
+      "removed": 2202
+    },
+    {
+      "milliseconds": 7.3532,
+      "reads": 77364,
+      "removed": 2202
+    },
+    {
+      "milliseconds": 7.3507,
+      "reads": 77364,
+      "removed": 2202
+    },
+    {
+      "milliseconds": 7.3386,
+      "reads": 77364,
+      "removed": 2202
+    },
+    {
+      "milliseconds": 11.0979,
+      "reads": 77364,
+      "removed": 2202
+    }
+  ]
+}

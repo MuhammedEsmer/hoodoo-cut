@@ -1,0 +1,46 @@
+---
+type: referans
+title: HooDoo Cut Sürüm Geçmişi
+description: CEP paneli ve UXP toplu motor sürümlerinin kronolojisi.
+tags: [hoodoo, hoodoo-cut, sürüm, changelog]
+proje: [hoodoo-cut]
+sources:
+  - com.hoodoocut/CSXS/manifest.xml
+  - com.hoodoocut.bulk/manifest.json
+  - README.md
+created: 2026-10-11
+updated: 2026-10-11
+---
+
+# HooDoo Cut Sürüm Geçmişi
+
+En yeni en üstte. "Commit" sütunu boşsa değişiklik 2026-10-11 itibarıyla
+çalışma ağacında, commit edilmemiş.
+
+| Tarih | CEP | UXP motor | Commit | Özet |
+|---|---|---|---|---|
+| 2026-10-07 | 0.9.4.0 | 0.9.8 | — | Windows `\\?\` extended-path proje/medya yolu normalize ([[reports/2026-10-07-uxp-path-identity\|rapor]]) |
+| 2026-10-07 | 0.9.4.0 | 0.9.7 | — | Ağ izni `domains: "all"` + kodda URL kısıtı; eski 0.9.6 kaydı kaldırıldı ([[reports/2026-10-07-uxp-permission\|rapor]]) |
+| 2026-10-06 | 0.9.4.0 | 0.9.6 | — | `127.0.0.1:*` izin denemesi — başarısız ([[reports/2026-10-06-uxp-network-hotfix\|rapor]]) |
+| 2026-10-06 | 0.9.4.0 | 0.9.5 | — | **Toplu (UXP) silme motoru**; kurulum paketi CCX içerir ([[reports/2026-10-06-toplu-motor\|rapor]]) |
+| 2026-10-06 | 0.9.3.5 | — | — | Premiere 26.5.2 klip silme `true` dönüşü başarı ([[reports/2026-10-06-hotfix\|rapor]]) |
+| 2026-10-05 | 0.9.3.4 | — | — | Stereo kanal ayrı filtre, kare hizalı sınırlar, 80 ms taşma kaldırıldı, tek tarama hazırlık, yapısal plan imzası, WAV önbelleği kaldırıldı, hata gizleme yok ([[reports/2026-10-05-gelistirme\|rapor]]) |
+| 2026-06-25 | 0.9.3.3 | — | `749a6ea` | Konuşma bandı band-pass, histerezis çift-eşik, WAV önbelleği |
+| 2026-06-16 | 0.9.3.2 | — | `574b37f` | Tek-tık otomatik güncelleme (junction'da kapalı) |
+| 2026-06-15 | 0.9.3.1 | — | `cb293cd` | Modern UI + sürüm şeması düzeltmesi |
+| 2026-06-15 | (0.9.4.0) | — | `4cc73e7` | Beat özelliği tamamen kaldırıldı |
+| 2026-06-15 | 0.9.3.0 | — | `e51cc06` | CSV'den BPM entegrasyonu |
+| 2026-06-15 | 0.9.2.0 | — | `ff4680a` | Tap tempo + manuel BPM ile faz-kilitli ritim |
+| 2026-06-15 | — | — | `b22b955` | Test müziği üreteci |
+| 2026-06-15 | 0.9.1.0 | — | `2470b95` | Müzik ritmi tespiti + 4 parçalı sürüm şeması |
+| 2026-06-15 | — | — | `2f1df71` | Tek-tık kurulum (Kur.bat) + güncelleme kontrolü düzeltmeleri |
+| 2026-06-15 | 0.9.0 | — | `b7975ea` | İlk sürüm |
+
+> [!note] Sürüm numarası çakışması
+> `4cc73e7` commit'i "v0.9.4.0" etiketini beat kaldırma için kullandı; hemen
+> ardından `cb293cd` şemayı düzeltip 0.9.3.1'e döndü. Ekim 2026'daki toplu
+> motor sürümü 0.9.4.0 ayrı bir sürümdür. GitHub'da `v0.9.4.0` tag'i varsa
+> hangisini gösterdiği kontrol edilmeli (doğrulanmadı).
+
+> [!info] Beat/BPM dönemi
+> 0.9.1–0.9.3.0 arasında müzik ritmine göre kesim denendi; 2026-06-15'te tamamen kaldırıldı.

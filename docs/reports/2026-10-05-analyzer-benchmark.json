@@ -1,0 +1,24 @@
+{
+  "kind": "Node CPU + local WAV read; no Premiere export",
+  "node": "v24.19.0",
+  "seconds": 120,
+  "rate": 48000,
+  "channels": 2,
+  "baselineCommit": "749a6ea",
+  "runs": {
+    "baseline": [
+      91.0559,
+      94.3065,
+      96.1613,
+      89.232,
+      89.3339
+    ],
+    "current": [
+      124.3844,
+      122.5688,
+      123.4708,
+      116.2527,
+      116.6312
+    ]
+  }
+}
