@@ -11,6 +11,18 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-11 — Kod değişiklikleri commit edildi, Release yok kararı
+
+- `85002f9`: 0.9.3.4 → 0.9.4.0 CEP + UXP motor 0.9.8 + testler/araçlar tek
+  commit'te (74 PASS, `node --check` ve `git diff --check` temiz).
+- Kasa commit'i `828bdeb` → `08ea798` olarak yeniden yazıldı (push edilmeden):
+  AI contributor satırı kaldırıldı. Kalıcı kural: commit/PR'da Claude/AI
+  contributor gösterilmez ([[HooDoo Cut Kurulum ve Dağıtım]]).
+- **0.9.4.0 için GitHub Release oluşturulmayacak** — kullanıcı otomatik
+  güncelleme istemiyor. [[HooDoo Cut Sürüm Geçmişi]], [[HooDoo Cut]] güncellendi.
+- Commit dışı bırakılanlar: `.codegraph/` (yerel kod indeksi) ve kökte
+  kaynağı belirsiz yeni `AGENTS.md` (var olmayan `docs/AGENTS.md`'ye işaret ediyor).
+
 ## 2026-10-11 — Kasa kuruldu, proje kayıtları buraya toplandı
 
 `docs/` Obsidian kasası yapıldı (`.obsidian` ortak ayarları git'te,

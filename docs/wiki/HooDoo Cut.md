@@ -47,8 +47,9 @@ Ayrıntı: [[HooDoo Cut Mimari]].
 ## Güncel durum (2026-10-11)
 
 - 0.9.3.4 doğruluk düzeltmeleri, 0.9.3.5 hotfix, 0.9.4.0 toplu motor ve UXP
-  0.9.5→0.9.8 düzeltmeleri **çalışma ağacında; henüz commit edilmedi**
-  (son commit `749a6ea`, v0.9.3.3).
+  0.9.5→0.9.8 düzeltmeleri `85002f9` ile commit edildi.
+- **GitHub Release bilinçli olarak yok** — bu sürüm kullanıcılara otomatik
+  güncelleme olarak gitmeyecek (kullanıcı kararı, 2026-10-11).
 - UXP ↔ CEP el sıkışması canlı Premiere 26.5.2'de doğrulandı (`Motor 0.9.8 / Toplu motor hazır`).
 - **Ölçülmedi:** gerçek timeline'da toplu silme süresi, gerçek undo, nested/multicam davranışı.
   Bkz. [[HooDoo Cut Bilinen Sınırlar]].

@@ -54,6 +54,11 @@ reposundan indirir; sertifika `tools/hoodoo-cert.p12`, gitignore'da — kaybetme
 2. `node tools/package-bulk.js` → `.\build-installer.ps1`.
 3. Commit + push; GitHub **Release** (tag `vX.Y.Z`) + ZIP'i ek olarak yükle.
    Yalnız `git push` güncelleme bildirimi üretmez.
+   ⚠️ Release yalnız kullanıcı açıkça isterse açılır (0.9.4.0 için istenmedi).
+
+> [!warning] Commit kuralı
+> Commit ve PR'larda Claude/AI contributor olarak gösterilmez: `Co-Authored-By`
+> veya "Generated with" satırı yok (kullanıcının kalıcı kuralı).
 
 Sürüm şeması: parça sayısı serbest (`0.9.3.5` gibi 4 parçalı kullanılıyor);
 karşılaştırma sayısal, baştaki `v` yok sayılır.

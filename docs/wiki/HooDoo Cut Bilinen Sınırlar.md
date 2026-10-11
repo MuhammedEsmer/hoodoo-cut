@@ -37,7 +37,7 @@ updated: 2026-10-11
 - `install.ps1` kaynak yolu `D:\PremiereProExtension` sabit; repo artık `Documents\GitHub\hoodoo-cut`.
 - `DISTRIBUTION.md` "ilk gönderim" örneğinde `<KULLANICI>` yer tutucusu; ayrıca `cd D:\PremiereProExtension`.
 - `update.js` baş yorumu hâlâ "indirme kullanıcıya bırakılır (.zxp)" diyor; davranış tek-tık kuruluma geçti.
-- 0.9.3.4 → 0.9.4.0 / UXP 0.9.8 işi commit edilmemiş; GitHub Release yayınlanmadı.
+- 0.9.3.4 → 0.9.4.0 / UXP 0.9.8 işi `85002f9` ile commit edildi; GitHub Release bilinçli olarak yayınlanmadı (otomatik güncelleme istenmiyor).
 
 ## Yol haritası (teknik analizden, öncelik sırası)
 

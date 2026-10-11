@@ -14,17 +14,22 @@ updated: 2026-10-11
 
 # HooDoo Cut Sürüm Geçmişi
 
-En yeni en üstte. "Commit" sütunu boşsa değişiklik 2026-10-11 itibarıyla
-çalışma ağacında, commit edilmemiş.
+En yeni en üstte. Ekim 2026 işleri (0.9.3.4 → 0.9.4.0 / motor 0.9.8) tek
+commit'te toplandı: `85002f9` (2026-10-11).
+
+> [!important] Release yok
+> 0.9.4.0 için GitHub **Release bilinçli olarak oluşturulmadı** (kullanıcı
+> kararı, 2026-10-11): kullanıcılara otomatik güncelleme gitmesin. Release
+> açılmadıkça panel güncelleme bildirimi göstermez.
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
-| 2026-10-07 | 0.9.4.0 | 0.9.8 | — | Windows `\\?\` extended-path proje/medya yolu normalize ([[reports/2026-10-07-uxp-path-identity\|rapor]]) |
-| 2026-10-07 | 0.9.4.0 | 0.9.7 | — | Ağ izni `domains: "all"` + kodda URL kısıtı; eski 0.9.6 kaydı kaldırıldı ([[reports/2026-10-07-uxp-permission\|rapor]]) |
-| 2026-10-06 | 0.9.4.0 | 0.9.6 | — | `127.0.0.1:*` izin denemesi — başarısız ([[reports/2026-10-06-uxp-network-hotfix\|rapor]]) |
-| 2026-10-06 | 0.9.4.0 | 0.9.5 | — | **Toplu (UXP) silme motoru**; kurulum paketi CCX içerir ([[reports/2026-10-06-toplu-motor\|rapor]]) |
-| 2026-10-06 | 0.9.3.5 | — | — | Premiere 26.5.2 klip silme `true` dönüşü başarı ([[reports/2026-10-06-hotfix\|rapor]]) |
-| 2026-10-05 | 0.9.3.4 | — | — | Stereo kanal ayrı filtre, kare hizalı sınırlar, 80 ms taşma kaldırıldı, tek tarama hazırlık, yapısal plan imzası, WAV önbelleği kaldırıldı, hata gizleme yok ([[reports/2026-10-05-gelistirme\|rapor]]) |
+| 2026-10-07 | 0.9.4.0 | 0.9.8 | `85002f9` | Windows `\\?\` extended-path proje/medya yolu normalize ([[reports/2026-10-07-uxp-path-identity\|rapor]]) |
+| 2026-10-07 | 0.9.4.0 | 0.9.7 | `85002f9` | Ağ izni `domains: "all"` + kodda URL kısıtı; eski 0.9.6 kaydı kaldırıldı ([[reports/2026-10-07-uxp-permission\|rapor]]) |
+| 2026-10-06 | 0.9.4.0 | 0.9.6 | `85002f9` | `127.0.0.1:*` izin denemesi — başarısız ([[reports/2026-10-06-uxp-network-hotfix\|rapor]]) |
+| 2026-10-06 | 0.9.4.0 | 0.9.5 | `85002f9` | **Toplu (UXP) silme motoru**; kurulum paketi CCX içerir ([[reports/2026-10-06-toplu-motor\|rapor]]) |
+| 2026-10-06 | 0.9.3.5 | — | `85002f9` | Premiere 26.5.2 klip silme `true` dönüşü başarı ([[reports/2026-10-06-hotfix\|rapor]]) |
+| 2026-10-05 | 0.9.3.4 | — | `85002f9` | Stereo kanal ayrı filtre, kare hizalı sınırlar, 80 ms taşma kaldırıldı, tek tarama hazırlık, yapısal plan imzası, WAV önbelleği kaldırıldı, hata gizleme yok ([[reports/2026-10-05-gelistirme\|rapor]]) |
 | 2026-06-25 | 0.9.3.3 | — | `749a6ea` | Konuşma bandı band-pass, histerezis çift-eşik, WAV önbelleği |
 | 2026-06-16 | 0.9.3.2 | — | `574b37f` | Tek-tık otomatik güncelleme (junction'da kapalı) |
 | 2026-06-15 | 0.9.3.1 | — | `cb293cd` | Modern UI + sürüm şeması düzeltmesi |
