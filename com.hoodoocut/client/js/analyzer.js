@@ -95,11 +95,21 @@
             var fmt = readWavHeader(fs, fd);
             var bytesPerSample = fmt.bitsPerSample / 8;
             var frameBytes = bytesPerSample * fmt.numChannels;
+            if (!(fmt.sampleRate > 0) || !(fmt.numChannels > 0) ||
+                (fmt.audioFormat !== 1 && fmt.audioFormat !== 3) ||
+                (fmt.audioFormat === 3 && fmt.bitsPerSample !== 32) ||
+                [8, 16, 24, 32].indexOf(fmt.bitsPerSample) < 0) {
+                throw new Error('Desteklenmeyen WAV bicimi');
+            }
+            if (fmt.dataSize <= 0 || fmt.dataSize % frameBytes !== 0 ||
+                fmt.dataOffset + fmt.dataSize > fs.fstatSync(fd).size) {
+                throw new Error('WAV verisi eksik; disa aktarim tamamlanmamis olabilir');
+            }
             var windowFrames = Math.max(1, Math.round(fmt.sampleRate * windowMs / 1000));
             var totalFrames = Math.floor(fmt.dataSize / frameBytes);
 
             var db = [];
-            var acc = 0, accCount = 0;
+            var acc = [], accCount = 0;
             var CHUNK_FRAMES = 65536;
             var buf = Buffer.alloc(CHUNK_FRAMES * frameBytes);
             var framesRead = 0;
@@ -108,20 +118,22 @@
             var isFloat = (fmt.audioFormat === 3);
             var bits = fmt.bitsPerSample;
 
-            var hp = null, lp = null;
-            if (filt) {
-                hp = biquadHP(fmt.sampleRate, filt.hpHz || 120, 0.707);
-                lp = biquadLP(fmt.sampleRate, filt.lpHz || 5000, 0.707);
+            var hp = [], lp = [];
+            for (var channel = 0; channel < fmt.numChannels; channel++) {
+                acc[channel] = 0;
+                if (filt) {
+                    hp[channel] = biquadHP(fmt.sampleRate, filt.hpHz || 120, 0.707);
+                    lp[channel] = biquadLP(fmt.sampleRate, filt.lpHz || 5000, 0.707);
+                }
             }
 
             while (framesRead < totalFrames) {
                 var want = Math.min(CHUNK_FRAMES, totalFrames - framesRead);
                 var bytes = fs.readSync(fd, buf, 0, want * frameBytes, filePos);
-                if (bytes <= 0) break;
+                if (bytes <= 0 || bytes % frameBytes !== 0) throw new Error('WAV verisi okunamadi');
                 var frames = Math.floor(bytes / frameBytes);
                 for (var f = 0; f < frames; f++) {
                     var base = f * frameBytes;
-                    var mono = 0;
                     for (var ch = 0; ch < fmt.numChannels; ch++) {
                         var off = base + ch * bytesPerSample;
                         var v;
@@ -135,15 +147,21 @@
                         } else if (bits === 32) v = buf.readInt32LE(off) / 2147483648;
                         else if (bits === 8) v = (buf[off] - 128) / 128;
                         else throw new Error('Desteklenmeyen bit derinligi: ' + bits);
-                        mono += v;
+                        // PCM tamsayilari zaten sonludur; yalniz float WAV bunu gerektirir.
+                        if (isFloat && !isFinite(v)) throw new Error('WAV gecersiz ses ornegi iceriyor');
+                        if (filt) v = biquad(lp[ch], biquad(hp[ch], v));
+                        acc[ch] += v * v;
                     }
-                    mono /= fmt.numChannels;
-                    if (hp) mono = biquad(lp, biquad(hp, mono)); // konuşma bandı
-                    acc += mono * mono;
                     accCount++;
                     if (accCount >= windowFrames) {
-                        db.push(10 * Math.log10(acc / accCount + 1e-12));
-                        acc = 0;
+                        // Her kanal kendi filtresini ve enerjisini tutar. En yuksek
+                        // kanal konusmayi korur; ters fazli stereo birbirini silmez.
+                        var peakEnergy = 0;
+                        for (var c = 0; c < acc.length; c++) {
+                            peakEnergy = Math.max(peakEnergy, acc[c]);
+                            acc[c] = 0;
+                        }
+                        db.push(10 * Math.log10(peakEnergy / accCount + 1e-12));
                         accCount = 0;
                     }
                 }
@@ -151,7 +169,9 @@
                 filePos += bytes;
             }
             if (accCount > windowFrames / 2) {
-                db.push(10 * Math.log10(acc / accCount + 1e-12));
+                var tailEnergy = 0;
+                for (var tail = 0; tail < acc.length; tail++) tailEnergy = Math.max(tailEnergy, acc[tail]);
+                db.push(10 * Math.log10(tailEnergy / accCount + 1e-12));
             }
             return {
                 db: db,
@@ -295,8 +315,32 @@
         };
     }
 
+    /* Kesilecek bolgeyi iceri yuvarla: konusma tarafindaki kare korunur.
+     * Razor, silme ve kompaksiyon ayni saniye degerlerini kullanir. */
+    function alignCuts(cuts, fps) {
+        if (!(fps > 0) || !isFinite(fps)) throw new Error('Gecersiz sequence kare hizi');
+        var sorted = cuts.slice().sort(function (a, b) { return a.start - b.start; });
+        var merged = [], aligned = [];
+        for (var i = 0; i < sorted.length; i++) {
+            var cut = sorted[i];
+            if (!isFinite(cut.start) || !isFinite(cut.end) || cut.start < 0 || cut.end <= cut.start) {
+                throw new Error('Gecersiz kesim araligi');
+            }
+            var last = merged.length ? merged[merged.length - 1] : null;
+            if (last && cut.start <= last.end) last.end = Math.max(last.end, cut.end);
+            else merged.push({ start: cut.start, end: cut.end });
+        }
+        for (var j = 0; j < merged.length; j++) {
+            var start = Math.ceil(merged[j].start * fps - 1e-8) / fps;
+            var end = Math.floor(merged[j].end * fps + 1e-8) / fps;
+            if (end > start) aligned.push({ start: start, end: end });
+        }
+        return aligned;
+    }
+
     return {
         MODES: MODES,
+        alignCuts: alignCuts,
         computeWindowDb: computeWindowDb,
         autoThresholdDb: autoThresholdDb,
         detectSilences: detectSilences,

@@ -1,0 +1,17 @@
+'use strict';
+const assert = require('assert');
+const { fixture } = require('./host-fixture');
+const f = fixture([[0, 1], [1, 2], [2, 3]], 1, 2);
+f.host.app.project.path = 'C:\\test,pipe|name.prproj';
+assert.strictEqual(f.host.ACS_prepareClipAction('1,2', 'remove'), 'OK|3');
+const lines = f.host.ACS_getBulkPlan().split('\n');
+assert.strictEqual(decodeURIComponent(lines[0].split('|')[1]), f.host.app.project.path);
+assert.strictEqual(lines.length, 4);
+assert.deepStrictEqual(lines.slice(1).map(line => line.split(',').slice(0, 2).join(':')), ['0:0', '1:0', '1:1']);
+assert(lines.slice(1).every(line => line.split(',').length === 8));
+assert.strictEqual(f.stats.removed, 0);
+console.log('PASS real CEP host exports mixed V1 A1 A2 plan and escaped source identity');
+f.host.app.project.activeSequence.videoTracks[0].isLocked = () => true;
+assert(f.host.ACS_getBulkPlan().startsWith('ERR|'));
+assert.strictEqual(f.stats.removed, 0);
+console.log('PASS track locked after preparation rejects the bulk plan');

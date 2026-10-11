@@ -2,12 +2,18 @@
 
 Premiere Pro içinde çalışan, sessiz kısımları otomatik tespit edip kesen CEP paneli.
 
+**0.9.4.0:** Premiere 26.5+ için **Toplu (UXP)** silme motoru eklendi. Plugins menüsünden
+**HooDoo Cut Toplu Motor** panelini açık tutun. Video ve ses hedefleri tek silme
+transaction'ında işlenir; undo korunur. Canlı hız ölçümü henüz yapılmadı.
+Kurulum paketi CEP paneliyle UXP CCX motorunu birlikte içerir.
+[Geliştirme ve doğrulama notları](docs/reports/2026-10-06-toplu-motor.md).
+
 ffmpeg **gerektirmez**: sesi Premiere'in kendi export motoru çıkarır, analiz panel
 içindeki Node.js ile yapılır.
 
 ## Özellikler
 
-- **Otomatik eşik (AI):** ses seviyesi dağılımından gürültü tabanı (dip ses,
+- **Otomatik eşik:** ses seviyesi dağılımından gürültü tabanı (dip ses,
   klavye, click) ile konuşma/oyun sesini ayırıp kesme eşiğini kendisi hesaplar.
   Hesaplanan değer kaydırıcıya yansır; kaydırıcı elle oynatılırsa otomatik
   kapanır ve manuel dB kullanılır.
@@ -77,7 +83,32 @@ com.hoodoocut/
 
 ```powershell
 node tools\test-analyzer.js
+node tools\test-regressions.js
+node tools\test-panel.js
 ```
+
+### v0.9.3.5
+
+- Premiere 26.5.2'nin klip silmede dondurdugu `true` basari kabul edilir.
+  `0` ve eski host'lardaki `undefined` destegi korunur; `false` ve diger
+  hata degerleri islemi durdurur.
+
+### v0.9.3.4
+
+- Stereo kanallar ayrı filtrelenir; en yüksek kanal enerjisi kullanılır.
+  Ters fazlı veya tek kanallı konuşma kaybolmaz.
+- Kesimler konuşmayı koruyacak şekilde tam karelere hizalanır. Silme ve
+  susturma yalnız aralığın içindeki klipleri etkiler; 80 ms taşma kaldırıldı.
+- Silinecek/susturulacak klipler bütün aralıklar için bir kez hazırlanır.
+- Analiz planı sequence kimliği ve klip yerleşimine bağlanır. Sequence
+  değiştirilirse işlem durur. Her analiz yeni, ayrı bir WAV kullanır.
+- Yedek, razor, mute geri yükleme ve kompaksiyon hataları işlemi durdurur.
+  Mute durumları analiz yapılan track referanslarına geri yüklenir.
+
+İlk doğrulama raporu: [geliştirme ve ölçümler](docs/reports/2026-10-05-gelistirme.md).
+Premiere 26.5.2 içinde gerçek proje performansı henüz ölçülmedi. Efekt/gain
+değişiklikleri yapıldığında yeniden analiz edin; yapısal kimlik bütün ses
+efektlerini ve harici medya dosyası değişikliklerini izlemiyor.
 
 ## Bilinen sınırlar / yol haritası
 

@@ -29,11 +29,12 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.3.3'; // tek kaynak: manifest.xml ile aynı (küçük değişiklik = 4. hane artar)
+    var ACS_VERSION = '0.9.4.0'; // manifest.xml ile ayni
+    var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
     var state = { lastCuts: null, cutArmed: false, mutesApplied: false,
-                  exportCache: null, pendingSig: null };
+                  busy: false, planContext: null, fps: null, wavPath: null };
 
     /* ---- yardımcılar ---- */
 
@@ -306,11 +307,20 @@
 
     function resetAnalyzeButton() {
         var btn = $('btnAnalyze');
+        state.busy = false;
+        $('btnCut').disabled = false;
+        if (state.wavPath) {
+            try { if (fs.existsSync(state.wavPath)) fs.unlinkSync(state.wavPath); }
+            catch (e) { log('Gecici WAV temizlenemedi: ' + e.message); }
+            state.wavPath = null;
+        }
         btn.disabled = false;
         btn.textContent = '🔍 Analiz Et';
     }
 
     function exportFailed(msg) {
+        state.lastCuts = null;
+        state.planContext = null;
         resetAnalyzeButton();
         log('Export HATASI: ' + msg);
         showResult(false, 'Ses dışa aktarılamadı. Günlüğe bakın.');
@@ -319,11 +329,15 @@
     /* ---- analiz akışı ---- */
 
     function analyze() {
+        if (state.busy) return;
         if (!fs) {
             log('HATA: Node.js erişimi yok. Manifest CEFCommandLine ayarlarını kontrol edin.');
             return;
         }
         var btn = $('btnAnalyze');
+        state.busy = true;
+        state.planContext = null;
+        $('btnCut').disabled = true;
         btn.disabled = true;
         $('analysisResult').style.display = 'none';
         $('btnCut').style.display = 'none';
@@ -351,7 +365,7 @@
                 var total = 0;
                 for (var i = 0; i < ranges.length; i++) total += ranges[i][1] - ranges[i][0];
                 log('Seçim: ' + ranges.length + ' bölge, toplam ' + fmtSec(total));
-                doExport(ranges, audioSel);
+                doExport(ranges, audioSel, p[2]);
             });
         } else {
             doExport(null, audioSel);
@@ -361,38 +375,47 @@
     /* Mute uygulandıysa ne olursa olsun geri al, sonra devam et */
     function restoreThen(cb) {
         if (!state.mutesApplied) { cb(); return; }
-        evalJsx('ACS_restoreMutes()', function () {
+        evalJsx('ACS_restoreMutes()', function (res) {
+            if (res.split('|')[0] !== 'OK') {
+                exportFailed('Mute geri yuklenemedi: ' + res.split('|').slice(1).join('|'));
+                return;
+            }
             state.mutesApplied = false;
             log('Track mute durumları eski haline döndürüldü.');
             cb();
         });
     }
 
-    function doExport(selRanges, audioSel) {
-        // WAV önbelleği: sequence (proje~seq~süre~track~sesSeçimi) değişmemişse
-        // yeniden export etme — tekrar analizlerde ~10 sn kazandırır.
-        evalJsx('ACS_getEnv()', function (envRes) {
+    function doExport(selRanges, audioSel, selectionContext) {
+        if (state.mutesApplied) {
+            restoreThen(function () { doExport(selRanges, audioSel, selectionContext); });
+            return;
+        }
+        // Her analiz taze ses kullanir; klip sayisi ve sure efektleri tanimlamaz.
+        evalJsx('ACS_getAnalysisContext()', function (envRes) {
             var ep = envRes.split('|');
-            var sig = (ep[0] === 'OK') ? (ep[1] + '~' + ep[2] + '~' + ep[5] + '~' + ep[6] + '~' + audioSel) : null;
-            var wavPath = path.join(os.tmpdir(), 'acs_audio.wav');
-            if (sig && state.exportCache === sig && fs.existsSync(wavPath)) {
-                log('Önbellek: sequence değişmemiş, yeniden export atlandı.');
-                runAnalysis(wavPath, selRanges);
-                return;
+            if (ep[0] !== 'OK') { exportFailed(ep.slice(1).join('|')); return; }
+            if (selectionContext && ep[1] !== selectionContext) {
+                exportFailed('Secim okunduktan sonra sequence degisti. Tekrar analiz edin.'); return;
             }
-            state.pendingSig = sig;
+            state.planContext = ep[1];
+            state.fps = parseFloat(ep[2]);
+            state.wavPath = path.join(os.tmpdir(), 'hoodoo_audio_' + Date.now() + '_' +
+                Math.random().toString(36).slice(2) + '.wav');
             var btn = $('btnAnalyze');
             if (audioSel !== 'all') {
                 btn.textContent = '⏳ Ses track\'leri ayarlanıyor…';
+                state.mutesApplied = true;
                 evalJsx('ACS_muteForAnalysis("' + audioSel + '")', function (res) {
                     var p = res.split('|');
                     if (p[0] !== 'OK') {
-                        exportFailed('track seçimi uygulanamadı: ' + p.slice(1).join('|'));
+                        restoreThen(function () { exportFailed('track seçimi uygulanamadı: ' + p.slice(1).join('|')); });
                         return;
                     }
                     state.mutesApplied = true;
                     if ((parseInt(p[2], 10) || 0) > 0) {
-                        log('UYARI: ' + p[2] + ' track mute edilemedi; analiz istenmeyen sesi içerebilir.');
+                        restoreThen(function () { exportFailed(p[2] + ' track mute edilemedi.'); });
+                        return;
                     }
                     var names = audioSel.split(',').map(function (x) { return 'A' + (parseInt(x, 10) + 1); });
                     log('Analiz sesi: ' + names.join(', ') + ' (diğerleri geçici mute)');
@@ -407,7 +430,7 @@
     function exportNow(selRanges) {
         var btn = $('btnAnalyze');
         btn.textContent = '⏳ Ses dışa aktarılıyor…';
-        var wavPath = path.join(os.tmpdir(), 'acs_audio.wav');
+        var wavPath = state.wavPath;
         var t0 = Date.now();
         var script = 'ACS_exportAudio2("' + jsxEscape(wavPath) + '", "' +
             jsxEscape(PRESET_CANDIDATES.join('||')) + '")';
@@ -417,8 +440,7 @@
             if (p[0] === 'OK') {
                 log('Ses dışa aktarıldı (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn, ' +
                     Math.round(parseInt(p[2], 10) / 1024 / 1024) + ' MB, ' + p[3] + ')');
-                state.exportCache = state.pendingSig;
-                restoreThen(function () { runAnalysis(wavPath, selRanges); });
+                restoreThen(function () { verifyExportContext(wavPath, selRanges); });
                 return;
             }
             // Direkt export olmadı → AME kuyruğuna düş
@@ -447,10 +469,20 @@
                     }
                     log('Ses dışa aktarıldı (AME, ' + ((Date.now() - t0) / 1000).toFixed(1) +
                         ' sn, ' + Math.round(size / 1024 / 1024) + ' MB)');
-                    state.exportCache = state.pendingSig;
-                    restoreThen(function () { runAnalysis(wavPath, selRanges); });
+                    restoreThen(function () { verifyExportContext(wavPath, selRanges); });
                 });
             });
+        });
+    }
+
+    function verifyExportContext(wavPath, selRanges) {
+        evalJsx('ACS_getAnalysisContext()', function (res) {
+            var p = res.split('|');
+            if (p[0] !== 'OK' || p[1] !== state.planContext) {
+                exportFailed('Ses aktarilirken timeline degisti. Tekrar analiz edin.');
+                return;
+            }
+            runAnalysis(wavPath, selRanges);
         });
     }
 
@@ -485,6 +517,7 @@
                     cuts = intersectCuts(cuts, selRanges);
                     scopeNote = ' (seçim dışı ' + (before - cuts.length) + ' aday elendi)';
                 }
+                cuts = ACSAnalyzer.alignCuts(cuts, state.fps);
                 state.lastCuts = cuts;
 
                 var totalCut = 0;
@@ -509,6 +542,8 @@
                     resetCutButton();
                 }
             } catch (e) {
+                state.lastCuts = null;
+                state.planContext = null;
                 log('Analiz HATASI: ' + (e && e.message ? e.message : e));
                 showResult(false, 'Analiz başarısız. Günlüğe bakın.');
             }
@@ -538,6 +573,7 @@
     }
 
     function cut() {
+        if (state.busy) return;
         if (!state.lastCuts || state.lastCuts.length === 0) return;
         if (!state.cutArmed) {
             state.cutArmed = true;
@@ -559,7 +595,10 @@
         }
 
         var manage = getManageMode();
+        var useBulk = manage.indexOf('remove_') === 0 && $('deleteEngine').value === 'bulk';
         var btn = $('btnCut');
+        state.busy = true;
+        $('btnAnalyze').disabled = true;
         btn.disabled = true;
         var t0 = Date.now();
         var tPhase = Date.now();
@@ -579,11 +618,21 @@
         };
         log('İşlem başladı: ' + cuts.length + ' aralık, mod: ' + MANAGE_LABELS[manage]);
 
+        var mutationStarted = false;
         function cutFailed(msg) {
+            evalJsx('ACS_endEdit()', function () {});
+            state.busy = false;
+            state.lastCuts = null;
+            state.planContext = null;
+            $('btnAnalyze').disabled = false;
             btn.disabled = false;
+            btn.style.display = 'none';
+            $('manageRow').style.display = 'none';
             log('Kesim HATASI: ' + msg);
-            showResult(false, 'Kesim yarıda kaldı. Günlüğe bakın. Timeline\'ı Ctrl+Z ile geri alın ' +
-                '(her parti ayrı undo adımı olabilir, birkaç kez basın).');
+            showResult(false, 'İşlem durduruldu. Günlüğe bakın.' + (mutationStarted
+                ? '<br>Timeline\'da değişiklik yapılmış olabilir. Gerekirse Ctrl+Z ile geri alın ' +
+                  '(her parti ayrı undo adımı olabilir).'
+                : '<br>Kesim başlamadı. Yeniden analiz edin.'));
             resetCutButton();
         }
 
@@ -594,7 +643,8 @@
             evalJsx('ACS_backupSequence()', function (res) {
                 var p = res.split('|');
                 if (p[0] !== 'OK') {
-                    log('UYARI: yedek oluşturulamadı (' + p.slice(1).join('|') + '), devam ediliyor.');
+                    cutFailed('yedek: ' + p.slice(1).join('|'));
+                    return;
                 } else {
                     log('Yedek sequence oluşturuldu: "' + p[1] + '" kopyası Project panelinde.');
                 }
@@ -610,17 +660,20 @@
                     (prog.razorErr ? ', ' + prog.razorErr + ' hata' : ''));
                 // Native multi-track razor linkleri koruduğu için relink yok
                 if (manage === 'cutonly') done();
-                else if (manage === 'mute') muteStep(0);
-                else removeStep(0);
+                else prepareClipAction(manage === 'mute' ? 'mute' : 'remove');
                 return;
             }
             var chunk = boundaries.slice(idx, idx + CHUNK_RAZOR);
             btn.textContent = '⏳ Razor: ' + Math.min(idx + chunk.length, boundaries.length) +
                 '/' + boundaries.length;
+            mutationStarted = true;
             evalJsx('ACS_razorBatch("' + chunk.join(';') + '", "' +
                 (manage === 'mute' ? 'audio' : 'all') + '")', function (res) {
                 var p = res.split('|');
                 if (p[0] !== 'OK') { cutFailed('razor: ' + p.slice(1).join('|')); return; }
+                if ((parseInt(p[3], 10) || 0) > 0) {
+                    cutFailed('razor: ' + p[3] + ' hata; ' + p[4]); return;
+                }
                 prog.razored += parseInt(p[1], 10) || 0;
                 prog.razorErr += parseInt(p[3], 10) || 0;
                 if (p[5] && prog.razorMode.indexOf(p[5]) < 0) {
@@ -635,41 +688,73 @@
         }
 
         // Faz 2a: ripple'sız silme
-        function removeStep(idx) {
-            if (idx >= cuts.length) {
-                log('Silme bitti: ' + prog.removed + ' klip silindi (' + phaseElapsed() + ')');
+        function prepareClipAction(action) {
+            btn.textContent = '⏳ Klipler hazırlanıyor…';
+            evalJsx('ACS_prepareClipAction("' + pairsStr(cuts) + '", "' + action + '")', function (res) {
+                var p = res.split('|');
+                if (p[0] !== 'OK') { cutFailed('klip hazırlığı: ' + p.slice(1).join('|')); return; }
+                var total = parseInt(p[1], 10) || 0;
+                log('Tek taramada hazırlanan klip: ' + total);
+                if (useBulk) { bulkRemove(total); return; }
+                applyClipAction(0, total, action);
+            });
+        }
+
+        function bulkRemove(total) {
+            evalJsx('ACS_getBulkPlan()', function (res) {
+                if (res.indexOf('OK|') !== 0) { cutFailed(res); return; }
+                try {
+                    var lines = res.split('\n'), header = lines.shift().split('|');
+                    var plan = { projectPath: decodeURIComponent(header[1]), sequenceID: decodeURIComponent(header[2]),
+                        targets: lines.filter(function (line) { return line.length > 0; }).map(function (line) {
+                            var fields = line.split(','), n = fields.slice(0, 6).map(Number);
+                            return { g: n[0], t: n[1], s: n[2], e: n[3], inPoint: n[4], outPoint: n[5],
+                                mediaPath: decodeURIComponent(fields[6]), sourceName: decodeURIComponent(fields[7]) };
+                        }) };
+                    if (plan.targets.length !== total) throw new Error('Toplu plan sayısı uyuşmuyor');
+                    btn.textContent = '⏳ Toplu silme: ' + total + ' klip…';
+                    log('Toplu UXP silme: tüm video/ses hedefleri tek işlemde, undo korunuyor.');
+                    bulkBridge.submit(plan, function (err, result) {
+                        if (err) { cutFailed(String(err)); return; }
+                        if (!result || result.removed !== total || !Array.isArray(result.timings) ||
+                            !isFinite(result.prepareMs) || !isFinite(result.commitMs)) {
+                            cutFailed('Toplu motor sonucu uyuşmuyor'); return;
+                        }
+                        prog.removed = result.removed;
+                        result.timings.forEach(function (timing) {
+                            log('UXP ' + timing.track + ' tarama: ' + timing.scanMs + ' ms');
+                        });
+                        log('UXP hazırlık: ' + result.prepareMs + ' ms | native silme: ' + result.commitMs + ' ms');
+                        applyClipAction(total, total, 'remove');
+                    });
+                } catch (err) { cutFailed(String(err)); }
+            });
+        }
+
+        function applyClipAction(from, total, action) {
+            if (from >= total) {
+                if (action === 'mute') log('Susturma bitti: ' + prog.muted + ' ses klibi (' + phaseElapsed() + ')');
+                else log('Silme bitti: ' + prog.removed + ' klip silindi (' + phaseElapsed() + ')');
                 if (manage === 'remove_close') compactStep();
-                else done(); // remove_keep: boşluklar kalır, linkler korunur
+                else done();
                 return;
             }
-            var chunk = cuts.slice(idx, idx + CHUNK_REMOVE);
-            btn.textContent = '⏳ Silme: ' + Math.min(idx + chunk.length, cuts.length) +
-                '/' + cuts.length;
-            evalJsx('ACS_removeBatch("' + pairsStr(chunk) + '")', function (res) {
+            btn.textContent = '⏳ ' + (action === 'mute' ? 'Susturma' : 'Silme') + ': ' + from + '/' + total;
+            var batchStarted = Date.now();
+            evalJsx('ACS_applyClipAction(' + from + ', ' + CHUNK_REMOVE + ')', function (res) {
                 var p = res.split('|');
-                if (p[0] !== 'OK') { cutFailed('silme: ' + p.slice(1).join('|')); return; }
-                prog.removed += parseInt(p[1], 10) || 0;
-                setTimeout(function () { removeStep(idx + CHUNK_REMOVE); }, 30);
+                if (p[0] !== 'OK') { cutFailed('klip işlemi: ' + p.slice(1).join('|')); return; }
+                var processed = parseInt(p[1], 10) || 0;
+                if (processed <= 0) { cutFailed('klip partisi ilerlemedi'); return; }
+                if (action === 'mute') prog.muted += parseInt(p[2], 10) || 0;
+                else prog.removed += parseInt(p[2], 10) || 0;
+                log('CEP parti ' + (from + 1) + '–' + (from + processed) + ': ' +
+                    (Date.now() - batchStarted) + ' ms');
+                setTimeout(function () { applyClipAction(from + processed, total, action); }, 30);
             });
         }
 
         // Faz 2b: susturma (ses kliplerini devre dışı bırak, hiçbir şey kaymaz)
-        function muteStep(idx) {
-            if (idx >= cuts.length) {
-                log('Susturma bitti: ' + prog.muted + ' ses klibi devre dışı (' + phaseElapsed() + ')');
-                done();
-                return;
-            }
-            var chunk = cuts.slice(idx, idx + CHUNK_REMOVE);
-            btn.textContent = '⏳ Susturma: ' + Math.min(idx + chunk.length, cuts.length) +
-                '/' + cuts.length;
-            evalJsx('ACS_muteBatch("' + pairsStr(chunk) + '")', function (res) {
-                var p = res.split('|');
-                if (p[0] !== 'OK') { cutFailed('susturma: ' + p.slice(1).join('|')); return; }
-                prog.muted += parseInt(p[1], 10) || 0;
-                setTimeout(function () { muteStep(idx + CHUNK_REMOVE); }, 30);
-            });
-        }
 
         // Faz 3: kompaksiyon (link-güvenli, unlink/relink YOK).
         // Adım 1: tüm kliplerin hedef pozisyonu bir kez hesaplanır (JSX global).
@@ -681,9 +766,7 @@
                 function (res) {
                 var p = res.split('|');
                 if (p[0] !== 'OK') {
-                    log('Kompaksiyon hazırlığı HATASI: ' + p.slice(1).join('|'));
-                    log('Boşluklar açık kaldı; gerekirse Ctrl+Z ile geri alın.');
-                    done();
+                    cutFailed('kompaksiyon hazırlığı: ' + p.slice(1).join('|'));
                     return;
                 }
                 var nTargets = parseInt(p[1], 10) || 0;
@@ -698,15 +781,16 @@
             evalJsx('ACS_compactApply(' + from + ', ' + CHUNK_REMOVE + ')', function (res) {
                 var p = res.split('|');
                 if (p[0] !== 'OK') {
-                    log('Kompaksiyon HATASI: ' + p.slice(1).join('|'));
-                    log('Boşluklar açık kalmış olabilir; gerekirse Ctrl+Z ile geri alın.');
-                    done();
+                    cutFailed('kompaksiyon: ' + p.slice(1).join('|'));
                     return;
                 }
                 var processed = parseInt(p[1], 10) || 0;
                 prog.compacted += parseInt(p[2], 10) || 0;
                 total = parseInt(p[3], 10) || total;
                 prog.compactErr += parseInt(p[4], 10) || 0;
+                if (prog.compactErr || processed <= 0) {
+                    cutFailed('kompaksiyon: ' + (p[5] || 'parti ilerlemedi')); return;
+                }
                 if (p[5] && prog.compactErr && !prog.compactErrLogged) {
                     prog.compactErrLogged = 1;
                     log('Kompaksiyon ilk hata: ' + p.slice(5).join('|'));
@@ -725,6 +809,11 @@
         }
 
         function done() {
+            evalJsx('ACS_endEdit()', function () {});
+            state.busy = false;
+            state.lastCuts = null;
+            state.planContext = null;
+            $('btnAnalyze').disabled = false;
             btn.disabled = false;
             var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
             var summary = 'razor=' + prog.razored;
@@ -744,7 +833,27 @@
             $('manageRow').style.display = 'none';
         }
 
-        backupStep();
+        function beginEdit() {
+            evalJsx('ACS_beginEdit("' + jsxEscape(state.planContext) + '", "' + manage + '")', function (res) {
+            if (res.split('|')[0] !== 'OK') { cutFailed(res.split('|').slice(1).join('|')); return; }
+            backupStep();
+            });
+        }
+        if (useBulk) {
+            if (!bulkBridge || !bulkBridge.ready()) {
+                cutFailed('Toplu motor bağlı değil. Plugins menüsünden HooDoo Cut Toplu Motor panelini açın.');
+                return;
+            }
+            evalJsx('ACS_getBulkIdentity()', function (res) {
+                var p = res.split('|'), context = bulkBridge.context();
+                if (p[0] !== 'OK' || decodeURIComponent(p[1]) !== context.projectPath ||
+                    decodeURIComponent(p[2]).replace(/[{}]/g, '').toLowerCase() !== context.sequenceID) {
+                    cutFailed('Toplu motor farklı proje/sequence görüyor. Panel bağlantısını bekleyip yeniden analiz edin.');
+                    return;
+                }
+                beginEdit();
+            });
+        } else beginEdit();
     }
 
     function getManageMode() {
@@ -895,6 +1004,15 @@
     }
 
     /* ---- başlangıç ---- */
+
+    if (nodeRequire) {
+        try {
+            bulkBridge = nodeRequire(extPath + '/client/js/bulk-bridge.js')(51373, function (err) {
+                log('Toplu motor köprüsü açılamadı: ' + String(err));
+            });
+            window.addEventListener('unload', function () { bulkBridge.close(); });
+        } catch (err) { log('Toplu motor yüklenemedi: ' + String(err)); }
+    }
 
     log('HooDoo Cut yüklendi. Sürüm ' + ACS_VERSION);
     if (!nodeRequire) log('HATA: Node.js erişimi yok!');

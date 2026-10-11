@@ -72,10 +72,12 @@ function ACS_getSelection() {
                 var it = sel[i];
                 if (it.mediaType === 'Empty') continue;
                 parts.push(it.start.seconds + ',' + it.end.seconds);
-            } catch (e1) {}
+            } catch (e1) { throw e1; }
         }
         if (parts.length === 0) return 'ERR|Secili clip yok';
-        return 'OK|' + parts.join(';');
+        var context = ACS_getAnalysisContext();
+        if (context.split('|')[0] !== 'OK') return context;
+        return 'OK|' + parts.join(';') + '|' + context.split('|')[1];
     } catch (e) {
         return 'ERR|' + e.toString();
     }
@@ -91,8 +93,7 @@ var ACS_savedMutes = null;
  * her durumda isMuted() ile DOGRULAYARAK ayarla. */
 function ACS_setTrackMute(tr, wantMuted) {
     try {
-        var cur = false;
-        try { cur = tr.isMuted(); } catch (e0) {}
+        var cur = tr.isMuted();
         if (cur === wantMuted) return true;
         try { tr.setMute(wantMuted ? 1 : 0); } catch (e1) {}
         try { if (tr.isMuted() === wantMuted) return true; } catch (e2) {}
@@ -104,6 +105,10 @@ function ACS_setTrackMute(tr, wantMuted) {
 
 function ACS_muteForAnalysis(includeStr) {
     try {
+        if (ACS_savedMutes) {
+            var restored = ACS_restoreMutes();
+            if (restored.split('|')[0] !== 'OK') return restored;
+        }
         var seq = app.project.activeSequence;
         if (!seq) return 'ERR|Aktif sequence yok';
         var include = {};
@@ -116,29 +121,37 @@ function ACS_muteForAnalysis(includeStr) {
         var changed = 0, failed = 0;
         for (var t = 0; t < seq.audioTracks.numTracks; t++) {
             var tr = seq.audioTracks[t];
-            var was = false;
-            try { was = tr.isMuted(); } catch (e1) {}
-            ACS_savedMutes.push(was);
-            var want = include[t] ? false : true;
+            var was = tr.isMuted();
+            ACS_savedMutes.push({ ref: tr, muted: was });
+        }
+        for (var j = 0; j < ACS_savedMutes.length; j++) {
+            var saved = ACS_savedMutes[j];
+            var was = saved.muted;
+            var want = include[j] ? false : true;
             if (was !== want) {
-                if (ACS_setTrackMute(tr, want)) changed++;
+                if (ACS_setTrackMute(saved.ref, want)) changed++;
                 else failed++;
             }
         }
         return 'OK|' + changed + '|' + failed;
     } catch (e) {
-        ACS_savedMutes = null;
-        return 'ERR|' + e.toString();
+        var recovery = ACS_restoreMutes();
+        return 'ERR|' + e.toString() + (recovery.split('|')[0] === 'OK' ? '' : '; ' + recovery);
     }
 }
 
 function ACS_restoreMutes() {
     try {
-        var seq = app.project.activeSequence;
-        if (!seq || !ACS_savedMutes) return 'OK|0';
-        var n = 0;
-        for (var t = 0; t < seq.audioTracks.numTracks && t < ACS_savedMutes.length; t++) {
-            if (ACS_setTrackMute(seq.audioTracks[t], ACS_savedMutes[t])) n++;
+        if (!ACS_savedMutes) return 'OK|0';
+        var n = 0, pending = [];
+        for (var t = 0; t < ACS_savedMutes.length; t++) {
+            var saved = ACS_savedMutes[t];
+            if (ACS_setTrackMute(saved.ref, saved.muted)) n++;
+            else pending.push(saved);
+        }
+        if (pending.length) {
+            ACS_savedMutes = pending;
+            return 'ERR|' + pending.length + ' track mute geri yuklenemedi';
         }
         ACS_savedMutes = null;
         return 'OK|' + n;
@@ -224,10 +237,10 @@ function ACS_parseSilences(silStr) {
 function ACS_getContentTrackIndices(seq) {
     var v = [], a = [], i;
     for (i = 0; i < seq.videoTracks.numTracks; i++) {
-        try { if (seq.videoTracks[i].clips.numItems > 0) v.push(i); } catch (e1) {}
+        if (seq.videoTracks[i].clips.numItems > 0) v.push(i);
     }
     for (i = 0; i < seq.audioTracks.numTracks; i++) {
-        try { if (seq.audioTracks[i].clips.numItems > 0) a.push(i); } catch (e2) {}
+        if (seq.audioTracks[i].clips.numItems > 0) a.push(i);
     }
     return { v: v, a: a };
 }
@@ -286,6 +299,7 @@ function ACS_frameToTimecode(frameNumber, fps, dropFrame) {
  * matematikle uretilir (fast mode). Tutmazsa eski guvenli yontem kullanilir. */
 function ACS_razorBatch(boundariesStr, tracksMode) {
     try {
+        ACS_checkEditSequence();
         var seq = app.project.activeSequence;
         if (!seq) return 'ERR|Aktif sequence yok';
         app.enableQE();
@@ -350,8 +364,7 @@ function ACS_razorBatch(boundariesStr, tracksMode) {
                 else ACS_razorTracksAtTimecode(qeSeq, tc2, tracks);
                 done++;
             } catch (e1) {
-                errors++;
-                if (!firstErr) firstErr = e1.toString();
+                return 'ERR|Razor durduruldu (' + done + ' sinir tamamlandi): ' + e1.toString();
             }
         }
         return 'OK|' + done + '|' + skipped + '|' + errors + '|' + firstErr + '|' + mode +
@@ -365,11 +378,13 @@ function ACS_razorTracksAtTimecode(qeSeq, tc, tracks) {
     var i, tr;
     for (i = 0; i < tracks.v.length; i++) {
         tr = qeSeq.getVideoTrackAt(tracks.v[i]);
-        if (tr) { try { tr.razor(tc); } catch (e1) {} }
+        if (!tr) throw new Error('QE video track alinamadi');
+        tr.razor(tc);
     }
     for (i = 0; i < tracks.a.length; i++) {
         tr = qeSeq.getAudioTrackAt(tracks.a[i]);
-        if (tr) { try { tr.razor(tc); } catch (e2) {} }
+        if (!tr) throw new Error('QE ses track alinamadi');
+        tr.razor(tc);
     }
 }
 
@@ -390,6 +405,7 @@ var ACS_moveEps = 0.02;
 
 function ACS_compactPrepare(cutsStr, tcMode) {
     try {
+        ACS_checkEditSequence();
         var seq = app.project.activeSequence;
         if (!seq) return 'ERR|Aktif sequence yok';
         var cuts = ACS_parseSilences(cutsStr);
@@ -399,10 +415,7 @@ function ACS_compactPrepare(cutsStr, tcMode) {
         var fps = ACS_TICKS_PER_SECOND / parseFloat(seq.timebase);
         ACS_moveEps = 0.5 / fps; // yarim kare toleransi
         var i;
-        for (i = 0; i < cuts.length; i++) {
-            cuts[i].start = ACS_snapSec(cuts[i].start, fps, tcMode);
-            cuts[i].end = ACS_snapSec(cuts[i].end, fps, tcMode);
-        }
+        // Panel kesimleri onceden kareye hizalar; tekrar yuvarlama kayma uretir.
         cuts.sort(function (a, b) { return a.start - b.start; });
 
         var prefixEnd = [], prefixTot = [];
@@ -412,7 +425,7 @@ function ACS_compactPrepare(cutsStr, tcMode) {
             prefixEnd.push(cuts[i].end);
             prefixTot.push(acc);
         }
-        var EPS = 0.05;
+        var EPS = 0.000001;
         function offsetFor(s) {
             var lo = 0, hi = prefixEnd.length - 1, ans = 0;
             while (lo <= hi) {
@@ -441,7 +454,7 @@ function ACS_compactPrepare(cutsStr, tcMode) {
                     if (off > 0.0005) {
                         ACS_moveTargets.push({ ref: item, target: s - off });
                     }
-                } catch (eI) {}
+                } catch (eI) { throw eI; }
             }
         }
         return 'OK|' + ACS_moveTargets.length + '|' + total;
@@ -453,6 +466,7 @@ function ACS_compactPrepare(cutsStr, tcMode) {
 
 function ACS_compactApply(from, count) {
     try {
+        ACS_checkEditSequence();
         if (!ACS_moveTargets) return 'ERR|compactPrepare cagrilmadi (global bos)';
         var f = parseInt(from, 10) || 0;
         var n = parseInt(count, 10) || 60;
@@ -465,11 +479,13 @@ function ACS_compactApply(from, count) {
                 var delta = mt.target - cur;
                 if (delta < -ACS_moveEps || delta > ACS_moveEps) {
                     mt.ref.move(delta);
+                    if (Math.abs(mt.ref.start.seconds - mt.target) > ACS_moveEps) {
+                        throw new Error('Klip hedef konuma tasinamadi');
+                    }
                     moved++;
                 }
             } catch (eM) {
-                errors++;
-                if (!firstErr) firstErr = eM.toString();
+                return 'ERR|' + eM.toString();
             }
         }
         return 'OK|' + (to - f) + '|' + moved + '|' + ACS_moveTargets.length +
@@ -484,6 +500,203 @@ function ACS_compactApply(from, count) {
  * merge-scan ile yapilir. Eski O(aralik x clip) DOM taramasi uzun videolarda
  * donduruyordu; bu surum O(aralik + clip). Ripple olmadigi icin hicbir sey
  * kaymaz, partiler arasi tutarlilik garantili. */
+var ACS_editSequenceID = null;
+var ACS_clipAction = null;
+
+/* Premiere'in resmi Track DOM'u kilit bilgisini sunmayabilir; QE'ye dus.
+ * Bilinmeyen durum kilitsiz varsayilmaz. */
+function ACS_trackLocked(track, group, index) {
+    if (typeof track.isLocked === 'function') return !!track.isLocked();
+    app.enableQE();
+    var qeSeq = qe.project.getActiveSequence();
+    if (!qeSeq) throw new Error('Track kilidi okunamadi: QE sequence yok');
+    var qeTrack = group === 0 ? qeSeq.getVideoTrackAt(index) : qeSeq.getAudioTrackAt(index);
+    if (!qeTrack || typeof qeTrack.isLocked !== 'function') throw new Error('Track kilidi okunamadi');
+    var locked = qeTrack.isLocked();
+    if (locked !== true && locked !== false && locked !== 0 && locked !== 1) {
+        throw new Error('Track kilit durumu belirsiz');
+    }
+    return !!locked;
+}
+
+/* Yapısal kimlik: ad ve sure ayni kalsa bile farkli sequence/kaynak/yerlesim
+ * eski analizi gecersiz kilar. Ses efekti degisiklikleri icin tekrar analiz gerekir. */
+function ACS_getAnalysisContext() {
+    try {
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        var parts = [app.project.path, seq.sequenceID, seq.timebase, seq.end, seq.zeroPoint, seq.videoDisplayFormat];
+        var groups = [seq.videoTracks, seq.audioTracks];
+        for (var g = 0; g < groups.length; g++) {
+            parts.push(groups[g].numTracks);
+            for (var t = 0; t < groups[g].numTracks; t++) {
+                var track = groups[g][t];
+                parts.push(track.clips.numItems > 0 ? ACS_trackLocked(track, g, t) : '',
+                    g === 1 ? track.isMuted() : '', track.clips.numItems);
+                for (var c = 0; c < track.clips.numItems; c++) {
+                    var it = track.clips[c];
+                    parts.push(it.nodeId, it.start.seconds, it.end.seconds,
+                        it.inPoint.seconds, it.outPoint.seconds, it.disabled);
+                    if (typeof it.getSpeed === 'function') parts.push(it.getSpeed(), it.isSpeedReversed());
+                    if (it.projectItem) parts.push(it.projectItem.nodeId, it.projectItem.getMediaPath());
+                }
+            }
+        }
+        // Uzun timeline kimligini CEP koprusune sabit boyutta aktar.
+        var value = parts.join('\n'), h1 = 2166136261, h2 = 5381;
+        for (var i = 0; i < value.length; i++) {
+            h1 = ((h1 << 5) - h1) ^ value.charCodeAt(i);
+            h2 = ((h2 << 5) + h2) ^ value.charCodeAt(i);
+        }
+        return 'OK|' + (h1 >>> 0) + ':' + (h2 >>> 0) + ':' + value.length +
+            '|' + (ACS_TICKS_PER_SECOND / parseFloat(seq.timebase));
+    } catch (e) { return 'ERR|' + e.toString(); }
+}
+
+function ACS_beginEdit(expectedContext, manage) {
+    ACS_endEdit();
+    var context = ACS_getAnalysisContext();
+    if (context.split('|')[0] !== 'OK') return context;
+    if (context.split('|')[1] !== expectedContext) return 'ERR|Timeline degisti. Tekrar analiz edin.';
+    var seq = app.project.activeSequence;
+    var groups = manage === 'mute' ? [seq.audioTracks] : [seq.videoTracks, seq.audioTracks];
+    for (var g = 0; g < groups.length; g++) {
+        for (var t = 0; t < groups[g].numTracks; t++) {
+            var track = groups[g][t];
+            if (track.clips.numItems > 0 && ACS_trackLocked(track, manage === 'mute' ? 1 : g, t)) {
+                return 'ERR|Islemden once ilgili track kilitlerini acin';
+            }
+        }
+    }
+    ACS_editSequenceID = app.project.activeSequence.sequenceID;
+    return 'OK';
+}
+
+function ACS_endEdit() {
+    ACS_editSequenceID = null;
+    ACS_clipAction = null;
+    ACS_moveTargets = null;
+    return 'OK';
+}
+
+function ACS_checkEditSequence() {
+    if (ACS_editSequenceID !== null && (!app.project.activeSequence ||
+        app.project.activeSequence.sequenceID !== ACS_editSequenceID)) {
+        throw new Error('Aktif sequence degisti. Islem durduruldu.');
+    }
+}
+
+/* Butun araliklar icin tek DOM taramasi. Ripple olmadan referanslar kalir. */
+function ACS_prepareClipAction(silencesStr, action) {
+    try {
+        ACS_checkEditSequence();
+        ACS_clipAction = null;
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        if (action !== 'remove' && action !== 'mute') return 'ERR|Gecersiz klip islemi';
+        var ivs = ACS_parseSilences(silencesStr);
+        ivs.sort(function (a, b) { return a.start - b.start; });
+        var targets = [], EPS = 0.000001;
+        var groups = action === 'mute' ? [seq.audioTracks] : [seq.videoTracks, seq.audioTracks];
+        for (var g = 0; g < groups.length; g++) {
+            for (var t = 0; t < groups[g].numTracks; t++) {
+                var track = groups[g][t];
+                if (track.clips.numItems > 0 && ACS_trackLocked(track, action === 'mute' ? 1 : g, t)) {
+                    throw new Error('Ilgili track kilitli; islem durduruldu');
+                }
+                var snap = [];
+                for (var c = 0; c < track.clips.numItems; c++) {
+                    var it = track.clips[c];
+                    snap.push({ ref: it, s: it.start.seconds, e: it.end.seconds,
+                                g: action === 'mute' ? 1 : g, t: t });
+                }
+                snap.sort(function (a, b) { return a.s - b.s; });
+                var trackTargets = [], k = 0;
+                for (var i = 0; i < snap.length; i++) {
+                    var sn = snap[i];
+                    while (k < ivs.length && ivs[k].end < sn.s + EPS) k++;
+                    if (k < ivs.length && sn.s >= ivs[k].start - EPS && sn.e <= ivs[k].end + EPS) {
+                        trackTargets.push(sn);
+                    } else if (k < ivs.length && sn.s < ivs[k].end - EPS && sn.e > ivs[k].start + EPS) {
+                        throw new Error('Kesim sinirini asan klip bulundu; razor sonucunu kontrol edin.');
+                    }
+                }
+                for (var r = trackTargets.length - 1; r >= 0; r--) targets.push(trackTargets[r]);
+            }
+        }
+        ACS_clipAction = { targets: targets, action: action, next: 0, sequenceID: seq.sequenceID };
+        return 'OK|' + targets.length;
+    } catch (e) { ACS_clipAction = null; return 'ERR|' + e.toString(); }
+}
+
+/* URI escaping keeps paths and arbitrary names outside the pipe protocol. */
+function ACS_getBulkIdentity() {
+    try {
+        ACS_checkEditSequence();
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        return 'OK|' + encodeURIComponent(app.project.path) + '|' + encodeURIComponent(seq.sequenceID);
+    } catch (e) { return 'ERR|' + e.toString(); }
+}
+
+function ACS_getBulkPlan() {
+    try {
+        ACS_checkEditSequence();
+        var job = ACS_clipAction;
+        if (!job || job.action !== 'remove' || job.next !== 0) return 'ERR|Silme plani hazir degil';
+        var lines = [ACS_getBulkIdentity()], checkedTracks = {};
+        if (lines[0].indexOf('OK|') !== 0) return lines[0];
+        for (var i = 0; i < job.targets.length; i++) {
+            var sn = job.targets[i];
+            var seq = app.project.activeSequence;
+            var track = (sn.g === 0 ? seq.videoTracks : seq.audioTracks)[sn.t];
+            var key = sn.g + ':' + sn.t;
+            if (!checkedTracks[key]) {
+                if (ACS_trackLocked(track, sn.g, sn.t)) throw new Error('Hedef track kilitli');
+                checkedTracks[key] = true;
+            }
+            if (Math.abs(sn.ref.start.seconds - sn.s) > 0.000001 ||
+                Math.abs(sn.ref.end.seconds - sn.e) > 0.000001) throw new Error('Hedef klip degisti');
+            var source = sn.ref.projectItem;
+            lines.push([sn.g, sn.t, sn.s, sn.e, sn.ref.inPoint.seconds, sn.ref.outPoint.seconds,
+                encodeURIComponent(source.getMediaPath()), encodeURIComponent(source.name || '')].join(','));
+        }
+        return lines.join('\n');
+    } catch (e) { return 'ERR|' + e.toString(); }
+}
+
+function ACS_applyClipAction(from, count) {
+    try {
+        ACS_checkEditSequence();
+        var job = ACS_clipAction;
+        if (!job) return 'ERR|Klip islemi hazirlanmadi';
+        if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== job.sequenceID) {
+            return 'ERR|Aktif sequence degisti';
+        }
+        var f = parseInt(from, 10), n = parseInt(count, 10);
+        if (f !== job.next || !(n > 0)) return 'ERR|Gecersiz klip partisi';
+        var to = Math.min(f + n, job.targets.length), changed = 0;
+        for (var i = f; i < to; i++) {
+            var sn = job.targets[i];
+            if (Math.abs(sn.ref.start.seconds - sn.s) > 0.000001 ||
+                Math.abs(sn.ref.end.seconds - sn.e) > 0.000001) throw new Error('Hedef klip yeri degisti');
+            if (job.action === 'remove') {
+                // Host surumune gore basari 0 veya true; eski host'larda undefined olabilir.
+                var result = sn.ref.remove(false, false);
+                if (result !== undefined && result !== 0 && result !== true) {
+                    throw new Error('Klip silinemedi: ' + result);
+                }
+            } else {
+                sn.ref.disabled = true;
+                if (!sn.ref.disabled) throw new Error('Klip susturulamadi');
+            }
+            changed++;
+            job.next = i + 1;
+        }
+        return 'OK|' + (to - f) + '|' + changed + '|' + job.targets.length;
+    } catch (e) { ACS_clipAction = null; return 'ERR|' + e.toString(); }
+}
+
 function ACS_removeBatch(silencesStr) {
     try {
         var seq = app.project.activeSequence;
@@ -492,7 +705,7 @@ function ACS_removeBatch(silencesStr) {
         if (ivs.length === 0) return 'OK|0';
         ivs.sort(function (a, b) { return a.start - b.start; });
 
-        var EPS = 0.08; // frame yuvarlama toleransi (saniye)
+        var EPS = 0.000001; // yalniz kayan nokta toleransi; komsu kareleri silme
         var removed = 0;
         var groups = [seq.videoTracks, seq.audioTracks];
         for (var g = 0; g < groups.length; g++) {
@@ -528,7 +741,7 @@ function ACS_removeBatch(silencesStr) {
 
                 // 3) Sondan basa sil (index kaymasi olmasin)
                 for (var r = toRemove.length - 1; r >= 0; r--) {
-                    try { toRemove[r].remove(false, false); removed++; } catch (eR) {}
+                    toRemove[r].remove(false, false); removed++;
                 }
             }
         }
@@ -550,7 +763,7 @@ function ACS_muteBatch(silencesStr) {
         if (ivs.length === 0) return 'OK|0';
         ivs.sort(function (a, b) { return a.start - b.start; });
 
-        var EPS = 0.08;
+        var EPS = 0.000001;
         var muted = 0;
         var tracks = seq.audioTracks;
         for (var t = 0; t < tracks.numTracks; t++) {
@@ -573,7 +786,7 @@ function ACS_muteBatch(silencesStr) {
                 while (k < ivs.length && ivs[k].end + EPS < sn.s) k++;
                 for (var kk = k; kk < ivs.length && ivs[kk].start - EPS <= sn.s; kk++) {
                     if (sn.s >= ivs[kk].start - EPS && sn.e <= ivs[kk].end + EPS) {
-                        try { sn.ref.disabled = true; muted++; } catch (eD) {}
+                        sn.ref.disabled = true; muted++;
                         break;
                     }
                 }
@@ -806,19 +1019,19 @@ function ACS_clearSelection(seq) {
  * degistirirse orijinali geri aktif eder. */
 function ACS_backupSequence() {
     try {
+        ACS_checkEditSequence();
         var seq = app.project.activeSequence;
         if (!seq) return 'ERR|Aktif sequence yok';
         var name = seq.name;
-        seq.clone();
-        try {
-            if (app.project.activeSequence &&
-                app.project.activeSequence.name !== name) {
-                app.project.activeSequence = seq;
-            }
-        } catch (eA) {}
-        var nowName = '';
-        try { nowName = app.project.activeSequence.name; } catch (eN) {}
-        if (nowName !== name) return 'ERR|Yedek sonrasi aktif sequence degisti: ' + nowName;
+        var id = seq.sequenceID;
+        if (!seq.clone()) return 'ERR|Sequence kopyalanamadi';
+        if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== id) {
+            if (typeof app.project.openSequence === 'function') app.project.openSequence(id);
+            else app.project.activeSequence = seq;
+        }
+        if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== id) {
+            return 'ERR|Yedek sonrasi asil sequence acilamadi';
+        }
         return 'OK|' + name;
     } catch (e) {
         return 'ERR|' + e.toString();
