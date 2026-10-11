@@ -20,6 +20,7 @@ updated: 2026-10-11
   contributor gösterilmez ([[HooDoo Cut Kurulum ve Dağıtım]]).
 - **0.9.4.0 için GitHub Release oluşturulmayacak** — kullanıcı otomatik
   güncelleme istemiyor. [[HooDoo Cut Sürüm Geçmişi]], [[HooDoo Cut]] güncellendi.
+- `749a6ea..81d5dad` origin/main'e push edildi (Release/tag yok).
 - Commit dışı bırakılanlar: `.codegraph/` (yerel kod indeksi) ve kökte
   kaynağı belirsiz yeni `AGENTS.md` (var olmayan `docs/AGENTS.md`'ye işaret ediyor).
 
