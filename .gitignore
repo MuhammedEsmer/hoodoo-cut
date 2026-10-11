@@ -17,3 +17,6 @@ Thumbs.db
 # Obsidian kasasi (docs/) - kisisel calisma alani durumu
 docs/.obsidian/workspace*.json
 docs/.trash/
+
+# Yerel kod indeksi (codegraph) - otomatik uretilir
+.codegraph/

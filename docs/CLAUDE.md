@@ -19,7 +19,7 @@ kasa kalıcı, biriken bir eserdir — her oturum onu bozmadan büyütür.
 
 1. **[[index]]** — içerik kataloğu. Yeni not/belge eklenince buraya bağlantı ekle.
 2. **[[log]]** — append-only günlük. Her oturum sonunda en üste bir girdi ekle.
-3. **CLAUDE.md** (bu dosya) — kurallar.
+3. **CLAUDE.md** (bu dosya) — kurallar. Kök `CLAUDE.md` ve `AGENTS.md` birebir aynı tutulur.
 
 ## Klasörler
 

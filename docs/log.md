@@ -11,6 +11,13 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-11 — AGENTS.md ve .codegraph kararı
+
+- Kök `AGENTS.md` (Codex/Cursor/Gemini gibi diğer AI araçlarının talimat dosyası)
+  tutuldu; eski ve kırık kopya yerine `CLAUDE.md` ile birebir aynı yapıldı.
+  İkisi değiştiğinde birlikte güncellenir.
+- `.codegraph/` (yerel kod indeksi, otomatik üretilir) `.gitignore`'a eklendi.
+
 ## 2026-10-11 — Kod değişiklikleri commit edildi, Release yok kararı
 
 - `85002f9`: 0.9.3.4 → 0.9.4.0 CEP + UXP motor 0.9.8 + testler/araçlar tek
