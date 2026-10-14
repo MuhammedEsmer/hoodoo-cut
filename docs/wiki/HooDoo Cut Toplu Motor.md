@@ -18,7 +18,7 @@ updated: 2026-10-14
 # HooDoo Cut Toplu Motor
 
 **Plugins → HooDoo Cut Toplu Motor** paneli (`com.hoodoocut.bulk`, sürüm
-0.9.8). Silme aşamasını CEP'ten alır: tüm video ve ses hedefleri tek
+0.9.9). Silme aşamasını CEP'ten alır: tüm video ve ses hedefleri tek
 `TrackItemSelection`'a eklenir, tek
 `createRemoveItemsAction(..., false, MediaType.ANY, false)` tek
 `executeTransaction` içinde uygulanır. Ripple/overlap kaydırma kapalı;
