@@ -74,6 +74,18 @@ test('"e" flag trims every part end to start + duration / speed after setSpeed',
     assert.deepStrictEqual(ends, [['V', 1.5], ['A', 1.5]], res);
     assert(/end yazildi x2/.test(res), res);
 });
+test('"b" flag trims ends before setSpeed and the report shows source in/out', () => {
+    const { f, calls } = probeFixture(1);
+    const order = [];
+    f.host.Time = function () {};
+    const item = f.seq.videoTracks[0].items[0];
+    Object.defineProperty(item, 'end', { get: () => ({ seconds: 2 }), set: t => order.push('end:' + t.seconds) });
+    const qeCalls = calls;
+    const res = f.host.ACS_speedProbe('2 b');
+    order.push('speed:' + qeCalls.length);
+    assert.deepStrictEqual(order, ['end:1.5', 'speed:1'], res);
+    assert(/in=1 out=2/.test(res), res);
+});
 test('requires a selected clip', () => {
     const { f, calls } = probeFixture(0);
     assert(/klip secin/i.test(f.host.ACS_speedProbe('0.5')));

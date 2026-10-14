@@ -1230,7 +1230,8 @@ function ACS_speedProbe(applyValue) {
                 lines.push((parts[pi].g === 0 ? 'V' : 'A') + (parts[pi].t + 1) + '#' + (parts[pi].idx + 1) +
                     ' hiz=' + (typeof c.getSpeed === 'function' ? c.getSpeed() : '?') +
                     ' sure=' + (c.duration ? c.duration.seconds : c.end.seconds - c.start.seconds) +
-                    ' bas=' + c.start.seconds + ' sonraki=' + (n ? n.start.seconds : '-'));
+                    ' bas=' + c.start.seconds + ' in=' + (c.inPoint ? c.inPoint.seconds : '?') +
+                    ' out=' + (c.outPoint ? c.outPoint.seconds : '?') + ' sonraki=' + (n ? n.start.seconds : '-'));
             }
             return label + ': ' + lines.join(' | ');
         }
@@ -1242,7 +1243,8 @@ function ACS_speedProbe(applyValue) {
             // baslangic + (onceki sure / hiz) noktasina yazilir.
             var flags = ' ' + applyValue.toLowerCase().split(/\s+/).slice(1).join(' ') + ' ';
             var rippleFlag = flags.indexOf(' r ') >= 0, durationFlag = flags.indexOf(' d ') >= 0;
-            var endFlag = flags.indexOf(' e ') >= 0;
+            // "2 b": once end kisaltilir, sonra setSpeed (sure korunur, kaynak araligi geri uzar).
+            var endFlag = flags.indexOf(' e ') >= 0, endFirstFlag = flags.indexOf(' b ') >= 0;
             var v = parseFloat(applyValue);
             if (isNaN(v)) return 'ERR|Gecersiz hiz degeri';
             if (!sig) return 'ERR|setSpeed yok\n' + out.join('\n');
@@ -1271,6 +1273,19 @@ function ACS_speedProbe(applyValue) {
                 before.push({ start: bc.start.seconds,
                     dur: bc.duration ? bc.duration.seconds : bc.end.seconds - bc.start.seconds });
             }
+            function writeEnds() {
+                var endErrors = [];
+                for (var ei = 0; ei < parts.length; ei++) {
+                    try {
+                        var et = new Time();
+                        et.seconds = before[ei].start + before[ei].dur / v;
+                        groups[parts[ei].g][parts[ei].t].clips[parts[ei].idx].end = et;
+                    } catch (eE) { endErrors.push((ei + 1) + ': ' + eE.toString()); }
+                }
+                out.push('end yazildi x' + (parts.length - endErrors.length) +
+                    (endErrors.length ? ' | hata: ' + endErrors.join('; ') : ''));
+            }
+            if (endFirstFlag) { writeEnds(); out.push(state('end sonrasi')); }
             // setSpeed linkli partnerlere yayilmiyor (canli: yalniz V degisti) — her parca ayri.
             var results = [];
             for (var qi = 0; qi < qItems.length; qi++) {
@@ -1285,18 +1300,7 @@ function ACS_speedProbe(applyValue) {
                 results.push(r);
             }
             out.push('cagri: setSpeed(' + args.join(', ') + ') x' + qItems.length + ' -> ' + results.join(','));
-            if (endFlag) {
-                var endErrors = [];
-                for (var ei = 0; ei < parts.length; ei++) {
-                    try {
-                        var et = new Time();
-                        et.seconds = before[ei].start + before[ei].dur / v;
-                        groups[parts[ei].g][parts[ei].t].clips[parts[ei].idx].end = et;
-                    } catch (eE) { endErrors.push((ei + 1) + ': ' + eE.toString()); }
-                }
-                out.push('end yazildi x' + (parts.length - endErrors.length) +
-                    (endErrors.length ? ' | hata: ' + endErrors.join('; ') : ''));
-            }
+            if (endFlag && !endFirstFlag) writeEnds();
             out.push(state('sonra'));
         }
         return 'OK|' + out.join('\n');

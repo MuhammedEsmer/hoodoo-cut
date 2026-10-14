@@ -11,6 +11,12 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — DOM end çalışıyor ama hızı bozuyor; ters sıra denemesi (CEP 0.9.4.7)
+
+- `2 e` canlı: süre yarıya indi, hız 1.769'a kaydı, A2 farklı → senkron işaretleri. Başlangıç kirliydi (hız 0.5).
+- 0.9.4.7: `b` eki (önce end, sonra setSpeed) + raporda kaynak in/out. Test 8 senaryo, toplam **88 PASS**.
+  CEP kopyalandı. Release yok.
+
 ## 2026-10-14 — setSpeed süreyi asla değiştirmiyor; DOM end denemesi (CEP 0.9.4.6)
 
 - `0.5 d` canlı: süre aynı → setSpeed yalnız hız. Süre ayrı ayarlanacak.
