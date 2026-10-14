@@ -11,6 +11,12 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — setSpeed ikinci sonuç
+
+- 0.9.4.4 canlı: hız tüm linkli parçalara uygulanıyor (0.5 ve 2 denendi). p4 = false iken süre sabit,
+  yalnız kaynak aralığı değişiyor. `0.5 r` (ripple adayı) henüz denenmedi.
+  Ayrıntı: [[plans/2026-10-14-tik-ritmi|tık ritmi planı]].
+
 ## 2026-10-14 — setSpeed ilk sonuç, ikinci tanı (CEP 0.9.4.4)
 
 - Canlı: `setSpeed(0.5, '', false, false, false)` çalıştı; hız oran, yalnız V1 değişti (A1/A2 1),
