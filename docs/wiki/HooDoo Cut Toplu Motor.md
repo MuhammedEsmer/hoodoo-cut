@@ -12,7 +12,7 @@ sources:
   - com.hoodoocut/client/js/bulk-bridge.js
   - tools/package-bulk.js
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-14
 ---
 
 # HooDoo Cut Toplu Motor
@@ -23,6 +23,20 @@ updated: 2026-10-11
 `createRemoveItemsAction(..., false, MediaType.ANY, false)` tek
 `executeTransaction` içinde uygulanır. Ripple/overlap kaydırma kapalı;
 boşluk kapatma ayrı aşamadır. Undo korunur ve tek adımdır.
+
+**0.9.9'dan itibaren ripple:** "sil + boşlukları kapat" modunda panel plana
+`ripple: true` ve kesim aralıklarını (`cuts`) ekler. Motor silmeyi
+`createRemoveItemsAction(selection, true, ANY, false)` ile yapar — boşluklar
+aynı işlemde kapanır, CEP kompaksiyonu (klip klip `move`) atlanır. Commit'ten
+önce **tüm** video/ses track'leri taranır; sonra her kalan klibin başlangıcı
+`başlangıç − (o noktadan önce biten kesimlerin toplam süresi)` ile
+karşılaştırılır (tolerans 2 ms). Uyuşmazlık → hata, panel "tamamlandı" demez;
+tek Ctrl+Z geri alır. Motor `rippled` dönmezse (eski motor) panel klasik
+kompaksiyona düşer ve bunu günlüğe yazar.
+
+Canlı ölçüm (2026-10-14, 0.9.4.0, STT EP6, 37 dk, 12 kesim): native silme 9 ms,
+UXP hazırlık 41 ms; ardından CEP kompaksiyonu 753 klip / 24.8 sn — ripple bunun
+için yapıldı. Ripple'ın canlı sonucu henüz ölçülmedi.
 
 990 kliplik örnekte native silme çağrısı 990 → 1. **Bu çağrı sayısıdır,
 süre ölçümü değildir.** Razor hâlâ CEP/QE'dedir.

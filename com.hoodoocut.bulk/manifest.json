@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.hoodoocut.bulk",
   "name": "HooDoo Cut Toplu Motor",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "main": "index.html",
   "host": { "app": "premierepro", "minVersion": "26.5.0" },
   "entrypoints": [{ "type": "panel", "id": "bulk", "label": { "default": "HooDoo Cut Toplu Motor" }, "minimumSize": { "width": 230, "height": 100 } }],

@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.4.0'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.4.1'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -712,6 +712,11 @@
                                 mediaPath: decodeURIComponent(fields[6]), sourceName: decodeURIComponent(fields[7]) };
                         }) };
                     if (plan.targets.length !== total) throw new Error('Toplu plan sayısı uyuşmuyor');
+                    // Boşluk kapatma: motor aynı native işlemde ripple yapıp konumları doğrular.
+                    if (manage === 'remove_close') {
+                        plan.ripple = true;
+                        plan.cuts = cuts.map(function (c) { return { start: c.start, end: c.end }; });
+                    }
                     btn.textContent = '⏳ Toplu silme: ' + total + ' klip…';
                     log('Toplu UXP silme: tüm video/ses hedefleri tek işlemde, undo korunuyor.');
                     bulkBridge.submit(plan, function (err, result) {
@@ -725,6 +730,14 @@
                             log('UXP ' + timing.track + ' tarama: ' + timing.scanMs + ' ms');
                         });
                         log('UXP hazırlık: ' + result.prepareMs + ' ms | native silme: ' + result.commitMs + ' ms');
+                        if (manage === 'remove_close' && result.rippled === true) {
+                            prog.rippled = true;
+                            log('Ripple: boşluklar aynı işlemde kapandı, ' + result.verified +
+                                ' klibin konumu doğrulandı (' + phaseElapsed() + ')');
+                            done();
+                            return;
+                        }
+                        if (manage === 'remove_close') log('Not: toplu motor ripple desteklemiyor; klasik boşluk kapatma kullanılıyor.');
                         applyClipAction(total, total, 'remove');
                     });
                 } catch (err) { cutFailed(String(err)); }
@@ -820,7 +833,9 @@
             if (manage === 'remove_close' || manage === 'remove_keep') {
                 summary += ' | silinen=' + prog.removed;
             }
-            if (manage === 'remove_close') {
+            if (manage === 'remove_close' && prog.rippled) {
+                summary += ' | boşluklar=ripple';
+            } else if (manage === 'remove_close') {
                 summary += ' | taşınan=' + prog.compacted +
                     (prog.compactErr ? ' | taşımaHatası=' + prog.compactErr : '');
             }

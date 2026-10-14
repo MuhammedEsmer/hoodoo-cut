@@ -71,6 +71,38 @@ test('bulk path submits mixed targets without individual CEP deletion', () => {
     assert(p.elements.log.textContent.includes('İşlem tamamlandı'));
 });
 
+function bulkPanel(result) {
+    const sent = {};
+    const p = panel({ ACS_getBulkIdentity: 'OK|C%3A%5Ctest.prproj|sequence-1',
+        ACS_getBulkPlan: 'OK|C%3A%5Ctest.prproj|sequence-1\n0,0,1,2,1,2,source.wav,\n1,0,1,2,1,2,source.wav,' }, 'remove_close');
+    p.element('deleteEngine').value = 'bulk';
+    p.api.setBulkBridge({ ready: () => true, context: () => ({ projectPath: 'C:\\test.prproj', sequenceID: 'sequence-1' }),
+        submit: (plan, cb) => { sent.plan = plan; cb(null, Object.assign({ removed: 2, prepareMs: 3, commitMs: 4, timings: [] }, result)); } });
+    p.start(); p.drain();
+    return { p, plan: sent.plan };
+}
+test('bulk close-gaps asks for ripple and skips CEP compaction when verified', () => {
+    const { p, plan } = bulkPanel({ rippled: true, verified: 5 });
+    assert.strictEqual(plan.ripple, true);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(plan.cuts)), [{ start: 1, end: 2 }]);
+    assert(!p.calls.includes('ACS_compactPrepare'));
+    assert(p.elements.log.textContent.includes('İşlem tamamlandı'));
+});
+test('older bulk engine without ripple falls back to CEP compaction', () => {
+    const { p } = bulkPanel({});
+    assert(p.calls.includes('ACS_compactPrepare'));
+});
+test('bulk keep-gaps never requests ripple', () => {
+    let submitted;
+    const p = panel({ ACS_getBulkIdentity: 'OK|C%3A%5Ctest.prproj|sequence-1',
+        ACS_getBulkPlan: 'OK|C%3A%5Ctest.prproj|sequence-1\n0,0,1,2,1,2,source.wav,\n1,0,1,2,1,2,source.wav,' });
+    p.element('deleteEngine').value = 'bulk';
+    p.api.setBulkBridge({ ready: () => true, context: () => ({ projectPath: 'C:\\test.prproj', sequenceID: 'sequence-1' }),
+        submit: (plan, cb) => { submitted = plan; cb(null, { removed: 2, prepareMs: 1, commitMs: 1, timings: [] }); } });
+    p.start(); p.drain();
+    assert.notStrictEqual(submitted.ripple, true);
+});
+
 test('stale analysis stops before backup and razor', () => {
     const p = panel({ ACS_beginEdit: 'ERR|Timeline degisti' }); p.start(); p.drain();
     assert(!p.calls.includes('ACS_razorBatch'));

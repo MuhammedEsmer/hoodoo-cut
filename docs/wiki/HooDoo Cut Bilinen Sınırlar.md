@@ -28,7 +28,8 @@ updated: 2026-10-11
 
 ## Doğrulanmamış (canlı Premiere)
 
-- Toplu motorla gerçek silme süresi ve gerçek undo.
+- Toplu motorla gerçek undo. (Silme süresi ölçüldü: 36 klip 9 ms, 2026-10-14.)
+- **Ripple (0.9.9) canlı davranışı:** sync lock kapalı / boş alanlı track'lerde Premiere'in kaydırıp kaydırmadığı; doğrulama uyuşmazlığı yakalar ama sonucu ancak canlı test gösterir.
 - Geçişli / nested / multicam sequence davranışı.
 - 0.9.3.4 güvenlik kontrollerinin toplam süreye maliyeti.
 

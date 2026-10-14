@@ -24,6 +24,7 @@ commit'te toplandı: `85002f9` (2026-10-11).
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
+| 2026-10-14 | 0.9.4.1 | 0.9.9 | (bu commit) | **Ripple ile boşluk kapatma:** "sil + boşlukları kapat" + Toplu modda silme `ripple=true` ile tek native işlemde; tüm track'lerde konum doğrulaması. Eski motor ripple dönmezse CEP kompaksiyonuna düşer. Release yok |
 | 2026-10-07 | 0.9.4.0 | 0.9.8 | `85002f9` | Windows `\\?\` extended-path proje/medya yolu normalize ([[reports/2026-10-07-uxp-path-identity\|rapor]]) |
 | 2026-10-07 | 0.9.4.0 | 0.9.7 | `85002f9` | Ağ izni `domains: "all"` + kodda URL kısıtı; eski 0.9.6 kaydı kaldırıldı ([[reports/2026-10-07-uxp-permission\|rapor]]) |
 | 2026-10-06 | 0.9.4.0 | 0.9.6 | `85002f9` | `127.0.0.1:*` izin denemesi — başarısız ([[reports/2026-10-06-uxp-network-hotfix\|rapor]]) |

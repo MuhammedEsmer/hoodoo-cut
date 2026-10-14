@@ -8,7 +8,7 @@ sources:
   - com.hoodoocut/client/js/main.js
   - com.hoodoocut/host/index.jsx
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-14
 ---
 
 # HooDoo Cut Kesim Akışı
@@ -34,6 +34,11 @@ ilerleme görünür. Sıra:
    `ACS_compactApply`): önce her klibin hedefi hesaplanır, sonra her klip
    mevcut konumuna göre göreli taşınır — idempotent, çift kayma imkânsız.
    Unlink/relink yok (v0.7'de kaldırıldı).
+   **Toplu (UXP) modda 0.9.4.1+:** bu adım yapılmaz; boşluklar silmeyle aynı
+   native işlemde ripple ile kapanır ve konumlar doğrulanır ([[HooDoo Cut Toplu Motor]]).
+   CEP kompaksiyonu Klasik modda ve ripple desteklemeyen eski motorda kullanılır.
+   Not: kompaksiyon sırasında linkli klipler geçici olarak senkron dışı
+   görünür (kırmızı +N işaretleri); partner taşınınca düzelir.
 
 ## Kararlar
 

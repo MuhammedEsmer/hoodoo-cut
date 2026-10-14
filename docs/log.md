@@ -11,6 +11,19 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Ripple ile boşluk kapatma (CEP 0.9.4.1, motor 0.9.9)
+
+- Kullanıcının canlı logu (STT EP6, 37 dk sequence, seçili 4.9 sn bölge, 12 kesim): razor 1.7 sn,
+  toplu silme 0.8 sn (native 9 ms), CEP kompaksiyonu **753 klip / 24.8 sn** → toplam 27.4 sn.
+  Ekran görüntüsündeki kırmızı +N senkron işaretleri işlem *sırasında* alınmıştı (geçici).
+- Karar (kullanıcı): razor şimdilik kalsın; boşluk kapatma için A seçeneği = ripple.
+- Uygulandı: [[HooDoo Cut Toplu Motor]] (`engine.js` ripple + tüm track konum doğrulaması),
+  panel (`main.js`) plana `ripple`/`cuts` ekler, `rippled` gelirse kompaksiyonu atlar, gelmezse klasik yola düşer.
+- Testler: +3 motor (`test-bulk.js`), +3 panel (`test-panel.js`); toplam **80 PASS, 0 FAIL**.
+- Paket: `dist/HooDooCut-Kurulum-v0.9.4.1.zip` (CCX içinde motor 0.9.9 doğrulandı). Kurulum yapılmadı
+  (Premiere açıktı); **Release yok**.
+- Açık: ripple canlı Premiere'de denenmedi.
+
 ## 2026-10-11 — AGENTS.md ve .codegraph kararı
 
 - Kök `AGENTS.md` (Codex/Cursor/Gemini gibi diğer AI araçlarının talimat dosyası)
