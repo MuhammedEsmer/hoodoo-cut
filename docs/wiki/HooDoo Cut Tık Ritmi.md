@@ -50,6 +50,32 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
+## Hedef: Müzik melodisi (0.9.6.0)
+
+Kullanıcı geri bildirimi: sabit BPM ızgarası "arka plandaki sabit davula göre" edit hissi
+veriyor; istenen, tıkların **melodinin notalarına** (ör. piyano) oturması. Ayarlarda
+**Hedef = Müzik melodisi** + **Müzik track'i** (kilitli) seçilir:
+
+1. Tıklar oyun sesinden bulunur (aynı tespit).
+2. Müzik track'i tek başına dışa aktarılır; `ACSAnalyzer.detectNotes` nota başlangıçlarını
+   çıkarır: STFT 2048/10 ms, **HPSS** (zaman medyanı = harmonik, frekans medyanı = perküsif;
+   ikili maske h > 2p), 150 Hz–4 kHz log-genlikte **kalıcı akış** (60 ms sonraki enerji −
+   önceki 60 ms'nin maksimumu; davul ~30 ms'de söner, maske deliği nota sayılmaz), yerel
+   eşik + taban 0.2. Yalnız [bölge başı, bölge sonu + uzama payı] okunur.
+3. `ACSTickPlan.alignToNotes`: dinamik programlama ile sıralı tık→nota eşleşmesi; geçiş hızı
+   sınırlar içinde, maliyet |ln hız| + atlanan nota (0.15) + düşen tık (0.6) − eşleşme ödülü (1).
+   Bölge başı da (bölge başı → ilk tık) yeniden zamanlanır ki ilk tık notasına otursun.
+4. Uygulama aynı `ACS_tickRetime` (ön ek ara da bir "gap").
+
+Doğrulama (In the End – Linkin Park, instrumental; kullanıcı projeye ekledi):
+- Nota tespiti 0–30 sn: 2.8 nota/sn, **%70'i 2 ölçü sonra tekrar ediyor** (riff yakalanıyor).
+- Canlı (HDend, video tamamı, A2 oyun sesi, A3 kilitli müzik): 158 tıkın **149'u notaya**,
+  105 nota tıksız, hız %50–221 (medyan ~0.94), süre +13.9 sn, 118 sn sürdü, 11 arada hız tavanı.
+  **148 tık parçasının 148'i bir nota zamanının 1 kare içinde** (en kötü 8.3 ms); konumlar 3
+  track'te aynı, A2 hızı 12 arada ≤0.0007 farklı (<0.3 ms); kilitli müzik dokunulmadı.
+- Testler: `detectNotes` (armonikli piyano benzeri notalar + çalarken düşen davul vuruşları),
+  `alignToNotes` (sıralı/sınırlı hızlar, ön ek ara).
+
 ## Müzik track'i (0.9.5.2)
 
 Müziği bir ses track'ine koyup **kilitle**: tık ritmi kilitli track'leri tamamen işlem

@@ -113,6 +113,63 @@ test('natural click interval is the median spacing', () => {
     assert(near(plan.medianInterval([1, 1.4, 1.8, 2.6, 3.0]), 0.4));
     assert.strictEqual(plan.medianInterval([1]), null);
 });
+// --- Müzik melodisi hedefi ---
+function writeWav(samples) {
+    const data = Buffer.alloc(samples.length * 2);
+    samples.forEach((v, i) => data.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(v))), i * 2));
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+    h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(SR, 24);
+    h.writeUInt32LE(SR * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36);
+    h.writeUInt32LE(data.length, 40);
+    const file = path.join(os.tmpdir(), 'hoodoo-notes-' + process.pid + '-' + Math.round(rand() * 1e9) + '.wav');
+    fs.writeFileSync(file, Buffer.concat([h, data]));
+    return file;
+}
+test('melody notes are found and drum-like noise bursts are ignored', () => {
+    const n = 4 * SR, s = new Float64Array(n);
+    const tones = [[0.5, 440], [1.3, 660], [2.1, 550], [2.9, 495]];
+    // Piyano gibi: armonikli nota, keskin atak, doğal sönüm (sert kesilme yok); davul vuruşları
+    // nota çalarken düşer.
+    for (const [at, hz] of tones) {
+        for (let i = Math.round(at * SR); i < n; i++) {
+            const t = i / SR - at;
+            let v = 0;
+            for (let k = 1; k <= 6; k++) v += Math.sin(2 * Math.PI * hz * k * t) / k;
+            s[i] += 5000 * Math.min(1, t / 0.005) * Math.exp(-t / 0.25) * v;
+        }
+    }
+    for (const at of [1.0, 1.9, 2.6, 3.5]) { // davul benzeri kısa gürültü
+        for (let i = Math.round(at * SR); i < Math.round((at + 0.03) * SR); i++) s[i] += (rand() * 2 - 1) * 12000 * Math.exp(-(i / SR - at) / 0.008);
+    }
+    const file = writeWav(s);
+    try {
+        const notes = analyzer.detectNotes(fs, file, [0, 4]);
+        assert.strictEqual(notes.length, tones.length, JSON.stringify(notes));
+        notes.forEach((t, i) => assert(Math.abs(t - tones[i][0]) <= 0.03, t + ' vs ' + tones[i][0]));
+    } finally { fs.unlinkSync(file); }
+});
+test('clicks are matched to notes monotonically with speeds inside the limits', () => {
+    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6];
+    const notes = [0.5, 1.1, 1.5, 1.6, 2.0, 2.45, 2.9, 3.4];
+    const opts = { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 2.5, regionStart: 0 };
+    const p = plan.alignToNotes(clicks, notes, opts);
+    assert(p.clicks.length >= 4, JSON.stringify(p));
+    for (let i = 1; i < p.targets.length; i++) assert(p.targets[i] > p.targets[i - 1]);
+    // Hedefler kare ızgarasına oturtulmuş notalardır.
+    p.targets.forEach(t => assert(notes.some(nt => Math.abs(Math.round(nt * 30) / 30 - t) < 1e-9), 'hedef nota degil: ' + t));
+    p.gaps.forEach(g => assert(g.speed >= 0.5 - 1e-9 && g.speed <= 2.5 + 1e-9, JSON.stringify(g)));
+    // Her ara: hedef süre = sonraki nota - nota - tık parçası (kare)
+    const between = p.gaps.filter(g => g.start > 0);
+    between.forEach((g, i) => assert(near(g.target, p.targets[i + 1] - p.targets[i] - 3 / 30, 1e-9), JSON.stringify(g)));
+});
+test('the region start is retimed so the first click lands on its note', () => {
+    const p = plan.alignToNotes([1.0, 1.4, 1.8], [1.2, 1.6, 2.0], { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 2.5, regionStart: 0.2 });
+    const prefix = p.gaps[0];
+    assert(near(prefix.start, 0.2) && near(prefix.end, 1.0) && near(prefix.target, 1.0), JSON.stringify(prefix));
+    assert(near(prefix.speed, 0.8));
+    assert(near(p.targets[0], 1.2));
+});
 test('a slow swell crossing the region start is not taken as a click', () => {
     // 0.9-1.1 sn: genlik 30 -> 20000, dB'de düzgün yükseliş (~14 dB / 50 ms), keskin tık yok.
     const n = Math.round(2 * SR), data = Buffer.alloc(n * 2);

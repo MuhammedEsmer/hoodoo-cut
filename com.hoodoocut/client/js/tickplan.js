@@ -60,5 +60,87 @@
         return d.length % 2 ? d[m] : (d[m - 1] + d[m]) / 2;
     }
 
-    return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval };
+    /* Müzik melodisi hedefi: tıkları (video) nota başlangıçlarına (kilitli müzik, timeline
+     * zamanı) eşler. Dinamik programlama: sıralı eşleşme; her geçişin hızı
+     * (tık arası − tık parçası) / (nota arası − tık parçası) sınırlar içinde olmalı; maliyet
+     * |ln hız| + atlanan nota + düşen tık cezası − eşleşme ödülü. İlk tık notasına otursun diye
+     * bölge başı da (regionStart → ilk tık) yeniden zamanlanır. Dönüş planTicks ile aynı biçimde
+     * (+ targets: eşleşen nota zamanları, skipped: atlanan nota). Canlı (In the End): 158 tıkın
+     * 156'sı notaya, medyan hız 1.00. */
+    function alignToNotes(clicks, notes, opts) {
+        var fps = opts.fps, hold = opts.holdFrames, minS = opts.minSpeed, maxS = opts.maxSpeed;
+        var skipCost = opts.skipCost || 0.15, dropCost = opts.dropCost || 0.6, reward = opts.reward || 1;
+        var MAXSKIP = opts.maxSkip || 8, MAXDROP = opts.maxDrop || 3, rs = Math.round(opts.regionStart * fps);
+        function frames(list) {
+            var out = [];
+            list.map(function (t) { return Math.round(t * fps); }).sort(function (a, b) { return a - b; })
+                .forEach(function (f) { if (f > rs && (!out.length || f !== out[out.length - 1])) out.push(f); });
+            return out;
+        }
+        var C = frames(clicks), M = frames(notes), n = C.length, m = M.length, i, j, i2, j2;
+        var empty = { clicks: [], targets: [], gaps: [], boundaries: [], merged: 0, limited: 0, skipped: 0, deltaSec: 0 };
+        if (n < 2 || m < 2) return empty;
+        var INF = 1e18, cost = [], prev = [];
+        for (i = 0; i < n; i++) { cost.push(new Float64Array(m).fill(INF)); prev.push(new Int32Array(m).fill(-1)); }
+        for (i = 0; i <= MAXDROP && i < n; i++) {
+            for (j = 0; j < m; j++) {
+                var s0 = (C[i] - rs) / (M[j] - rs);
+                if (s0 >= minS && s0 <= maxS) cost[i][j] = Math.abs(Math.log(s0)) + dropCost * i - reward;
+            }
+        }
+        for (i = 0; i < n; i++) {
+            for (j = 0; j < m; j++) {
+                if (cost[i][j] >= INF) continue;
+                for (i2 = i + 1; i2 <= Math.min(n - 1, i + 1 + MAXDROP); i2++) {
+                    var src = C[i2] - C[i] - hold;
+                    if (src <= 0) continue;
+                    for (j2 = j + 1; j2 <= Math.min(m - 1, j + 1 + MAXSKIP); j2++) {
+                        var slot = M[j2] - M[j] - hold;
+                        if (slot < 1) continue;
+                        var s = src / slot;
+                        if (s < minS || s > maxS) continue;
+                        var c = cost[i][j] + Math.abs(Math.log(s)) + skipCost * (j2 - j - 1) + dropCost * (i2 - i - 1) - reward;
+                        if (c < cost[i2][j2]) { cost[i2][j2] = c; prev[i2][j2] = i * m + j; }
+                    }
+                }
+            }
+        }
+        var best = INF, bi = -1, bj = -1;
+        for (i = 0; i < n; i++) for (j = 0; j < m; j++) {
+            var total = cost[i][j] + dropCost * (n - 1 - i);
+            if (total < best) { best = total; bi = i; bj = j; }
+        }
+        if (bi < 0) return empty;
+        var pairs = [];
+        for (i = bi, j = bj; ;) {
+            pairs.unshift([i, j]);
+            var p = prev[i][j];
+            if (p < 0) break;
+            i = Math.floor(p / m); j = p % m;
+        }
+        if (pairs.length < 2) return empty;
+        var gaps = [], delta = 0, skipped = 0, first = pairs[0];
+        if (M[first[1]] !== C[first[0]]) {
+            gaps.push({ start: rs / fps, end: C[first[0]] / fps, target: (M[first[1]] - rs) / fps,
+                speed: (C[first[0]] - rs) / (M[first[1]] - rs) });
+            delta += (M[first[1]] - rs) - (C[first[0]] - rs);
+        }
+        for (var k = 1; k < pairs.length; k++) {
+            var a = pairs[k - 1], b = pairs[k];
+            var startF = C[a[0]] + hold, endF = C[b[0]], targetF = M[b[1]] - M[a[1]] - hold;
+            gaps.push({ start: startF / fps, end: endF / fps, target: targetF / fps, speed: (endF - startF) / targetF });
+            delta += targetF - (endF - startF);
+            skipped += b[1] - a[1] - 1;
+        }
+        var boundaries = [];
+        gaps.forEach(function (g) { boundaries.push(g.start, g.end); });
+        return {
+            clicks: pairs.map(function (q) { return C[q[0]] / fps; }),
+            targets: pairs.map(function (q) { return M[q[1]] / fps; }),
+            gaps: gaps, boundaries: boundaries, merged: n - pairs.length, limited: 0, skipped: skipped, deltaSec: delta / fps
+        };
+    }
+
+    return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval,
+        alignToNotes: alignToNotes };
 });

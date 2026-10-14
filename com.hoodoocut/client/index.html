@@ -31,10 +31,18 @@
     <div id="tickSettings" style="display:none">
       <div class="grid2">
         <div class="field">
+          <span>Hedef</span>
+          <select id="tickTarget"><option value="grid" selected>Sabit aralık / BPM</option><option value="melody">Müzik melodisi</option></select>
+        </div>
+        <div class="field" id="tickMusicField" style="display:none">
+          <span>Müzik track'i (kilitli)</span>
+          <select id="tickMusicTrack"><option value="0">A1</option><option value="1">A2</option><option value="2" selected>A3</option><option value="3">A4</option><option value="4">A5</option><option value="5">A6</option></select>
+        </div>
+        <div class="field tickGridField">
           <span>Tık aralığı</span>
           <div class="unit"><input type="number" id="tickInterval" min="0.05" max="5" step="0.01" value="0.5"><i>sn</i></div>
         </div>
-        <div class="field">
+        <div class="field tickGridField">
           <span>veya BPM</span>
           <div class="row"><input type="number" id="tickBpm" min="0" max="400" step="1" placeholder="—">
             <select id="tickBeats"><option value="1">1 vuruş</option><option value="0.5" selected>1/2</option><option value="0.25">1/4</option><option value="2">2 vuruş</option></select></div>
@@ -57,7 +65,7 @@
             <input type="number" id="tickMaxSpeed" min="100" max="2000" step="25" value="400"><i>%</i></div>
         </div>
       </div>
-      <p class="hint">Yalnız <b>seçili cliplerde</b> çalışır. Analiz sesinde oyun sesi track'ini işaretleyin. Tıklar timeline'a marker olarak konur; her tıktan sonraki ara hızlanır/yavaşlar ve bir sonraki tık tam bir aralık sonra gelir. BPM girilirse aralık BPM'den hesaplanır. <b>Tık aralığı</b> = iki tık arasında olmasını istediğin süre (sonuçtaki "doğal tık aralığı"na yakın seçin). Hassasiyet: en güçlü tıkın kaç dB altına kadar sayılacağı (12 = yalnız güçlü tıklar, büyütürsen zayıf sesler de girer). En kısa tık aralığı en az 100 ms.</p>
+      <p class="hint">Yalnız <b>seçili cliplerde</b> çalışır. Analiz sesinde oyun sesi track'ini işaretleyin. Tıklar timeline'a marker olarak konur; her tıktan sonraki ara hızlanır/yavaşlar ve bir sonraki tık tam bir aralık sonra gelir. BPM girilirse aralık BPM'den hesaplanır. <b>Müzik melodisi</b> hedefinde aralık yerine müziğin nota başlangıçları (davul değil, piyano/gitar gibi nota çalan sesler) kullanılır: müziği bir track'e koyup kilitleyin, o track'i seçin; her tık en uygun notaya oturur, bölge başı da ilk notaya göre ayarlanır. <b>Tık aralığı</b> = iki tık arasında olmasını istediğin süre (sonuçtaki "doğal tık aralığı"na yakın seçin). Hassasiyet: en güçlü tıkın kaç dB altına kadar sayılacağı (12 = yalnız güçlü tıklar, büyütürsen zayıf sesler de girer). En kısa tık aralığı en az 100 ms.</p>
     </div>
   </section>
 

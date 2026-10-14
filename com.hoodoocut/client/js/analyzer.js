@@ -385,9 +385,131 @@
         return kept.map(function (x) { return x.t; });
     }
 
+    /* Yerinde radix-2 FFT (re/im Float64Array, uzunluk 2'nin kuvveti). */
+    function fftInPlace(re, im) {
+        var n = re.length, i, j, k, len, t;
+        for (i = 1, j = 0; i < n; i++) {
+            var bit = n >> 1;
+            for (; j & bit; bit >>= 1) j ^= bit;
+            j ^= bit;
+            if (i < j) { t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+        }
+        for (len = 2; len <= n; len <<= 1) {
+            var ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), half = len >> 1;
+            for (i = 0; i < n; i += len) {
+                var cr = 1, ci = 0;
+                for (k = 0; k < half; k++) {
+                    var a = i + k, b = a + half;
+                    var br = re[b] * cr - im[b] * ci, bi = re[b] * ci + im[b] * cr;
+                    re[b] = re[a] - br; im[b] = im[a] - bi; re[a] += br; im[a] += bi;
+                    t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+                }
+            }
+        }
+    }
+
+    function medianOf(arr) {
+        var s = arr.slice().sort(function (x, y) { return x - y; });
+        return s[s.length >> 1];
+    }
+
+    /* Muzik melodisi: [bas, son] (sn) araligindaki nota baslangiclari. Harmonik/perkusif
+     * ayristirma (HPSS): spektrogramda zaman medyani = harmonik (nota calan enstrumanlar),
+     * frekans medyani = perkusif (davul). Harmonik maskeli 150 Hz-4 kHz log-spektral akisin
+     * tepeleri nota baslangicidir; davul vuruslari elenir. STFT 2048 / 10 ms; yalniz aralik okunur.
+     * Canli (In the End, 0-30 sn): 3.4 onset/sn, %71'i 2 olcu sonra tekrar ediyor (riff). */
+    function detectNotes(fs, filePath, range, opts) {
+        opts = opts || {};
+        var fd = fs.openSync(filePath, 'r');
+        var fmt, mono, sr;
+        try {
+            fmt = readWavHeader(fs, fd);
+            var bps = fmt.bitsPerSample / 8, frameBytes = bps * fmt.numChannels;
+            if (!((fmt.audioFormat === 1 && (bps === 2 || bps === 3)) || (fmt.audioFormat === 3 && bps === 4))) {
+                throw new Error('Desteklenmeyen WAV bicimi (nota analizi)');
+            }
+            sr = fmt.sampleRate;
+            var total = Math.floor(fmt.dataSize / frameBytes);
+            var f0 = Math.max(0, Math.floor(range[0] * sr)), f1 = Math.min(total, Math.ceil(range[1] * sr));
+            if (f1 <= f0) return [];
+            var raw = Buffer.alloc((f1 - f0) * frameBytes);
+            fs.readSync(fd, raw, 0, raw.length, fmt.dataOffset + f0 * frameBytes);
+            mono = new Float64Array(f1 - f0);
+            for (var i = 0; i < mono.length; i++) {
+                var v = 0;
+                for (var ch = 0; ch < fmt.numChannels; ch++) {
+                    var o = i * frameBytes + ch * bps;
+                    v += fmt.audioFormat === 3 ? raw.readFloatLE(o) : (bps === 2 ? raw.readInt16LE(o) / 32768 : raw.readIntLE(o, 3) / 8388608);
+                }
+                mono[i] = v / fmt.numChannels;
+            }
+        } finally { fs.closeSync(fd); }
+        var N = 2048, hop = Math.round(sr * 0.01), K = 8;
+        var b0 = Math.floor(150 / sr * N), b1 = Math.ceil(4000 / sr * N), nb = b1 - b0;
+        var frames = Math.max(0, Math.floor((mono.length - N) / hop) + 1), S = [], f, b, g;
+        var win = new Float64Array(N);
+        for (i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+        for (f = 0; f < frames; f++) {
+            var re = new Float64Array(N), im = new Float64Array(N);
+            for (i = 0; i < N; i++) re[i] = mono[f * hop + i] * win[i];
+            fftInPlace(re, im);
+            var mag = new Float64Array(nb);
+            for (b = 0; b < nb; b++) mag[b] = Math.sqrt(re[b0 + b] * re[b0 + b] + im[b0 + b] * im[b0 + b]);
+            S.push(mag);
+        }
+        var L = [], tv = [], fv = [];
+        for (f = 0; f < frames; f++) {
+            var H = new Float64Array(nb);
+            for (b = 0; b < nb; b++) {
+                tv.length = 0; fv.length = 0;
+                for (g = Math.max(0, f - K); g <= Math.min(frames - 1, f + K); g++) tv.push(S[g][b]);
+                for (g = Math.max(0, b - K); g <= Math.min(nb - 1, b + K); g++) fv.push(S[f][g]);
+                var h = medianOf(tv), p = medianOf(fv);
+                // Payli ikili maske: harmonik pay perkusifin 2 katini gecmeyen bin davul sayilir.
+                H[b] = h > 2 * p ? Math.log(1 + 100 * S[f][b]) : 0;
+            }
+            L.push(H);
+        }
+        // Kalici akis: 60 ms sonraki enerji - onceki 60 ms'nin en yuksegi (bin bazinda).
+        // Nota surer; davul vurusu ~30 ms'de soner. "Onceki maksimum", davul aninda maskenin
+        // actigi kisa deligin ardindan sesin geri gelmesini yeni nota sanmayi onler (SuperFlux fikri).
+        var flux = new Float64Array(frames), AFTER = 6, BEFORE = 6;
+        for (f = BEFORE; f < frames - AFTER; f++) {
+            var sum = 0, later = L[f + AFTER];
+            for (b = 0; b < nb; b++) {
+                var prior = 0;
+                for (g = f - BEFORE; g < f; g++) if (L[g][b] > prior) prior = L[g][b];
+                sum += Math.max(0, later[b] - prior);
+            }
+            flux[f] = sum;
+        }
+        var peak = 0;
+        for (f = 0; f < frames; f++) if (flux[f] > peak) peak = flux[f];
+        // Taban 0.2: gercek sarkida 0.1-0.2 arasi sonucu degistirmiyor (tekrar %70), sessizlesen
+        // bolumde kucuk akislarin nota sanilmasini engelliyor.
+        var minGap = opts.minGap || 0.1, floorRel = opts.floor || 0.2, out = [];
+        for (f = 5; f < frames - 5; f++) {
+            var isMax = true;
+            for (g = f - 5; g <= f + 5 && isMax; g++) if (flux[g] > flux[f]) isMax = false;
+            if (!isMax || flux[f] < peak * floorRel) continue;
+            var lw = [];
+            for (g = Math.max(0, f - 100); g <= Math.min(frames - 1, f + 100); g++) lw.push(flux[g]);
+            lw.sort(function (x, y) { return x - y; });
+            var med = lw[lw.length >> 1], q = lw[Math.floor(lw.length * 0.85)];
+            if (flux[f] <= med + 1.5 * (q - med)) continue;
+            // Kare merkezi -> zaman; akis bir onceki kareye gore oldugu icin yarim pencere kaydirilir.
+            var t = range[0] + f0Offset(f);
+            if (out.length && t - out[out.length - 1] < minGap) continue;
+            out.push(t);
+        }
+        function f0Offset(fr) { return Math.max(0, Math.floor(range[0] * sr)) / sr - range[0] + (fr * hop + N / 2) / sr; }
+        return out;
+    }
+
     return {
         MODES: MODES,
         detectOnsets: detectOnsets,
+        detectNotes: detectNotes,
         alignCuts: alignCuts,
         computeWindowDb: computeWindowDb,
         autoThresholdDb: autoThresholdDb,

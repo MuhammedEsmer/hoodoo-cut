@@ -36,7 +36,8 @@ içindeki Node.js ile yapılır.
 - **Tık ritmi (0.9.5.0):** Mod → Tık ritmi. Seçili bölgede oyun sesindeki blok
   koyma/kırma tıklarını bulur (marker olarak gösterir), her tıktan sonraki arayı
   hızlandırıp/yavaşlatarak tıkları sabit aralığa (sn ya da BPM) oturtur; tık anı
-  normal hızda kalır. Ayrıntı: [docs/wiki/HooDoo Cut Tık Ritmi.md](docs/wiki/HooDoo%20Cut%20Tık%20Ritmi.md).
+  normal hızda kalır. 0.9.6.0: **Hedef = Müzik melodisi** ile kilitli müzik track'inin
+  notalarına (davul değil, nota çalan sesler) oturtur. Ayrıntı: [docs/wiki/HooDoo Cut Tık Ritmi.md](docs/wiki/HooDoo%20Cut%20Tık%20Ritmi.md).
 - **Kapsam seçimi:** tüm sequence ya da sadece timeline'da seçili clipler.
   Bölge bölge farklı şablon: bölgeyi seç → şablon → analiz → kes, tekrarla.
 - **Parçalı işleme:** uzun videolarda Premiere kilitlenmez; butonda canlı

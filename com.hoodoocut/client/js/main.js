@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.5.2'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.6.0'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -581,59 +581,109 @@
         return { fps: state.fps, interval: interval, holdFrames: Math.round(numField('tickHold', 3, 0)),
             // Tek blok sesinin iki tepesi ~60 ms arayla gelebiliyor; 100 ms alti ikisini ayri tik sayar.
             relDb: numField('tickRel', 12, 1), minGap: Math.max(100, numField('tickMinGap', 200, 0)) / 1000,
-            minSpeed: numField('tickMinSpeed', 50, 1) / 100, maxSpeed: numField('tickMaxSpeed', 400, 100) / 100 };
+            minSpeed: numField('tickMinSpeed', 50, 1) / 100, maxSpeed: numField('tickMaxSpeed', 400, 100) / 100,
+            target: $('tickTarget').value === 'melody' ? 'melody' : 'grid', musicTrack: $('tickMusicTrack').value };
     }
 
     function applyWorkMode() {
-        var tick = getWorkMode() === 'tick';
+        var tick = getWorkMode() === 'tick', melody = $('tickTarget').value === 'melody';
         $('tickSettings').style.display = tick ? 'block' : 'none';
         $('thresholdCard').style.display = tick ? 'none' : '';
         $('templateCard').style.display = tick ? 'none' : '';
+        $('tickMusicField').style.display = melody ? '' : 'none';
+        var gridFields = document.querySelectorAll('.tickGridField');
+        for (var i = 0; i < gridFields.length; i++) gridFields[i].style.display = melody ? 'none' : '';
         if (!state.busy) $('btnAnalyze').textContent = tick ? '🎵 Tıkları Bul' : '🔍 Analiz Et';
+    }
+
+    function tickAnalysisFailed(e) {
+        state.tickPlan = null;
+        state.planContext = null;
+        log('Tık analizi HATASI: ' + (e && e.message ? e.message : e));
+        showResult(false, 'Tık analizi başarısız. Günlüğe bakın.');
+        resetAnalyzeButton();
     }
 
     function runTickAnalysis(wavPath, selRanges) {
         $('btnAnalyze').textContent = '⏳ Tıklar aranıyor…';
         setTimeout(function () {
+            var opts, onsets;
             try {
-                var opts = getTickOpts();
-                var onsets = ACSAnalyzer.detectOnsets(fs, wavPath, selRanges, { relDb: opts.relDb, minGap: opts.minGap });
-                var plan = ACSTickPlan.planTicks(onsets, opts);
-                state.tickPlan = plan.gaps.length ? plan : null;
-                var speeds = plan.gaps.map(function (g) { return g.speed; });
-                var natural = ACSTickPlan.medianInterval(onsets);
-                var naturalNote = natural ? 'Doğal tık aralığı ≈ ' + natural.toFixed(2) + ' sn' +
-                    (natural / opts.interval > 2 || opts.interval / natural > 2
-                        ? ' — girilen aralık (' + opts.interval.toFixed(2) + ' sn) bundan çok farklı, hızlar sınıra takılabilir.' : '') : '';
-                log('Tık analizi: ' + onsets.length + ' tık, ' + plan.merged + ' birleşti, ' + plan.gaps.length +
-                    ' ara, aralık ' + opts.interval.toFixed(3) + ' sn' + (plan.limited ? ', ' + plan.limited + ' ara hız sınırında' : '') +
-                    (natural ? ', doğal aralık ' + natural.toFixed(3) + ' sn' : ''));
-                evalJsx('ACS_setTickMarkers("' + plan.clicks.join(';') + '")', function (res) {
-                    if (res.split('|')[0] !== 'OK') log('Tık marker\'ları konamadı: ' + res);
-                });
-                if (!state.tickPlan) {
-                    showResult(true, 'Ritme oturtulacak en az iki tık bulunamadı (' + onsets.length + ' tık). ' +
-                        'Hassasiyeti artırın ya da bölgeyi genişletin.');
-                } else {
-                    showResult(true, '<b>' + plan.clicks.length + ' tık</b> — ' + plan.gaps.length + ' ara yeniden zamanlanacak<br>' +
-                        'Hız: %' + Math.round(Math.min.apply(null, speeds) * 100) + ' – %' +
-                        Math.round(Math.max.apply(null, speeds) * 100) + ' · süre değişimi ' +
-                        (plan.deltaSec >= 0 ? '+' : '') + plan.deltaSec.toFixed(2) + ' sn<br>' +
-                        (plan.merged ? plan.merged + ' yakın tık öncekine katıldı. ' : '') +
-                        (plan.limited ? plan.limited + ' arada hız sınırı aşıldı, fazlası kesilecek. ' : '') +
-                        'Tıklar timeline\'da marker olarak işaretli.' + (naturalNote ? '<br>' + naturalNote : ''));
-                    $('btnCut').style.display = 'block';
-                    $('backupRow').style.display = 'block';
-                    resetCutButton();
-                }
-            } catch (e) {
-                state.tickPlan = null;
-                state.planContext = null;
-                log('Tık analizi HATASI: ' + (e && e.message ? e.message : e));
-                showResult(false, 'Tık analizi başarısız. Günlüğe bakın.');
+                opts = getTickOpts();
+                onsets = ACSAnalyzer.detectOnsets(fs, wavPath, selRanges, { relDb: opts.relDb, minGap: opts.minGap });
+            } catch (e) { tickAnalysisFailed(e); return; }
+            if (opts.target !== 'melody') {
+                try { finishTickAnalysis(onsets, ACSTickPlan.planTicks(onsets, opts), opts); }
+                catch (e2) { tickAnalysisFailed(e2); }
+                return;
             }
-            resetAnalyzeButton();
+            var rs = Infinity, re = -Infinity;
+            selRanges.forEach(function (r) { rs = Math.min(rs, r[0]); re = Math.max(re, r[1]); });
+            exportMusic(opts.musicTrack, function (err, musicWav) {
+                if (err) { tickAnalysisFailed(err); return; }
+                try {
+                    // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
+                    var notes = ACSAnalyzer.detectNotes(fs, musicWav, [rs, re + (re - rs) / opts.minSpeed + 5]);
+                    log('Müzik notaları: ' + notes.length + ' nota (A' + (parseInt(opts.musicTrack, 10) + 1) + ')');
+                    finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, notes, {
+                        fps: opts.fps, holdFrames: opts.holdFrames, minSpeed: opts.minSpeed,
+                        maxSpeed: opts.maxSpeed, regionStart: rs }), opts);
+                } catch (e3) { tickAnalysisFailed(e3); }
+                try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e4) {}
+            });
         }, 50);
+    }
+
+    /* Melodi hedefi: yalnız müzik track'inin sesi ayrı WAV'a aktarılır (diğerleri geçici mute). */
+    function exportMusic(trackIdx, cb) {
+        var musicWav = state.wavPath.replace(/\.wav$/i, '') + '-muzik.wav';
+        $('btnAnalyze').textContent = '⏳ Müzik notaları çıkarılıyor…';
+        evalJsx('ACS_muteForAnalysis("' + trackIdx + '")', function (res) {
+            var p = res.split('|');
+            if (p[0] !== 'OK' || (parseInt(p[2], 10) || 0) > 0) { cb(new Error('Müzik track\'i ayarlanamadı: ' + res)); return; }
+            state.mutesApplied = true;
+            evalJsx('ACS_exportAudio2("' + jsxEscape(musicWav) + '", "' + jsxEscape(PRESET_CANDIDATES.join('||')) + '")', function (r2) {
+                restoreThen(function () {
+                    if (r2.split('|')[0] !== 'OK') { cb(new Error('Müzik dışa aktarılamadı: ' + r2)); return; }
+                    cb(null, musicWav);
+                });
+            });
+        });
+    }
+
+    function finishTickAnalysis(onsets, plan, opts) {
+        state.tickPlan = plan.gaps.length ? plan : null;
+        var speeds = plan.gaps.map(function (g) { return g.speed; });
+        var melody = opts.target === 'melody';
+        var natural = ACSTickPlan.medianInterval(onsets);
+        var naturalNote = !melody && natural ? 'Doğal tık aralığı ≈ ' + natural.toFixed(2) + ' sn' +
+            (natural / opts.interval > 2 || opts.interval / natural > 2
+                ? ' — girilen aralık (' + opts.interval.toFixed(2) + ' sn) bundan çok farklı, hızlar sınıra takılabilir.' : '') : '';
+        log('Tık analizi: ' + onsets.length + ' tık, ' + plan.merged + (melody ? ' tık düştü, ' + plan.skipped + ' nota atlandı, ' : ' birleşti, ') +
+            plan.gaps.length + ' ara' + (melody ? ', hedef müzik melodisi' : ', aralık ' + opts.interval.toFixed(3) + ' sn') +
+            (plan.limited ? ', ' + plan.limited + ' ara hız sınırında' : '') + (natural ? ', doğal aralık ' + natural.toFixed(3) + ' sn' : ''));
+        evalJsx('ACS_setTickMarkers("' + plan.clicks.join(';') + '")', function (res) {
+            if (res.split('|')[0] !== 'OK') log('Tık marker\'ları konamadı: ' + res);
+        });
+        if (!state.tickPlan) {
+            showResult(true, 'Ritme oturtulacak en az iki tık bulunamadı (' + onsets.length + ' tık' +
+                (melody ? ', notalara uyan eşleşme yok' : '') + '). Hassasiyeti artırın ya da bölgeyi genişletin.');
+        } else {
+            showResult(true, '<b>' + plan.clicks.length + ' tık</b> — ' + plan.gaps.length + ' ara yeniden zamanlanacak' +
+                (melody ? ' (her tık bir müzik notasına)' : '') + '<br>' +
+                'Hız: %' + Math.round(Math.min.apply(null, speeds) * 100) + ' – %' +
+                Math.round(Math.max.apply(null, speeds) * 100) + ' · süre değişimi ' +
+                (plan.deltaSec >= 0 ? '+' : '') + plan.deltaSec.toFixed(2) + ' sn<br>' +
+                (melody ? (plan.merged ? plan.merged + ' tık uygun notaya oturmadığı için düştü. ' : '') +
+                    plan.skipped + ' nota tıksız geçti. '
+                    : (plan.merged ? plan.merged + ' yakın tık öncekine katıldı. ' : '')) +
+                (plan.limited ? plan.limited + ' arada hız sınırı aşıldı, fazlası kesilecek. ' : '') +
+                'Tıklar timeline\'da marker olarak işaretli.' + (naturalNote ? '<br>' + naturalNote : ''));
+            $('btnCut').style.display = 'block';
+            $('backupRow').style.display = 'block';
+            resetCutButton();
+        }
+        resetAnalyzeButton();
     }
 
     function tickApply() {
@@ -1058,6 +1108,7 @@
     // Çalışma modu: sessizlik kesme / tık ritmi
     var workModes = document.getElementsByName('workMode');
     for (var w = 0; w < workModes.length; w++) workModes[w].addEventListener('change', applyWorkMode);
+    $('tickTarget').addEventListener('change', applyWorkMode);
     applyWorkMode();
 
     // Şablon chipleri

@@ -11,6 +11,18 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Müzik melodisi hedefi (CEP 0.9.6.0)
+
+- Kullanıcı: 128 BPM sonucu oturuyor ama "sabit davula göre" hissettiriyor; tıklar melodiye (piyano)
+  otursun. Projeye "In the End (Instrumental) – Linkin Park" eklendi; test HDend kopyasında (HDtest korundu).
+- Ölçüm: bant enerjisi onsetleri çok yoğun (6–7/sn, her 16'lık); tempo 105 BPM doğru. HPSS harmonik
+  onsetleri riff'i yakaladı (%70–75 iki ölçü tekrarı). Sentetik testte davul sızıntısı: sert kesilen saf
+  sinüs gerçekçi değildi → armonikli/sönen notalar; algoritmada ikili maske, 60 ms kalıcı akış,
+  önceki 60 ms maksimumu (SuperFlux), taban 0.2.
+- DP eşleşme: 149/158 tık notaya, medyan hız ~0.94. Canlı: 148/148 tık parçası notaya 1 kare içinde,
+  konumlar 3 track'te aynı, kilitli müzik dokunulmadı (118 sn).
+- Testler +5 (109 PASS). Paket `HooDooCut-Kurulum-v0.9.6.0.zip`. Release yok. Ayrıntı: [[HooDoo Cut Tık Ritmi]].
+
 ## 2026-10-14 — Müzik track'i, yeni test videosu, hız tavanı (CEP 0.9.5.2)
 
 - Kullanıcı: güçlü sesler kalsın, debug portu açık kalsın; NCS müzik ekle (onaylı indirme:
