@@ -24,7 +24,7 @@ commit'te toplandı: `85002f9` (2026-10-11).
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
-| 2026-10-14 | 0.9.8.1 | 0.9.9 | — | **Donma azaltıldı:** donma pahalı (DP tık düşürüp keser), fazla tıklar arası temiz bölümler kullanılır, hafif ağır çekim (≥ %70), kesim fazla tıktan 1 kare önce / 175 ms sonra. Canlı: piyano donma 27.5 → 6.5 sn, In the End 35.7 → 5.4 sn, görünür fazla blok yok. Paket `HooDooCut-Kurulum-v0.9.8.1.zip` (SHA-256 `AEAC1E08…28AE77`). Release yok |
+| 2026-10-14 | 0.9.8.1 | 0.9.9 | `6d33228` | **Donma azaltıldı:** donma pahalı (DP tık düşürüp keser), fazla tıklar arası temiz bölümler kullanılır, hafif ağır çekim (≥ %70), kesim fazla tıktan 1 kare önce / 175 ms sonra. Canlı: piyano donma 27.5 → 6.5 sn, In the End 35.7 → 5.4 sn, görünür fazla blok yok. Paket `HooDooCut-Kurulum-v0.9.8.1.zip` (SHA-256 `AEAC1E08…28AE77`). Release yok |
 | 2026-10-14 | 0.9.8.0 | 0.9.9 | `2d42efd` | Melodi notası solo piyano ile ayarlandı (atağa taşıma, sönüm eleme, yeniden vuruş, dB tabanı); **seçenek (c)**: uzun nota aralarında donma, donan karenin sesi silinir, fazla tık kuyruğu (150 ms) atlanır. Paket `HooDooCut-Kurulum-v0.9.8.0.zip` (SHA-256 `0EFC6A05…ECEB68`). Canlı doğrulandı (HDpiano). Release yok |
 | 2026-10-14 | 0.9.7.0 | 0.9.9 | `6f9b613` | Melodi hedefi yeniden: riff notaları (sekizlik takip + perde değişimi), seçenek (b) fazla tıkları kesme, host'ta silme. HPSS ve riff filtresi kaldırıldı. Release yok |
 | 2026-10-14 | 0.9.6.1 | 0.9.9 | `28fb7b1` | Melodi hedefi piyano riff'ine odaklı: sönüm ağırlığı + riff (tekrar) filtresi. Release yok |
