@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.5.1'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.5.2'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -676,12 +676,14 @@
                 var p = res.split('|');
                 if (p[0] !== 'OK') { fail(p.slice(1).join('|')); return; }
                 evalJsx('ACS_clearTickMarkers()', function () {});
+                var capped = parseInt(p[4], 10) || 0;
                 finish(true, 'Ritme oturtuldu: ' + plan.gaps.length + ' ara, ' + p[1] + ' hız değişimi, ' + p[2] +
-                    ' taşıma (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)');
+                    ' taşıma (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)' +
+                    (capped ? '. ' + capped + ' arada Premiere hızı sınırladı; tıklar yine ızgarada, aranın sonu biraz kısaldı.' : ''));
             });
         }
         log('Tık ritmi başladı: ' + plan.gaps.length + ' ara, ' + plan.boundaries.length + ' razor sınırı');
-        evalJsx('ACS_beginEdit("' + jsxEscape(state.planContext) + '", "remove_close")', function (res) {
+        evalJsx('ACS_beginEdit("' + jsxEscape(state.planContext) + '", "tick")', function (res) {
             if (res.split('|')[0] !== 'OK') { fail(res.split('|').slice(1).join('|')); return; }
             if (!$('makeBackup').checked) { razorStep(0); return; }
             btn.textContent = '⏳ Yedek oluşturuluyor…';

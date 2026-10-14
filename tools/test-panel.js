@@ -75,6 +75,7 @@ test('tick apply razors the plan boundaries, retimes once and reports completion
     const retime = p.scripts.filter(s => s.startsWith('ACS_tickRetime'));
     assert.deepStrictEqual(retime, ['ACS_tickRetime("1.1,1.4,0.4,0.75")']);
     assert(p.calls.indexOf('ACS_beginEdit') < p.calls.indexOf('ACS_razorBatch'));
+    assert(/ACS_beginEdit\(".*", "tick"\)/.test(p.scripts.find(s => s.startsWith('ACS_beginEdit'))));
     assert(p.calls.includes('ACS_endEdit'));
     assert(p.elements.log.textContent.includes('Ritme oturtuldu'), p.elements.log.textContent);
     assert.strictEqual(p.api.state.tickPlan, null);

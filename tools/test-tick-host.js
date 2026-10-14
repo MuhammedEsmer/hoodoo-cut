@@ -15,7 +15,7 @@ function test(name, fn) {
 const PIECES = [[0, 1.1], [1.1, 1.8], [1.8, 1.9], [1.9, 2.2], [2.2, 3]];
 const GAPS = '1.1,1.8,0.4,1.75;1.9,2.2,0.4,0.75';
 
-function setup() {
+function setup(speedCap) {
     const f = fixture(PIECES, 1, 2);
     const tracks = [f.seq.videoTracks[0], f.seq.audioTracks[0], f.seq.audioTracks[1]];
     const log = [];
@@ -32,7 +32,9 @@ function setup() {
             set: t => { e = parseFloat(t.ticks) / TICKS; log.push('end'); checkTrack(track, 'end'); } });
         item.move = d => { s += d; e += d; log.push('move'); checkTrack(track, 'move'); };
         item.getSpeed = () => speed;
-        item.__setSpeed = v => { speed = v; log.push('speed'); };
+        item.isSpeedReversed = () => false;
+        // Canlı: Premiere yüksek hızları sessizce sınırlıyor (ör. 3.64 -> 3.2773); süre değişmiyor.
+        item.__setSpeed = v => { speed = speedCap ? Math.min(v, speedCap[ti]) : v; log.push('speed'); };
     }));
     f.host.Time = function () { this.ticks = '0'; };
     f.host.app.enableQE = () => {};
@@ -64,6 +66,33 @@ test('a piece that does not match razor boundaries stops before any edit', () =>
     const res = f.host.ACS_tickRetime('1.15,1.8,0.4,1.625');
     assert(/razor/i.test(res), res);
     assert.strictEqual(log.length, 0);
+});
+test('a speed Premiere caps below the plan keeps the grid and is reported, not failed', () => {
+    const { f, tracks } = setup([1.6, 1.6, 1.6]);
+    const res = f.host.ACS_tickRetime(GAPS);
+    assert(res.startsWith('OK|'), res);
+    assert.strictEqual(res.split('|')[4], '1'); // ara1 (1.75 istendi) sınırlandı
+    assert.deepStrictEqual(layout(tracks[0]).map(r => r.slice(0, 2)), [[0, 1.1], [1.1, 1.5], [1.5, 1.6], [1.6, 2], [2, 2.8]]);
+});
+test('a gap capped to different speeds on different tracks is a sync error', () => {
+    const { f } = setup([1.6, 1.6, 1.4]);
+    assert(/senkron/i.test(f.host.ACS_tickRetime(GAPS)));
+});
+test('locked tracks (e.g. music) are left untouched by the retime', () => {
+    const { f, tracks } = setup();
+    tracks[2].isLocked = () => true; // A2 = kilitli müzik track'i
+    const before = layout(tracks[2]);
+    const res = f.host.ACS_tickRetime(GAPS);
+    assert(res.startsWith('OK|'), res);
+    assert.deepStrictEqual(layout(tracks[2]), before);
+    assert.deepStrictEqual(layout(tracks[0]), [[0, 1.1, 1], [1.1, 1.5, 1.75], [1.5, 1.6, 1], [1.6, 2, 0.75], [2, 2.8, 1]]);
+});
+test('tick edit session accepts locked tracks; other modes still refuse them', () => {
+    const { f, tracks } = setup();
+    tracks[2].isLocked = () => true;
+    const ctx = f.host.ACS_getAnalysisContext().split('|')[1];
+    assert.strictEqual(f.host.ACS_beginEdit(ctx, 'tick'), 'OK');
+    assert(f.host.ACS_beginEdit(ctx, 'remove_close').startsWith('ERR|'));
 });
 test('invalid gap data is rejected', () => {
     const { f } = setup();

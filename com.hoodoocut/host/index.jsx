@@ -559,6 +559,8 @@ function ACS_beginEdit(expectedContext, manage) {
     if (context.split('|')[1] !== expectedContext) return 'ERR|Timeline degisti. Tekrar analiz edin.';
     var seq = app.project.activeSequence;
     var groups = manage === 'mute' ? [seq.audioTracks] : [seq.videoTracks, seq.audioTracks];
+    // Tik ritminde kilitli track (orn. muzik) bilerek islem disi birakilir.
+    if (manage === 'tick') groups = [];
     for (var g = 0; g < groups.length; g++) {
         for (var t = 0; t < groups[g].numTracks; t++) {
             var track = groups[g][t];
@@ -1221,7 +1223,8 @@ function ACS_tickRetime(gapsStr) {
         for (i = 0; i < tracks.a.length; i++) lists.push({ g: 1, t: tracks.a[i], track: seq.audioTracks[tracks.a[i]] });
         for (var l = 0; l < lists.length; l++) {
             var tr = lists[l].track;
-            if (ACS_trackLocked(tr, lists[l].g, lists[l].t)) throw new Error('Ilgili track kilitli');
+            // Kilitli track (orn. muzik) yerinde kalir; seq razor da kilitli track'i kesmez (canli).
+            if (ACS_trackLocked(tr, lists[l].g, lists[l].t)) continue;
             for (var c = 0; c < tr.clips.numItems; c++) {
                 var ref = tr.clips[c], s = ref.start.seconds, e = ref.end.seconds, gap = null;
                 for (k = 0; k < gaps.length; k++) {
@@ -1270,16 +1273,31 @@ function ACS_tickRetime(gapsStr) {
                 setSpeed(it3, it3.dest, it3.gap.speed); speeded++;
             }
         }
-        // Dogrulama
+        // Dogrulama. Canli: Premiere yuksek hizlari sessizce sinirliyor (3.64 -> 3.2773, konuma
+        // gore degisiyor); sure yine hedefte kalir, yalniz aranin son kaynak kareleri atlanir.
+        // Plandan dusuk hiz kabul edilip sayilir; ayni aranin track'leri arasinda fark senkron hatasidir.
+        var capped = 0, gapSpeeds = {};
         for (i = 0; i < items.length; i++) {
             var v = items[i];
             if (Math.abs(v.ref.start.seconds - v.dest) > half ||
-                Math.abs(v.ref.end.seconds - (v.dest + v.destLen)) > half ||
-                (v.gap && Math.abs(v.ref.getSpeed() - v.gap.speed) > 0.001)) {
+                Math.abs(v.ref.end.seconds - (v.dest + v.destLen)) > half) {
                 throw new Error('Sonuc dogrulanamadi (' + v.dest.toFixed(3) + '); timeline\'i kontrol edin');
             }
+            if (!v.gap) continue;
+            var actual = v.ref.getSpeed();
+            if (actual > v.gap.speed + 0.001) throw new Error('Hiz plandan yuksek (' + v.dest.toFixed(3) + ')');
+            var key = String(v.gap.start);
+            if (!gapSpeeds[key]) {
+                gapSpeeds[key] = { min: actual, max: actual };
+                if (actual < v.gap.speed - 0.001) capped++;
+            }
+            gapSpeeds[key].min = Math.min(gapSpeeds[key].min, actual);
+            gapSpeeds[key].max = Math.max(gapSpeeds[key].max, actual);
+            if (gapSpeeds[key].max - gapSpeeds[key].min > 0.01) {
+                throw new Error('Track\'ler arasi hiz farki, senkron bozulur (' + v.dest.toFixed(3) + ')');
+            }
         }
-        return 'OK|' + speeded + '|' + moved + '|' + items.length;
+        return 'OK|' + speeded + '|' + moved + '|' + items.length + '|' + capped;
     } catch (e) {
         return 'ERR|' + e.toString();
     }

@@ -50,7 +50,21 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
+## Müzik track'i (0.9.5.2)
+
+Müziği bir ses track'ine koyup **kilitle**: tık ritmi kilitli track'leri tamamen işlem
+dışı bırakır (düzenleme oturumu `tick` modunda kilidi hata saymaz, `ACS_tickRetime`
+kilitli track'i atlar). QE seq razor kilitli track'i zaten kesmiyor (canlı doğrulandı).
+Müzik yerinde kalır; video ızgaraya oturur. Müziği vuruşlar tıka denk gelecek şekilde
+kaydırmak için kilidi açıp taşıyıp tekrar kilitle.
+
 ## Premiere davranışları (canlı tanı, 2026-10-14)
+
+- **Yüksek hız tavanı:** QE `setSpeed` yüksek hızları sessizce sınırlıyor; tavan konuma
+  göre değişiyor (aynı videoda 25 sn'de 3.2773, 40 sn'de ~2.1; 3.0'a kadar tam). Süre yine
+  hedefte kalır → tıklar ızgarada; yalnız aranın son kaynak kareleri atlanır. Doğrulama
+  plandan düşük hızı kabul edip sayar (`OK|…|capped`); aynı aranın track'leri arasında
+  >0.01 fark senkron hatası sayılır. Sebep (VFR değil, medya 60.00024 fps) bulunamadı.
 
 - QE `TrackItem.setSpeed(hız, '', false, false, false)`: hız **oran** (0.5 = %50);
   **timeline süresini asla değiştirmez**, yalnız kaynak aralığını; linkli
@@ -70,6 +84,13 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | 954.46–961.76 sn, 0.9.5.0 tespiti | A2 | 0.3 | 16 tık ızgarada ama marker'lar 12–62 ms erken ve zayıf sesler de tık sayıldı (aşağıya bkz.) |
 | **954.46–961.76 sn, 0.9.5.1 tespiti** | **A2** | **0.4** | **10 tık (doğal aralık 0.40 sn), marker'lar tepe atağının 6–11 ms içinde; yalnız bir çift aralık ×2.14; tıklar tam 0.4 sn arayla, 3 track aynı (1.1 sn)** |
 
+| **Yeni test videosu `2026-10-14 15-11-41` (87.7 sn, tamamı inşaat), 0.9.5.2** | **A2** | **128 BPM, 1 vuruş (0.46875)** | **145 tık / 144 ara; 143 ardışık tık tam bir vuruş arayla (en kötü 2.1 ms); 3 track aynı; kilitli A3 müzik (Elektronomia – Sky High, NCS) dokunulmadı; 16 arada Premiere hız tavanı; 114.6 sn sürdü; video 87.7 → 71.2 sn. Müzik 0.433 sn'ye kaydırıldı → vuruşlar tıklara denk** |
+
+Müzik: `Documents\Adobe\Premiere Pro\26.0\HooDoo test muzik\Elektronomia - Sky High [NCS Release].mp3`
+(ncs.io/SkyHigh, kullanıcı onayıyla indirildi). BPM kendi ölçümüyle doğrulandı: zarf
+otokorelasyonu 0.470 sn (~128 BPM), vuruş fazı müzik başından 0.21 sn. NCS şartı:
+açıklamada parça/sanatçı + "Music provided by NoCopyrightSounds" + bağlantı.
+
 ### 0.9.5.1 düzeltmesi (kullanıcı geri bildirimi: "marker'lar asla oturmuyor")
 
 - Bölümde iki ses ailesi var: güçlü blok sesleri (−26…−30 dB, zaten ~0.4 sn ritimde) ve
@@ -87,6 +108,6 @@ Testler: `tools/test-tick.js` (plan + tespit, 9), `tools/test-tick-host.js` (hos
 ## Sınırlar
 
 - Her `move`/`end`/`setSpeed` ayrı undo adımı → geri almak için yedek sequence önerilir.
-- Bölgeden sonraki bütün klipler tek tek taşınır; çok klipli uzun timeline'da yavaşlayabilir (UXP tek işleme taşınabilir).
+- **Yavaş:** 87.7 sn'lik videoda 288 razor + 861 taşıma = 114.6 sn. Razor her sınırda ayrı QE çağrısı; taşımalar tek tek DOM `move`. İyileştirme: taşımaları UXP motorunda tek işleme almak (`createMoveAction`), razor için şimdilik yol yok.
 - Tespit tek bir gerçek bölümde ayarlandı; ayak sesi gibi diğer darbeler de tık sayılabilir → hassasiyet / en kısa aralık ile ayarlanır, marker'lardan kontrol edilir.
 - Bir kez, yedekli çalışmadan sonra yedek kopyanın sekmesi öne geçti; tekrar denemede (6 sn izleme) **yeniden üretilemedi** — gözlemde kalırsa ele alınacak.

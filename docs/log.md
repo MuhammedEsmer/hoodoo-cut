@@ -11,6 +11,20 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Müzik track'i, yeni test videosu, hız tavanı (CEP 0.9.5.2)
+
+- Kullanıcı: güçlü sesler kalsın, debug portu açık kalsın; NCS müzik ekle (onaylı indirme:
+  Elektronomia – Sky High, ncs.io, 9.0 MB); seçenek (a) = kilitli track işlem dışı; test projesine
+  yeni video eklendi (`2026-10-14 15-11-41`, 87.7 sn, oyun sesi A2, A1 sessiz). Eski ep6/HDtest kaldırılmıştı.
+- Canlı: QE seq razor kilitli track'i kesmiyor. `ACS_beginEdit(…,'tick')` kilidi hata saymıyor,
+  `ACS_tickRetime` kilitli track'i atlıyor.
+- Tüm videoda ilk deneme 22.167'de doğrulama hatası: Premiere 3.64 hızı 3.2773'e sınırladı
+  (konuma göre değişen tavan; 3.0'a kadar tam). Süre hedefte kaldığı için tıklar yine ızgarada →
+  doğrulama düşük hızı kabul edip sayıyor, track'ler arası fark senkron hatası.
+- Sonuç: 143 ardışık tık tam 0.46875 sn arayla (en kötü 2.1 ms), 3 track aynı, kilitli müzik dokunulmadı,
+  16 arada tavan, 114.6 sn. Müzik 0.433 sn'ye kaydırılıp vuruşlar tıklara denk getirildi (HDtest).
+- Testler +4 (106 PASS). Paket `HooDooCut-Kurulum-v0.9.5.2.zip`. Release yok. Ayrıntı: [[HooDoo Cut Tık Ritmi]].
+
 ## 2026-10-14 — Tık marker'ları oturmuyordu: tepe tabanlı tespit (CEP 0.9.5.1)
 
 - Kullanıcı (ekran görüntüsü, ayarlar: aralık 0.1, hassasiyet 10, en kısa 50 ms): "marker'lar asla oturmuyor".
