@@ -1184,7 +1184,9 @@ function ACS_tickRetime(gapsStr) {
             if (!parts[i]) continue;
             var f = parts[i].split(','), gp = { start: parseFloat(f[0]), end: parseFloat(f[1]),
                 target: parseFloat(f[2]), speed: parseFloat(f[3]) };
-            if (f.length !== 4 || !(gp.end > gp.start) || !(gp.target > 0) || !(gp.speed > 0)) {
+            // hedef 0 + hiz 0 = parcayi sil (melodi hedefi, secenek b: fazla tiklarin goruntusu)
+            var isDelete = gp.target === 0 && gp.speed === 0;
+            if (f.length !== 4 || !(gp.end > gp.start) || (!isDelete && (!(gp.target > 0) || !(gp.speed > 0)))) {
                 return 'ERR|Gecersiz tik plani';
             }
             gaps.push(gp);
@@ -1240,7 +1242,17 @@ function ACS_tickRetime(gapsStr) {
             }
         }
 
-        var speeded = 0, moved = 0;
+        var speeded = 0, moved = 0, deleted = 0;
+        // 0) Silinecek parcalar (ripple'siz); kalanlarin hedef konumu bunu zaten hesaba katar.
+        var kept = [];
+        for (i = 0; i < items.length; i++) {
+            if (items[i].gap && items[i].gap.target === 0) {
+                var rr = items[i].ref.remove(false, false);
+                if (rr !== undefined && rr !== 0 && rr !== true) throw new Error('Parca silinemedi: ' + rr);
+                deleted++;
+            } else kept.push(items[i]);
+        }
+        items = kept;
         // 1) Kisalacak parcalar
         for (i = 0; i < items.length; i++) {
             var it1 = items[i];
@@ -1297,7 +1309,7 @@ function ACS_tickRetime(gapsStr) {
                 throw new Error('Track\'ler arasi hiz farki, senkron bozulur (' + v.dest.toFixed(3) + ')');
             }
         }
-        return 'OK|' + speeded + '|' + moved + '|' + items.length + '|' + capped;
+        return 'OK|' + speeded + '|' + moved + '|' + items.length + '|' + capped + '|' + deleted;
     } catch (e) {
         return 'ERR|' + e.toString();
     }

@@ -50,7 +50,39 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
-## Hedef: Müzik melodisi (0.9.6.0)
+## Hedef: Müzik melodisi — güncel yöntem (0.9.7.0)
+
+> 0.9.6.x'teki HPSS yöntemi (aşağıda tarihçe olarak duruyor) piyano riff'ini **takip etmiyordu**;
+> 0.9.7.0'da tamamen değiştirildi.
+
+1. **Riff notaları** — `ACSAnalyzer.detectRiffNotes`:
+   - Tempo: orta bant (300–3000 Hz) onset gücünde **sekizlik periyodu** doğrudan aranır
+     (1, 2 ve 4 katında da güçlü olmalı); vuruş araması düzgün sekizlik akışta 3 sekizliği seçip
+     tempoyu 2/3 küçük bulabiliyordu (sentetik 100.4 → 66.9).
+   - Sekizlikler **dinamik programlamalı takiple** (Ellis tarzı, sıkılık 100) bulunur; her nokta
+     yerel atağa oturur. Sabit (tempo, faz) ızgarası 100 sn'de 50+ ms kayıyordu ve sonuç analiz
+     aralığına göre değişiyordu (ortak bölgede 0/52 eşleşme) → takiple 48/49, 50/50, 24/24.
+   - Her sekizlikte baskın perde (kromagram 150–2500 Hz); **perde değişimi = melodi notası**.
+     Aynı perdenin tekrarı ve davul nota sayılmaz.
+   - In the End: 105.3 BPM, riff D♯ A♯ F♯ F F♯ … 2 ölçüde bir tekrar.
+2. **Eşleşme, seçenek (b)** — `ACSTickPlan.alignToNotes`: her melodi notasına bir tık; arada kalan
+   fazla tıkların görüntüsü **silinir** (plan parçası `target 0, speed 0`), kalan pencere normal
+   hızda; pencereye fazla tık düşerse pencere onun ardından başlar (minSpeed'e kadar yavaşlar).
+   Maliyet: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + görünür fazla tık 0.5 + atlanan nota 0.4
+   + düşen tık 0.02 − ödül 1. Bölge başı da aynı kuralla.
+3. **Host** — `ACS_tickRetime` hedefi 0 olan parçayı ripple'sız siler (önce), sonra kısalt/taşı/uzat.
+
+**Fiziksel sınır:** tıklar ~0.4 sn arayla; 0.3 sn'den uzun temiz (blok koymasız) görüntü yok.
+Nota arası uzun olduğunda (ör. uzun F, 2.3 sn) ya ağır çekim ya da görünen fazla blok gerekir.
+minSpeed 0.5: 54 görünür fazla tık; 0.25: 34 ama çok yavaş ve video uzar. Kullanıcıya soruldu.
+
+**Bağımsız son kontrol** (düzenlenmiş HDend'in oyun sesi + müziği dışa aktarılıp sesten):
+- İlk deneme (sabit ızgara): plan hedeflerinin 74/76'sında tık vardı (uygulama doğru) ama
+  kontrol aralığında notalar farklı çıktı → tutarsızlık bulundu, takiple düzeltildi.
+- Son: **riff notalarının 85/89'unda (%96) bir kare içinde tık**, medyan 5 ms, en kötü 15 ms;
+  140 tıktan 86'sı notada, 54'ü uzun nota aralarında görünür. 99 ara, 114 parça silindi, 40 sn.
+
+## Hedef: Müzik melodisi (0.9.6.0) — tarihçe, artık kullanılmıyor
 
 Kullanıcı geri bildirimi: sabit BPM ızgarası "arka plandaki sabit davula göre" edit hissi
 veriyor; istenen, tıkların **melodinin notalarına** (ör. piyano) oturması. Ayarlarda

@@ -11,6 +11,18 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Riff notaları + seçenek (b) (CEP 0.9.7.0)
+
+- Kullanıcı: yeni yöntem + (b) fazla tıkları kes.
+- `detectRiffNotes` (sekizlik periyodu, DP sekizlik takibi, perde değişimi) HPSS'nin yerine; `detectNotes`,
+  `keepRepeating` ve testleri kaldırıldı. `alignToNotes` (b) mantığıyla yeniden; host'ta hedef 0 = sil.
+- İlk canlı deneme: uygulama doğruydu (plan hedeflerinin 74/76'sı) ama bağımsız kontrol notaların analiz
+  aralığına göre değiştiğini gösterdi (sabit ızgara kayması) → DP takibi; sentetik testte 3/2 tempo hatası →
+  sekizlik periyodu araması. Aralıklar arası tutarlılık 0/52 → 50/50.
+- Son canlı (HDend): riff notalarının %96'sında 1 kare içinde tık (medyan 5 ms); 54 fazla tık uzun nota
+  aralarında görünür (0.4 sn blok temposu sınırı). 40 sn. Testler 112 PASS. Paket 0.9.7.0. Release yok.
+- Projede karşılaştırma: "Melodi v1" (HPSS), "Melodi v2" (HPSS + riff filtresi), HDend (0.9.7.0).
+
 ## 2026-10-14 — Melodi tespiti gerçek notalarla kontrol edildi: uymuyor
 
 - Kullanıcı: HDend "hiç uymadı"; internetten notaları araştırıp kontrol istendi.

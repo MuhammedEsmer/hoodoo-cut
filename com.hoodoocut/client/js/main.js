@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.6.1'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.7.0'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -623,13 +623,12 @@
                 if (err) { tickAnalysisFailed(err); return; }
                 try {
                     // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
-                    var allNotes = ACSAnalyzer.detectNotes(fs, musicWav, [rs, re + (re - rs) / opts.minSpeed + 5]);
-                    // Riff filtresi: tekrar eden melodi (ör. piyano riff'i) kalır, tek seferlik vuruşlar elenir.
-                    var riff = ACSTickPlan.keepRepeating(allNotes), notes = riff.notes;
-                    log('Müzik notaları: ' + allNotes.length + ' nota (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
-                        (riff.period ? ', riff periyodu ' + riff.period.toFixed(2) + ' sn, tekrar eden ' + riff.repeating +
-                            ', kullanılan ' + notes.length : ''));
-                    finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, notes, {
+                    // Riff: tempo ızgarasında perde değişimleri (piyano riff'i gibi melodi notaları).
+                    var riff = ACSAnalyzer.detectRiffNotes(fs, musicWav, [rs, re + (re - rs) / opts.minSpeed + 5]);
+                    log('Müzik melodisi: ' + riff.notes.length + ' nota, tempo ' + (riff.bpm ? riff.bpm.toFixed(1) : '?') +
+                        ' BPM (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
+                        (riff.names.length ? ', ilk notalar ' + riff.names.slice(0, 6).join(' ') : ''));
+                    finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, riff.notes, {
                         fps: opts.fps, holdFrames: opts.holdFrames, minSpeed: opts.minSpeed,
                         maxSpeed: opts.maxSpeed, regionStart: rs }), opts);
                 } catch (e3) { tickAnalysisFailed(e3); }
@@ -657,7 +656,9 @@
 
     function finishTickAnalysis(onsets, plan, opts) {
         state.tickPlan = plan.gaps.length ? plan : null;
-        var speeds = plan.gaps.map(function (g) { return g.speed; });
+        // Silinecek parçalar (hız 0) hız aralığına girmez.
+        var speeds = plan.gaps.filter(function (g) { return g.speed > 0; }).map(function (g) { return g.speed; });
+        if (!speeds.length) speeds = [1];
         var melody = opts.target === 'melody';
         var natural = ACSTickPlan.medianInterval(onsets);
         var naturalNote = !melody && natural ? 'Doğal tık aralığı ≈ ' + natural.toFixed(2) + ' sn' +
@@ -678,7 +679,7 @@
                 'Hız: %' + Math.round(Math.min.apply(null, speeds) * 100) + ' – %' +
                 Math.round(Math.max.apply(null, speeds) * 100) + ' · süre değişimi ' +
                 (plan.deltaSec >= 0 ? '+' : '') + plan.deltaSec.toFixed(2) + ' sn<br>' +
-                (melody ? (plan.merged ? plan.merged + ' tık uygun notaya oturmadığı için düştü. ' : '') +
+                (melody ? (plan.merged ? plan.merged + ' fazla tık; aralarından ' + plan.cutSec.toFixed(1) + ' sn kesilecek. ' : '') +
                     plan.skipped + ' nota tıksız geçti. '
                     : (plan.merged ? plan.merged + ' yakın tık öncekine katıldı. ' : '')) +
                 (plan.limited ? plan.limited + ' arada hız sınırı aşıldı, fazlası kesilecek. ' : '') +
@@ -730,9 +731,10 @@
                 var p = res.split('|');
                 if (p[0] !== 'OK') { fail(p.slice(1).join('|')); return; }
                 evalJsx('ACS_clearTickMarkers()', function () {});
-                var capped = parseInt(p[4], 10) || 0;
+                var capped = parseInt(p[4], 10) || 0, deleted = parseInt(p[5], 10) || 0;
                 finish(true, 'Ritme oturtuldu: ' + plan.gaps.length + ' ara, ' + p[1] + ' hız değişimi, ' + p[2] +
-                    ' taşıma (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)' +
+                    ' taşıma' + (deleted ? ', ' + deleted + ' parça silindi' : '') +
+                    ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)' +
                     (capped ? '. ' + capped + ' arada Premiere hızı sınırladı; tıklar yine hedef anlarında, aranın sonu biraz kısaldı.' : ''));
             });
         }

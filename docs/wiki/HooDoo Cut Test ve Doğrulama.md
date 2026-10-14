@@ -32,8 +32,8 @@ node tools/test-analyzer.js
 | `tools/test-bulk-bridge.js` | Yerel köprü: origin/token, tek seferlik iş, idempotent onay (3) |
 | `tools/test-bulk-network.js` | UXP `network.js`: sabit loopback adresi, redirect/dış URL reddi (2) |
 | `tools/test-bulk-companion.js` | Yardımcı panel bağlantı/onay kurtarma (2) |
-| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi nota tespiti, tık→nota eşleşmesi, riff filtresi (16) |
-| `tools/test-tick-host.js` | `ACS_tickRetime` çakışmasız yeniden zamanlama + marker'lar (5) |
+| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, riff notaları (perde değişimi, aralıktan bağımsızlık), (b) eşleşmesi (16) |
+| `tools/test-tick-host.js` | `ACS_tickRetime`: çakışmasız yeniden zamanlama, silme, kilitli track, hız tavanı, marker'lar (10) |
 
 **2026-10-14 koşusu: 100 PASS, 0 FAIL** (CEP 0.9.5.0, motor 0.9.9). Geçici
 `test-speed-probe.js` tanı bitince kaldırıldı.

@@ -94,6 +94,13 @@ test('tick edit session accepts locked tracks; other modes still refuse them', (
     assert.strictEqual(f.host.ACS_beginEdit(ctx, 'tick'), 'OK');
     assert(f.host.ACS_beginEdit(ctx, 'remove_close').startsWith('ERR|'));
 });
+test('a zero-target gap deletes that piece on every track and closes up the rest', () => {
+    const { f, tracks } = setup();
+    const res = f.host.ACS_tickRetime('1.1,1.8,0,0');
+    assert(res.startsWith('OK|'), res);
+    const want = [[0, 1.1, 1], [1.1, 1.2, 1], [1.2, 1.5, 1], [1.5, 2.3, 1]];
+    tracks.forEach(track => assert.deepStrictEqual(layout(track), want));
+});
 test('invalid gap data is rejected', () => {
     const { f } = setup();
     assert(f.host.ACS_tickRetime('1.8,1.1,0.4,1').startsWith('ERR|'));

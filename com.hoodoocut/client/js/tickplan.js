@@ -60,17 +60,19 @@
         return d.length % 2 ? d[m] : (d[m - 1] + d[m]) / 2;
     }
 
-    /* Müzik melodisi hedefi: tıkları (video) nota başlangıçlarına (kilitli müzik, timeline
-     * zamanı) eşler. Dinamik programlama: sıralı eşleşme; her geçişin hızı
-     * (tık arası − tık parçası) / (nota arası − tık parçası) sınırlar içinde olmalı; maliyet
-     * |ln hız| + atlanan nota + düşen tık cezası − eşleşme ödülü. İlk tık notasına otursun diye
-     * bölge başı da (regionStart → ilk tık) yeniden zamanlanır. Dönüş planTicks ile aynı biçimde
-     * (+ targets: eşleşen nota zamanları, skipped: atlanan nota). Canlı (In the End): 158 tıkın
-     * 156'sı notaya, medyan hız 1.00. */
+    /* Müzik melodisi hedefi, kullanıcı seçeneği (b): her melodi notasına bir tık oturur; iki
+     * eşleşen tık arasındaki fazla tıkların görüntüsü KESİLİR. Bir geçişte (tık a → tık b, nota
+     * j → nota j2) kullanılabilir kaynak = b − (a + tık parçası), hedef D = nota arası − tık
+     * parçası. Kaynak ≥ D ise b'den önceki son D kare normal hızda tutulur, öncesi silinir;
+     * tutulan pencereye düşen fazla tık varsa pencere onun tık parçasından sonra başlar (gerekirse
+     * minSpeed'e kadar yavaşlar). Kaynak < D ise ara minSpeed'e kadar yavaşlar. Dinamik programlama
+     * maliyeti: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + görünür kalan fazla tık 0.5 + atlanan
+     * nota 0.4 + düşen tık 0.02 − eşleşme ödülü 1. Bölge başı da aynı kuralla ilk notaya oturtulur.
+     * Dönüş planTicks biçiminde; silinecek parça = { target: 0, speed: 0 }; normal hızda tutulan
+     * parça plana yazılmaz (yalnız kayar). */
     function alignToNotes(clicks, notes, opts) {
-        var fps = opts.fps, hold = opts.holdFrames, minS = opts.minSpeed, maxS = opts.maxSpeed;
-        var skipCost = opts.skipCost || 0.15, dropCost = opts.dropCost || 0.6, reward = opts.reward || 1;
-        var MAXSKIP = opts.maxSkip || 8, MAXDROP = opts.maxDrop || 3, rs = Math.round(opts.regionStart * fps);
+        var fps = opts.fps, hold = opts.holdFrames, minS = opts.minSpeed, rs = Math.round(opts.regionStart * fps);
+        var SKIP = 0.4, DROP = 0.02, CUT = 0.1, VISIBLE = 0.5, REWARD = 1, MAXDROP = 12, MAXSKIP = 4;
         function frames(list) {
             var out = [];
             list.map(function (t) { return Math.round(t * fps); }).sort(function (a, b) { return a - b; })
@@ -78,38 +80,51 @@
             return out;
         }
         var C = frames(clicks), M = frames(notes), n = C.length, m = M.length, i, j, i2, j2;
-        var empty = { clicks: [], targets: [], gaps: [], boundaries: [], merged: 0, limited: 0, skipped: 0, deltaSec: 0 };
+        var empty = { clicks: [], targets: [], gaps: [], boundaries: [], merged: 0, limited: 0, skipped: 0, deltaSec: 0, cutSec: 0 };
         if (n < 2 || m < 2) return empty;
+        // Bir geçişin kararı: startF'den endF'deki tıka, D karelik hedef; dropped = aradaki fazla tıklar.
+        function decide(startF, endF, D, dropped) {
+            var avail = endF - startF;
+            if (D < 1 || avail <= 0) return null;
+            if (avail < D) {
+                var slow = avail / D;
+                if (slow < minS) return null;
+                return { cutTo: startF, speed: slow, visible: dropped.length, cost: Math.abs(Math.log(slow)) };
+            }
+            var ws = endF - D, visible = 0, speed = 1, last = -1;
+            for (var q = 0; q < dropped.length; q++) if (dropped[q] >= ws) last = dropped[q];
+            if (last >= 0) {
+                var ws2 = last + hold, r = endF - ws2;
+                if (r / D >= minS) { ws = ws2; speed = r / D; }
+                else for (q = 0; q < dropped.length; q++) if (dropped[q] >= ws) visible++;
+            }
+            return { cutTo: ws, speed: speed, visible: visible,
+                cost: Math.abs(Math.log(speed)) + CUT * Math.log(avail / D) };
+        }
         var INF = 1e18, cost = [], prev = [];
         for (i = 0; i < n; i++) { cost.push(new Float64Array(m).fill(INF)); prev.push(new Int32Array(m).fill(-1)); }
-        for (i = 0; i <= MAXDROP && i < n; i++) {
+        for (i = 0; i < n; i++) {
             for (j = 0; j < m; j++) {
-                var s0 = (C[i] - rs) / (M[j] - rs);
-                if (s0 >= minS && s0 <= maxS) cost[i][j] = Math.abs(Math.log(s0)) + dropCost * i - reward;
+                var d0 = decide(rs, C[i], M[j] - rs, C.slice(0, i));
+                if (d0) cost[i][j] = d0.cost + VISIBLE * d0.visible + DROP * i - REWARD;
             }
         }
         for (i = 0; i < n; i++) {
             for (j = 0; j < m; j++) {
                 if (cost[i][j] >= INF) continue;
                 for (i2 = i + 1; i2 <= Math.min(n - 1, i + 1 + MAXDROP); i2++) {
-                    var src = C[i2] - C[i] - hold;
-                    if (src <= 0) continue;
+                    var dropped = C.slice(i + 1, i2);
                     for (j2 = j + 1; j2 <= Math.min(m - 1, j + 1 + MAXSKIP); j2++) {
-                        var slot = M[j2] - M[j] - hold;
-                        if (slot < 1) continue;
-                        var s = src / slot;
-                        if (s < minS || s > maxS) continue;
-                        var c = cost[i][j] + Math.abs(Math.log(s)) + skipCost * (j2 - j - 1) + dropCost * (i2 - i - 1) - reward;
+                        var dd = decide(C[i] + hold, C[i2], M[j2] - M[j] - hold, dropped);
+                        if (!dd) continue;
+                        var c = cost[i][j] + dd.cost + VISIBLE * dd.visible + SKIP * (j2 - j - 1) + DROP * (i2 - i - 1) - REWARD;
                         if (c < cost[i2][j2]) { cost[i2][j2] = c; prev[i2][j2] = i * m + j; }
                     }
                 }
             }
         }
         var best = INF, bi = -1, bj = -1;
-        for (i = 0; i < n; i++) for (j = 0; j < m; j++) {
-            var total = cost[i][j] + dropCost * (n - 1 - i);
-            if (total < best) { best = total; bi = i; bj = j; }
-        }
+        for (i = 0; i < n; i++) for (j = 0; j < m; j++) if (cost[i][j] < best) { best = cost[i][j]; bi = i; bj = j; }
         if (bi < 0) return empty;
         var pairs = [];
         for (i = bi, j = bj; ;) {
@@ -119,17 +134,20 @@
             i = Math.floor(p / m); j = p % m;
         }
         if (pairs.length < 2) return empty;
-        var gaps = [], delta = 0, skipped = 0, first = pairs[0];
-        if (M[first[1]] !== C[first[0]]) {
-            gaps.push({ start: rs / fps, end: C[first[0]] / fps, target: (M[first[1]] - rs) / fps,
-                speed: (C[first[0]] - rs) / (M[first[1]] - rs) });
-            delta += (M[first[1]] - rs) - (C[first[0]] - rs);
+        var gaps = [], delta = 0, cutF = 0, skipped = 0;
+        function emit(startF, endF, D, dropped) {
+            var d = decide(startF, endF, D, dropped);
+            if (d.cutTo > startF) {
+                gaps.push({ start: startF / fps, end: d.cutTo / fps, target: 0, speed: 0 });
+                cutF += d.cutTo - startF;
+            }
+            if (Math.abs(d.speed - 1) > 1e-9) gaps.push({ start: d.cutTo / fps, end: endF / fps, target: D / fps, speed: d.speed });
+            delta += D - (endF - startF);
         }
+        emit(rs, C[pairs[0][0]], M[pairs[0][1]] - rs, C.slice(0, pairs[0][0]));
         for (var k = 1; k < pairs.length; k++) {
             var a = pairs[k - 1], b = pairs[k];
-            var startF = C[a[0]] + hold, endF = C[b[0]], targetF = M[b[1]] - M[a[1]] - hold;
-            gaps.push({ start: startF / fps, end: endF / fps, target: targetF / fps, speed: (endF - startF) / targetF });
-            delta += targetF - (endF - startF);
+            emit(C[a[0]] + hold, C[b[0]], M[b[1]] - M[a[1]] - hold, C.slice(a[0] + 1, b[0]));
             skipped += b[1] - a[1] - 1;
         }
         var boundaries = [];
@@ -137,51 +155,11 @@
         return {
             clicks: pairs.map(function (q) { return C[q[0]] / fps; }),
             targets: pairs.map(function (q) { return M[q[1]] / fps; }),
-            gaps: gaps, boundaries: boundaries, merged: n - pairs.length, limited: 0, skipped: skipped, deltaSec: delta / fps
+            gaps: gaps, boundaries: boundaries, merged: n - pairs.length, limited: 0, skipped: skipped,
+            deltaSec: delta / fps, cutSec: cutF / fps
         };
     }
 
-    /* Riff filtresi: şarkının tekrar periyodunu (2-12 sn arası en çok eşleşen gecikme) bulur, bir
-     * periyot öncesinde/sonrasında karşılığı olan notaları tutar — tekrar eden riff kalır, tek
-     * seferlik gitar vuruşu/dolgu elenir. Filtre fillGap'ten (sn) uzun bir boşluk bırakırsa
-     * (riff'in olmadığı bölüm) oradaki notalar geri konur ki tık eşleşmesi kopmasın. */
-    function keepRepeating(notes, opts) {
-        opts = opts || {};
-        var eps = opts.eps || 0.05, fillGap = opts.fillGap || 1.5, minP = opts.minPeriod || 2, maxP = opts.maxPeriod || 12;
-        var sorted = notes.slice().sort(function (a, b) { return a - b; });
-        if (sorted.length < 4) return { notes: sorted, period: null };
-        function hasNear(t) {
-            var lo = 0, hi = sorted.length - 1;
-            while (lo <= hi) {
-                var mid = (lo + hi) >> 1;
-                if (sorted[mid] < t - eps) lo = mid + 1;
-                else if (sorted[mid] > t + eps) hi = mid - 1;
-                else return true;
-            }
-            return false;
-        }
-        // Tolerans yüzünden en iyi skor bir plato oluşturur (ör. 2.35-2.45); platonun ortası alınır.
-        var bestLag = null, bestScore = 0, plateauEnd = null;
-        for (var lag = minP; lag <= maxP + 1e-9; lag += 0.01) {
-            var score = 0;
-            for (var i = 0; i < sorted.length; i++) if (hasNear(sorted[i] + lag)) score++;
-            if (score > bestScore) { bestScore = score; bestLag = lag; plateauEnd = lag; }
-            else if (score === bestScore && plateauEnd !== null && lag - plateauEnd < 0.015) plateauEnd = lag;
-        }
-        if (!bestLag) return { notes: sorted, period: null };
-        bestLag = (bestLag + plateauEnd) / 2;
-        var kept = sorted.filter(function (t) { return hasNear(t + bestLag) || hasNear(t - bestLag); });
-        var out = [], k = 0;
-        for (var j = 0; j < sorted.length; j++) {
-            var t = sorted[j];
-            while (k < kept.length && kept[k] < t) k++;
-            if (kept[k] === t) { out.push(t); continue; }
-            var before = k > 0 ? kept[k - 1] : -Infinity, after = k < kept.length ? kept[k] : Infinity;
-            if (after - before > fillGap) out.push(t);
-        }
-        return { notes: out, period: Math.round(bestLag * 100) / 100, repeating: kept.length };
-    }
-
     return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval,
-        alignToNotes: alignToNotes, keepRepeating: keepRepeating };
+        alignToNotes: alignToNotes };
 });

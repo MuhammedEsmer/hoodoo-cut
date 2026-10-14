@@ -126,64 +126,79 @@ function writeWav(samples) {
     fs.writeFileSync(file, Buffer.concat([h, data]));
     return file;
 }
-test('melody notes are found and drum-like noise bursts are ignored', () => {
-    const n = 4 * SR, s = new Float64Array(n);
-    const tones = [[0.5, 440], [1.3, 660], [2.1, 550], [2.9, 495]];
-    // Piyano gibi: armonikli nota, keskin atak, doğal sönüm (sert kesilme yok); davul vuruşları
-    // nota çalarken düşer.
-    for (const [at, hz] of tones) {
-        for (let i = Math.round(at * SR); i < n; i++) {
+test('riff notes are the pitch changes on the detected eighth-note grid (not repeats or drums)', () => {
+    // 100 BPM: sekizlik 0.3 sn. Her sekizlik çalınır (aynı perde tekrarları dahil), her vuruşta davul.
+    const hz = { 'D#': 311.13, 'A#': 466.16, 'F#': 369.99, 'F': 349.23 };
+    const pattern = ['D#', 'D#', 'D#', 'A#', 'A#', 'F#', 'F#', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F#'];
+    const t0 = 0.3, e8 = 0.3, dur = 10, n = Math.round(dur * SR), s = new Float64Array(n), changes = [];
+    let prev = null;
+    for (let k = 0; t0 + k * e8 < dur - 0.5; k++) {
+        const at = t0 + k * e8, name = pattern[k % pattern.length];
+        if (name !== prev) changes.push(at);
+        prev = name;
+        for (let i = Math.round(at * SR); i < Math.min(n, Math.round((at + 1.2) * SR)); i++) {
             const t = i / SR - at;
             let v = 0;
-            for (let k = 1; k <= 6; k++) v += Math.sin(2 * Math.PI * hz * k * t) / k;
-            s[i] += 5000 * Math.min(1, t / 0.005) * Math.exp(-t / 0.25) * v;
+            for (let h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * hz[name] * h * t) / h;
+            s[i] += 4000 * Math.min(1, t / 0.004) * Math.exp(-t / 0.2) * v;
         }
     }
-    for (const at of [1.0, 1.9, 2.6, 3.5]) { // davul benzeri kısa gürültü
-        for (let i = Math.round(at * SR); i < Math.round((at + 0.03) * SR); i++) s[i] += (rand() * 2 - 1) * 12000 * Math.exp(-(i / SR - at) / 0.008);
+    for (let at = t0; at < dur - 0.5; at += 2 * e8) { // her vuruşta davul
+        for (let i = Math.round(at * SR); i < Math.round((at + 0.04) * SR); i++) s[i] += (rand() * 2 - 1) * 9000 * Math.exp(-(i / SR - at) / 0.01);
     }
     const file = writeWav(s);
     try {
-        const notes = analyzer.detectNotes(fs, file, [0, 4]);
-        assert.strictEqual(notes.length, tones.length, JSON.stringify(notes));
-        notes.forEach((t, i) => assert(Math.abs(t - tones[i][0]) <= 0.03, t + ' vs ' + tones[i][0]));
+        const res = analyzer.detectRiffNotes(fs, file, [0, dur]);
+        assert(Math.abs(res.bpm - 100) <= 1, 'tempo ' + res.bpm);
+        assert.strictEqual(res.notes.length, changes.length, JSON.stringify(res.notes) + ' vs ' + JSON.stringify(changes));
+        res.notes.forEach((t, i) => assert(Math.abs(t - changes[i]) <= 0.03, t + ' vs ' + changes[i]));
     } finally { fs.unlinkSync(file); }
 });
-test('clicks are matched to notes monotonically with speeds inside the limits', () => {
-    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6];
-    const notes = [0.5, 1.1, 1.5, 1.6, 2.0, 2.45, 2.9, 3.4];
-    const opts = { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 2.5, regionStart: 0 };
-    const p = plan.alignToNotes(clicks, notes, opts);
-    assert(p.clicks.length >= 4, JSON.stringify(p));
+test('riff notes do not depend on the analysed range (beat tracking, no global grid drift)', () => {
+    // 100.4 BPM: sabit 100 BPM ızgarası 20 sn'de ~50 ms kayardı; takip yerel kalmalı.
+    const hz = { 'D#': 311.13, 'A#': 466.16, 'F#': 369.99, 'F': 349.23 };
+    const pattern = ['D#', 'D#', 'D#', 'A#', 'A#', 'F#', 'F#', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F#'];
+    const e8 = 60 / 100.4 / 2, dur = 24, n = Math.round(dur * SR), s = new Float64Array(n);
+    for (let k = 0; 0.25 + k * e8 < dur - 0.5; k++) {
+        const at = 0.25 + k * e8, f = hz[pattern[k % pattern.length]];
+        for (let i = Math.round(at * SR); i < Math.min(n, Math.round((at + 1.0) * SR)); i++) {
+            const t = i / SR - at;
+            let v = 0;
+            for (let h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * f * h * t) / h;
+            s[i] += 4000 * Math.min(1, t / 0.004) * Math.exp(-t / 0.2) * v;
+        }
+    }
+    const file = writeWav(s);
+    try {
+        const whole = analyzer.detectRiffNotes(fs, file, [0, dur]).notes;
+        const part = analyzer.detectRiffNotes(fs, file, [9, dur]).notes.filter(t => t > 11 && t < dur - 2);
+        assert(part.length >= 8, JSON.stringify(part));
+        part.forEach(t => assert(whole.some(q => Math.abs(q - t) <= 0.012), 'tutarsiz nota ' + t + ' / ' + JSON.stringify(whole)));
+    } finally { fs.unlinkSync(file); }
+});
+const cutOpts = { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 4, regionStart: 0 };
+test('option (b): every melody note gets a click, extra clicks are cut, kept footage plays at most normal speed', () => {
+    // Tık aralığı 0.4 sn; nota aralıkları kesmeye izin verecek kadar kısa ya da yavaşlatmaya uygun.
+    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0];
+    const notes = [1.0, 1.35, 1.7, 2.4, 2.75];
+    const p = plan.alignToNotes(clicks, notes, cutOpts);
+    assert(p.clicks.length >= 3, JSON.stringify(p));
     for (let i = 1; i < p.targets.length; i++) assert(p.targets[i] > p.targets[i - 1]);
-    // Hedefler kare ızgarasına oturtulmuş notalardır.
-    p.targets.forEach(t => assert(notes.some(nt => Math.abs(Math.round(nt * 30) / 30 - t) < 1e-9), 'hedef nota degil: ' + t));
-    p.gaps.forEach(g => assert(g.speed >= 0.5 - 1e-9 && g.speed <= 2.5 + 1e-9, JSON.stringify(g)));
-    // Her ara: hedef süre = sonraki nota - nota - tık parçası (kare)
-    const between = p.gaps.filter(g => g.start > 0);
-    between.forEach((g, i) => assert(near(g.target, p.targets[i + 1] - p.targets[i] - 3 / 30, 1e-9), JSON.stringify(g)));
+    p.targets.forEach(t => assert(notes.some(nt => near(Math.round(nt * 30) / 30, t, 1e-9)), 'hedef nota degil: ' + t));
+    assert(p.gaps.some(g => g.target === 0), 'fazla tiklar kesilmeli');
+    p.gaps.forEach(g => assert(g.target === 0 ? g.speed === 0 : g.speed >= 0.5 - 1e-9 && g.speed <= 1 + 1e-9, JSON.stringify(g)));
+    p.gaps.filter(g => g.target > 0).forEach(g => assert(p.clicks.some(c => near(c, g.end, 1e-9)), 'kalan parca bir tikta bitmeli'));
 });
-test('the region start is retimed so the first click lands on its note', () => {
-    const p = plan.alignToNotes([1.0, 1.4, 1.8], [1.2, 1.6, 2.0], { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 2.5, regionStart: 0.2 });
-    const prefix = p.gaps[0];
-    assert(near(prefix.start, 0.2) && near(prefix.end, 1.0) && near(prefix.target, 1.0), JSON.stringify(prefix));
-    assert(near(prefix.speed, 0.8));
-    assert(near(p.targets[0], 1.2));
+test('option (b): a dropped click inside the kept window is avoided by starting after it', () => {
+    const p = plan.alignToNotes([1.0, 1.3, 2.0], [1.0, 1.8], cutOpts);
+    const g = p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), +x.target.toFixed(4), +x.speed.toFixed(4)]);
+    assert.deepStrictEqual(g, [[1.1, 1.4, 0, 0], [1.4, 2.0, 0.7, +(0.6 / 0.7).toFixed(4)]]);
 });
-test('repetition filter finds the riff period and drops one-off notes', () => {
-    const riff = [0, 0.3, 0.9, 1.2, 1.5], period = 2.4, notes = [];
-    for (let r = 0; r < 5; r++) riff.forEach(t => notes.push(1 + r * period + t));
-    const extras = [1.65, 4.15, 6.9, 9.6, 11.05]; // birbirine ve riff'e periyot uzaklığında değil
-    const res = plan.keepRepeating(notes.concat(extras).sort((a, b) => a - b));
-    assert(Math.abs(res.period - period) <= 0.02, 'periyot ' + res.period);
-    assert.deepStrictEqual(res.notes.map(t => +t.toFixed(3)), notes.map(t => +t.toFixed(3)));
-});
-test('repetition filter keeps original notes where the riff is absent for a while', () => {
-    const notes = [];
-    for (let r = 0; r < 4; r++) [0, 0.4, 0.8].forEach(t => notes.push(r * 2.4 + t));
-    const solo = [12, 12.5, 13.3, 14.1]; // riff yok, 2 sn'den uzun boşluk olurdu
-    const res = plan.keepRepeating(notes.concat(solo), { fillGap: 1.5 });
-    solo.forEach(t => assert(res.notes.includes(t), 'boslukta nota kalmali: ' + t));
+test('option (b): the region start is cut so the first click lands on its note', () => {
+    const p = plan.alignToNotes([1.0, 1.8], [0.7, 1.5], Object.assign({}, cutOpts, { regionStart: 0.2 }));
+    const g = p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), x.target, x.speed]);
+    assert.deepStrictEqual(g, [[0.2, 0.5, 0, 0]]);
+    assert.deepStrictEqual(p.targets.map(t => +t.toFixed(4)), [0.7, 1.5]);
 });
 test('a slow swell crossing the region start is not taken as a click', () => {
     // 0.9-1.1 sn: genlik 30 -> 20000, dB'de düzgün yükseliş (~14 dB / 50 ms), keskin tık yok.
