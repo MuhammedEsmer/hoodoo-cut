@@ -11,6 +11,17 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Tık sesi notaya hizalanıyor (CEP 0.9.9.1)
+
+- Kullanıcı: videonun kısalması (tıksız anların kesilmesi) uygun, devam.
+- Hata bütçesi: kare yuvarlaması 3.9 + tık kare içi kayması 3.3 + Basic Pitch 5.1 ms → toplam medyan 8.8 ms.
+  `alignToNotes`: tık karesi, sesinin notaya düşeceği kareye (tek yuvarlama). Basic Pitch gecikme
+  düzeltmesi denendi, kazanç yok.
+- `readMonoResampled` dosya sonunda durur: piyano analizi 25.5 → 10.2 sn.
+- Canlı: piyano (Kong) medyan 5.7 ms, 10 ms içinde %76; In the End (panel notaları) %99; görünür fazla blok
+  yok. Önceki sonuçlar projede "Piyano v3 (0.9.9.0)", "Melodi v5 (0.9.9.0)". Testler 126 PASS.
+  Paket 0.9.9.1. Release yok.
+
 ## 2026-10-14 — Basic Pitch ile melodi notaları (CEP 0.9.9.0)
 
 - Kullanıcı: lisans önemli değil, istediğini kullan; en iyi yöntemi panele entegre et ve test et.

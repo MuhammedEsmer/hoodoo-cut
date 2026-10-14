@@ -32,10 +32,10 @@ node tools/test-analyzer.js
 | `tools/test-bulk-bridge.js` | Yerel köprü: origin/token, tek seferlik iş, idempotent onay (3) |
 | `tools/test-bulk-network.js` | UXP `network.js`: sabit loopback adresi, redirect/dış URL reddi (2) |
 | `tools/test-bulk-companion.js` | Yardımcı panel bağlantı/onay kurtarma (2) |
-| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi notaları (perde değişimi, yeniden vuruş, tutulan nota/davul nota değil, ızgara dışı atak, sönüm), (b)/(c) eşleşmesi: fazla tıklar arası bölümler, hafif ağır çekim, kısa donma, uzun donma yerine tık düşürme; Basic Pitch nota seçimi, yeniden örnekleme ve **gerçek paketle** sentetik piyano transkripsiyonu (28) |
+| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi notaları (perde değişimi, yeniden vuruş, tutulan nota/davul nota değil, ızgara dışı atak, sönüm), (b)/(c) eşleşmesi: fazla tıklar arası bölümler, hafif ağır çekim, kısa donma, uzun donma yerine tık düşürme; Basic Pitch nota seçimi, yeniden örnekleme ve **gerçek paketle** sentetik piyano transkripsiyonu, tık sesinin (karesinin değil) notaya hizalanması (29) |
 | `tools/test-tick-host.js` | `ACS_tickRetime`: çakışmasız yeniden zamanlama, silme, donan karenin sesi, kilitli track, hız tavanı, marker'lar (11) |
 
-**2026-10-14 son koşu: 125 PASS, 0 FAIL** (CEP 0.9.9.0, motor 0.9.9).
+**2026-10-14 son koşu: 126 PASS, 0 FAIL** (CEP 0.9.9.1, motor 0.9.9).
 
 **Nota doğruluğu ölçümü (geliştirme):** Kong piyano transkripsiyonu (Python, `piano_transcription_inference`)
 referans olarak kullanılır; spektral akış referansı zayıf. Ayrıntı:

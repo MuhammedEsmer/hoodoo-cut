@@ -627,7 +627,9 @@
             }
             for (j = 0; j < W; j++) tab[k * W + j] /= norm;
         }
-        var outN = Math.max(0, Math.floor((range[1] - range[0]) * srOut)), y = new Float32Array(outN);
+        // dosya sonundan sonrası okunmaz (aralık bölge uzaması payıyla dosyayı aşabiliyor; sessizliği
+        // modele vermek canlıda analizi 2.5 kat uzatıyordu)
+        var outN = Math.max(0, Math.floor((Math.min(range[1], (s0 + n) / sr) - range[0]) * srOut)), y = new Float32Array(outN);
         for (var o = 0; o < outN; o++) {
             var t = (range[0] + o / srOut) * sr - s0, ci = Math.floor(t), base = Math.round((t - ci) * STEPS) * W, acc = 0;
             for (j = 0; j < W; j++) {

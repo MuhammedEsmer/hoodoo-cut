@@ -88,13 +88,20 @@
         // (canlı: tık parçasından sonra 11 yerde, 150 ms'de 1 yerde). 200 ms temiz görüntüyü o kadar
         // azaltıyor ki piyanoda plan saniyelerce görüntü atlıyordu (video 87 → 61 sn).
         var tail = Math.max(hold, Math.round(0.175 * fps));
-        function frames(list) {
+        // Kare ve kare içi kayma: tıkın sesi karesinin O[i] sn sonrasında. Tıkın karesi, sesi notaya
+        // düşecek kareye konur (tgt): iki ayrı yuvarlama (tık + nota, ±2 × yarım kare) teke iner.
+        // Canlı (piyano, 60 fps): yuvarlama 3.9 + tık kayması 3.3 ms → toplam hata medyanı 8.8 ms.
+        function frames(list, offs) {
             var out = [];
-            list.map(function (t) { return Math.round(t * fps); }).sort(function (a, b) { return a - b; })
-                .forEach(function (f) { if (f > rs && (!out.length || f !== out[out.length - 1])) out.push(f); });
+            list.slice().sort(function (a, b) { return a - b; }).forEach(function (t) {
+                var f = Math.round(t * fps);
+                if (f > rs && (!out.length || f !== out[out.length - 1])) { out.push(f); if (offs) offs.push(t - f / fps); }
+            });
             return out;
         }
-        var C = frames(clicks), M = frames(notes), n = C.length, m = M.length, i, j, i2, j2;
+        var O = [], NS = [], C = frames(clicks, O), M = frames(notes, NS), n = C.length, m = M.length, i, j, i2, j2;
+        for (j = 0; j < m; j++) NS[j] += M[j] / fps; // notanın kendisi (sn)
+        function tgt(ci, nj) { return Math.round((NS[nj] - O[ci]) * fps); }
         var empty = { clicks: [], targets: [], gaps: [], boundaries: [], merged: 0, limited: 0, skipped: 0, deltaSec: 0, cutSec: 0, visible: 0, freezes: 0, frozenSec: 0 };
         if (n < 2 || m < 2) return empty;
         // Bir geçişin kararı: startF'den endF'deki tıka, D karelik hedef; dropped = aradaki fazla tıklar.
@@ -170,7 +177,7 @@
         for (i = 0; i < n; i++) { cost.push(new Float64Array(m).fill(INF)); prev.push(new Int32Array(m).fill(-1)); }
         for (i = 0; i < n; i++) {
             for (j = 0; j < m; j++) {
-                var d0 = decide(rs, C[i], M[j] - rs, C.slice(0, i));
+                var d0 = decide(rs, C[i], tgt(i, j) - rs, C.slice(0, i));
                 if (d0) cost[i][j] = d0.cost + DROP * i - REWARD;
             }
         }
@@ -180,7 +187,7 @@
                 for (i2 = i + 1; i2 <= Math.min(n - 1, i + 1 + MAXDROP); i2++) {
                     var dropped = C.slice(i + 1, i2);
                     for (j2 = j + 1; j2 <= Math.min(m - 1, j + 1 + MAXSKIP); j2++) {
-                        var dd = decide(C[i] + hold, C[i2], M[j2] - M[j] - hold, dropped);
+                        var dd = decide(C[i] + hold, C[i2], tgt(i2, j2) - tgt(i, j) - hold, dropped);
                         if (!dd) continue;
                         var c = cost[i][j] + dd.cost + SKIP * (j2 - j - 1) + DROP * (i2 - i - 1) - REWARD;
                         if (c < cost[i2][j2]) { cost[i2][j2] = c; prev[i2][j2] = i * m + j; }
@@ -216,17 +223,17 @@
             if (d.frozen) { freezes++; frozenF += d.frozen; }
             delta += D - (endF - startF);
         }
-        emit(rs, C[pairs[0][0]], M[pairs[0][1]] - rs, C.slice(0, pairs[0][0]));
+        emit(rs, C[pairs[0][0]], tgt(pairs[0][0], pairs[0][1]) - rs, C.slice(0, pairs[0][0]));
         for (var k = 1; k < pairs.length; k++) {
             var a = pairs[k - 1], b = pairs[k];
-            emit(C[a[0]] + hold, C[b[0]], M[b[1]] - M[a[1]] - hold, C.slice(a[0] + 1, b[0]));
+            emit(C[a[0]] + hold, C[b[0]], tgt(b[0], b[1]) - tgt(a[0], a[1]) - hold, C.slice(a[0] + 1, b[0]));
             skipped += b[1] - a[1] - 1;
         }
         var boundaries = [];
         gaps.forEach(function (g) { boundaries.push(g.start, g.end); });
         return {
             clicks: pairs.map(function (q) { return C[q[0]] / fps; }),
-            targets: pairs.map(function (q) { return M[q[1]] / fps; }),
+            targets: pairs.map(function (q) { return tgt(q[0], q[1]) / fps + O[q[0]]; }), // tık sesinin düşeceği an
             gaps: gaps, boundaries: boundaries, merged: n - pairs.length, limited: 0, skipped: skipped,
             deltaSec: delta / fps, cutSec: cutF / fps, visible: visible, freezes: freezes, frozenSec: frozenF / fps
         };

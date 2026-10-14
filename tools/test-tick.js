@@ -318,6 +318,15 @@ test('option (c): a note gap longer than all remaining footage is slowed lightly
     assert(p.gaps[0].freeze);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
+test('the click sound (not its frame) is placed on the note: one rounding instead of two', () => {
+    // 30 fps: ikinci tıkın sesi karesinden 15 ms önce (1.385 → kare 42 = 1.4); nota 1.407.
+    // Eski: tık karesi nota karesine (42) → ses 1.385, hata −22 ms. Yeni: ses notaya en yakın kareye → |hata| ≤ yarım kare.
+    const p = plan.alignToNotes([1.0, 1.385], [1.0, 1.407], cutOpts);
+    assert.deepStrictEqual(p.clicks, [1.0, 1.4]);
+    const landed = outAt(p, 1.4) - 0.015;
+    assert(Math.abs(landed - 1.407) <= 1 / 60 + 1e-9, 'ses ' + landed.toFixed(4));
+    assert(near(p.targets[1], landed, 1e-9), 'hedef ' + p.targets[1] + ' / ' + landed);
+});
 test('option (c): a long freeze is avoided by dropping one more click and cutting', () => {
     // Tıklar 0.4, notalar 0.6 sn arayla: ardışık tıkları eşlemek her arada donma isterdi.
     const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 3.4, 3.8];
@@ -389,6 +398,8 @@ test('resampling to 22050 Hz mono keeps timing and pitch', () => {
         assert(Math.abs(zc / ((22050 - 1 - Math.round(0.6 * 22050)) / 22050) - 440) < 5, 'frekans ' + zc);
         let peak = 0; for (let i = Math.round(0.6 * 22050); i < 22050; i++) peak = Math.max(peak, Math.abs(y[i]));
         assert(Math.abs(peak - 10000 / 32768) < 0.01, 'genlik ' + peak);
+        // dosya 1.5 sn: aralık sonu dosyayı aşarsa yalnız dosya sonuna kadar
+        assert.strictEqual(analyzer.readMonoResampled(fs, file, [1.0, 3.0], 22050).length, 11025);
     } finally { fs.unlinkSync(file); }
 });
 // Gerçek paket (client/lib/basicpitch): sentetik piyano notaları 30 ms içinde bulunmalı.

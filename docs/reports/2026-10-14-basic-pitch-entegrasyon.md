@@ -104,6 +104,32 @@ Karşılaştırma için projede:
 - "Melodi v3 (0.9.7.0)", "Melodi v4 (0.9.8.1)"
 - yeni HDpiano / HDend (0.9.9.0)
 
+## 5. 0.9.9.1: kare içi kayma ile hizalama
+
+Kullanıcı: "kesilmesi uygun, devam et".
+
+**Hata bütçesi** (HDpiano 0.9.9.0, 98 eşleşen tık, Kong referansı, mutlak medyan):
+
+| Kaynak | Hata |
+|---|---|
+| Nota zamanının kareye yuvarlanması | 3.9 ms |
+| Tık sesinin karesi içindeki kayması | 3.3 ms |
+| Basic Pitch notası − Kong | 5.1 ms (işaretli +1.7) |
+| **Toplam** | **8.8 ms** (10 ms içinde %62, 20 ms içinde %100) |
+
+**Düzeltme** (`alignToNotes`): tıkın karesi, *sesinin* notaya düşeceği kareye konur:
+`hedef = round((nota − kayma) · fps)`. İki bağımsız yuvarlama teke iniyor; hata ≤ yarım kare.
+
+Basic Pitch'in +1.7 ms gecikmesini düzeltmek denendi, kazanç yok → eklenmedi.
+
+**Canlı:**
+- Piyano, Kong referansı: tıkların %87'si bir tuşa 22 ms içinde; medyan **8.8 → 5.7 ms**, 10 ms içinde **%62 → %76**.
+- In the End, panel notalarına: medyan 5.6 → **4.5 ms**, q90 8.1 ms, 10 ms içinde **%99**.
+- Görünür fazla blok yok. Donma 1.4 / 4.0 sn.
+
+**Analiz süresi:** Bölge uzaması payı müzik dosyasının sonunu aşınca sessizlik de modele veriliyordu.
+`readMonoResampled` artık dosya sonunda duruyor; piyanoda analiz 25.5 → 10.2 sn, notalar aynı.
+
 ## Sınırlar
 
 - Karışımda piyano maskelendiği bölümlerde Basic Pitch az nota buluyor (In the End: 216 sn'de 277 nota).

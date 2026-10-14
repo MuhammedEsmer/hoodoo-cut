@@ -60,6 +60,14 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 > [[reports/2026-10-14-acik-kaynak-arastirma|açık kaynak araştırması]],
 > [[reports/2026-10-14-basic-pitch-entegrasyon|Basic Pitch entegrasyonu]].
 
+**0.9.9.1 farkları**
+
+- Tıkın karesi, *sesinin* notaya düşeceği kareye konur (`hedef = round((nota − kare içi kayma) · fps)`).
+  Önceden tık ve nota ayrı ayrı kareye yuvarlanıyordu.
+  - Piyano (Kong referansı): medyan hata 8.8 → **5.7 ms**, 10 ms içinde %62 → **%76**.
+  - In the End: panel notalarına 10 ms içinde **%99**.
+- Müzik dosyası bölge payından kısaysa sessizlik analiz edilmiyor (piyanoda analiz 25.5 → 10.2 sn).
+
 **0.9.9.0 farkları**
 
 - Melodi notaları **Spotify Basic Pitch** ile çıkarılır. Model panelde çalışır (TF.js WASM, Premiere 26 CEP'te
