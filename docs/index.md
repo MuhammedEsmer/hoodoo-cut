@@ -40,6 +40,7 @@ değişiklikler: [[log]].
 - [[reports/2026-10-07-uxp-path-identity|2026-10-07 UXP 0.9.8 Windows proje yolu kimliği]]
 - [[reports/2026-10-14-piyano-melodi-ogrenme|2026-10-14 CEP 0.9.8.0 solo piyanodan melodi tespiti + seçenek (c) donma]]
 - [[reports/2026-10-14-donma-azaltma|2026-10-14 CEP 0.9.8.1 donma azaltma, In the End canlı]]
+- [[reports/2026-10-14-acik-kaynak-arastirma|2026-10-14 Açık kaynak araştırması: müzikle video eşleme, nota/vuruş/tık tespiti, lisanslar, yol haritası]]
 
 ## 🗂️ Planlar (`plans/`)
 

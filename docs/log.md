@@ -11,6 +11,16 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Açık kaynak araştırması (kod değişmedi)
+
+- Kullanıcı: benzer işi yapan açık kaynak projeleri tara, çözümlerini araştır, doğruluğu artır.
+- Dört konu tarandı: müzikle video eşleme (visbeat, Bellini 2018, MV-Crafter), nota/onset (Basic Pitch,
+  Kong, Onsets and Frames, Transkun), kaynak ayrıştırma (Demucs, BS-RoFormer), vuruş/tık (Beat This,
+  SuperFlux, şablon eşleme) + Premiere QE `setSpeed`/ses geçişi.
+- Öne çıkanlar: ölçüm düzeneği (gerçek referans, 10 ms hedefi), Basic Pitch / Kong ile perde başına onset,
+  tüm şarkı tek analiz, tık sesini görüntüden ayırma, "vuruşa hızlanarak gir". Lisans: AGPL/GPL/NC
+  bileşenlerden kaçın. Rapor: [[reports/2026-10-14-acik-kaynak-arastirma|açık kaynak araştırması]].
+
 ## 2026-10-14 — Donma azaltma + In the End canlı (CEP 0.9.8.1)
 
 - Kullanıcı: "donmayı azalt", "In the End'i de yeni sürümle dene" (hafif ağır çekim önerisi sorulmuştu).
