@@ -7,7 +7,7 @@ proje: [hoodoo-cut]
 sources:
   - tools/
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-14
 ---
 
 # HooDoo Cut Test ve Doğrulama
@@ -25,18 +25,19 @@ node tools/test-analyzer.js
 | Dosya | Kapsam |
 |---|---|
 | `tools/test-analyzer.js` | Sentetik WAV ile eşik + tespit (15) |
-| `tools/test-regressions.js` | Ses/host regresyonları (24) |
-| `tools/test-panel.js` | Panel ↔ host köprüsü akışı (12) |
-| `tools/test-bulk.js` | Toplu motor: kanal karışımı, tek action/transaction, uyuşmazlıklar (14) |
+| `tools/test-regressions.js` | Ses/host regresyonları (26) |
+| `tools/test-panel.js` | Panel ↔ host köprüsü akışı (19) |
+| `tools/test-bulk.js` | Toplu motor: kanal karışımı, tek action/transaction, uyuşmazlıklar (17) |
 | `tools/test-bulk-host.js` | Host bulk plan/kimlik (2) |
 | `tools/test-bulk-bridge.js` | Yerel köprü: origin/token, tek seferlik iş, idempotent onay (3) |
 | `tools/test-bulk-network.js` | UXP `network.js`: sabit loopback adresi, redirect/dış URL reddi (2) |
 | `tools/test-bulk-companion.js` | Yardımcı panel bağlantı/onay kurtarma (2) |
-| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, riff notaları (perde değişimi, aralıktan bağımsızlık), (b) eşleşmesi (16) |
-| `tools/test-tick-host.js` | `ACS_tickRetime`: çakışmasız yeniden zamanlama, silme, kilitli track, hız tavanı, marker'lar (10) |
+| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi notaları (perde değişimi, yeniden vuruş, tutulan nota/davul nota değil, ızgara dışı atak, sönüm), (b)/(c) eşleşmesi ve donma (22) |
+| `tools/test-tick-host.js` | `ACS_tickRetime`: çakışmasız yeniden zamanlama, silme, donan karenin sesi, kilitli track, hız tavanı, marker'lar (11) |
 
-**2026-10-14 koşusu: 100 PASS, 0 FAIL** (CEP 0.9.5.0, motor 0.9.9). Geçici
-`test-speed-probe.js` tanı bitince kaldırıldı.
+**2026-10-14 son koşu: 119 PASS, 0 FAIL** (CEP 0.9.8.0, motor 0.9.9). Geçici
+`test-speed-probe.js` tanı bitince kaldırıldı. Sentetik piyano sesinde aynı tel yeniden vurulunca
+önceki titreşim kesilir (üst üste eklenen aynı frekanslı sinüsler birbirini söndürüp testi yanıltıyordu).
 
 ## Canlı test düzeneği (2026-10-14)
 

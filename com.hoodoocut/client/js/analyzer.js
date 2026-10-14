@@ -413,15 +413,23 @@
      *    Sekizlikler bu tempoyla dinamik programlamali takiple bulunur (yerel ataklara oturur).
      *    2) Her sekizlikte baskin perde (kromagram, 150-2500 Hz, FFT 4096, +40/+85/+130 ms).
      *    3) Baskin perde degisince yeni melodi notasi (yeni perde bir sonraki sekizlikte de surmeli
-     *    ya da 1.5 kat baskin olmali); ayni perdenin tekrarlari ve davul vuruslari nota sayilmaz.
+     *    ya da 1.5 kat baskin olmali); noktada atak yoksa nota o perdenin gercek atagina tasinir ya da
+     *    (atak yoksa) atilir. Ayni perde guclu atak + o perdede yukselisle yeniden vurulursa o da nota;
+     *    tutulan nota ve davul nota sayilmaz.
      * Neden: HPSS akis tespiti In the End piyano riff'inin yalniz %14'unu yakaliyordu (kromagramla
-     * kontrol); bu yontem 104.94 BPM'i ve F#-D#-A#-F#-F riff'ini 2 olcude bir birebir buldu. */
+     * kontrol); bu yontem 104.94 BPM'i ve F#-D#-A#-F#-F riff'ini 2 olcude bir birebir buldu. Solo piyano
+     * (In the End tutorial, 60 sn, 121 tus) ile ayarlandi: notalarin gercek tusa denk gelen orani
+     * %74 -> %89, yakalanan tus %53 -> %72; In the End'de 2 olcu tekrar eden nota %47 -> %70. */
     function detectRiffNotes(fs, filePath, range, opts) {
         opts = opts || {};
         var a = computeWindowDb(fs, filePath, 5, { hpHz: 300, lpHz: 3000 }), db = a.db, w = a.windowMs / 1000;
         var i0 = Math.max(2, Math.floor(range[0] / w)), i1 = Math.min(db.length, Math.ceil(range[1] / w));
         var os = new Float64Array(Math.max(0, i1 - i0)), i, k;
-        for (i = i0; i < i1; i++) os[i - i0] = Math.max(0, db[i] - db[i - 2]);
+        // dB tabani: medyanin 40 dB alti. Dijital sessizlikten (-120 dB) ilk giris tek basina dev bir
+        // onset olup tempo aramasini bozuyordu (sentetik solo piyano: 100 BPM -> 66.7).
+        var sdb = Array.prototype.slice.call(db, i0, i1).sort(function (x, y) { return x - y; });
+        var floorDb = (sdb[sdb.length >> 1] || 0) - 40;
+        for (i = i0; i < i1; i++) os[i - i0] = Math.max(0, Math.max(db[i], floorDb) - Math.max(db[i - 2], floorDb));
         function ac(lag) { var s = 0; for (var q = 0; q + lag < os.length; q++) s += os[q] * os[q + lag]; return s; }
         // Sekizlik periyodu dogrudan aranir: 1, 2 ve 4 katinda da guclu olmali. Vurus aramasi
         // (0.33-1.0 sn) duzgun sekizlik akista 3 sekizligi (nokta dortluk) secip tempoyu 2/3
@@ -475,32 +483,62 @@
                 throw new Error('Desteklenmeyen WAV bicimi (melodi analizi)');
             }
             var sr = fmt.sampleRate, total = Math.floor(fmt.dataSize / frameBytes), N = 4096;
-            var raw = Buffer.alloc(N * frameBytes), win = new Float64Array(N);
-            for (i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
-            var lo = Math.floor(150 / sr * N), hi = Math.ceil(2500 / sr * N), pcOf = [];
-            for (k = lo; k < hi; k++) {
-                var midi = Math.round(69 + 12 * Math.log(k * sr / N / 440) / Math.LN2);
-                pcOf[k] = ((midi % 12) + 12) % 12;
-            }
+            var raw = Buffer.alloc(N * frameBytes);
+            // n ornekten (n <= 4096) pencereli FFT, 150-2500 Hz kromaya ekle; dosya disi atlanir
+            var chromaInto = function (cv, start, n) {
+                if (start < 0 || start + n > total) return false;
+                fs.readSync(fd, raw, 0, n * frameBytes, fmt.dataOffset + start * frameBytes);
+                var re = new Float64Array(n), im = new Float64Array(n), s, b;
+                for (s = 0; s < n; s++) {
+                    var sum = 0;
+                    for (var c = 0; c < fmt.numChannels; c++) {
+                        var p = s * frameBytes + c * bps;
+                        sum += fmt.audioFormat === 3 ? raw.readFloatLE(p) : (bps === 2 ? raw.readInt16LE(p) / 32768 : raw.readIntLE(p, 3) / 8388608);
+                    }
+                    re[s] = sum / fmt.numChannels * (0.5 - 0.5 * Math.cos(2 * Math.PI * s / n));
+                }
+                fftInPlace(re, im);
+                var lo = Math.floor(150 / sr * n), hi = Math.ceil(2500 / sr * n);
+                for (b = lo; b < hi; b++) {
+                    var midi = Math.round(69 + 12 * Math.log(b * sr / n / 440) / Math.LN2);
+                    cv[((midi % 12) + 12) % 12] += re[b] * re[b] + im[b] * im[b];
+                }
+                return true;
+            };
             var chromaAt = function (t) {
                 var cv = new Float64Array(12), offs = [0.04, 0.085, 0.13];
-                for (var o = 0; o < offs.length; o++) {
-                    var start = Math.round((t + offs[o]) * sr) - N / 2;
-                    if (start < 0 || start + N > total) continue;
-                    fs.readSync(fd, raw, 0, raw.length, fmt.dataOffset + start * frameBytes);
-                    var re = new Float64Array(N), im = new Float64Array(N);
-                    for (var s = 0; s < N; s++) {
-                        var sum = 0;
-                        for (var c = 0; c < fmt.numChannels; c++) {
-                            var p = s * frameBytes + c * bps;
-                            sum += fmt.audioFormat === 3 ? raw.readFloatLE(p) : (bps === 2 ? raw.readInt16LE(p) / 32768 : raw.readIntLE(p, 3) / 8388608);
-                        }
-                        re[s] = sum / fmt.numChannels * win[s];
-                    }
-                    fftInPlace(re, im);
-                    for (var b = lo; b < hi; b++) cv[pcOf[b]] += re[b] * re[b] + im[b] * im[b];
-                }
+                for (var o = 0; o < offs.length; o++) chromaInto(cv, Math.round((t + offs[o]) * sr) - N / 2, N);
                 return cv;
+            };
+            // Perdeye ozgu atak gucu (5 ms, FFT 2048): bir perdenin enerjisinin onceki 20 ms'deki en
+            // yuksegine gore log yukselisi, eksi 12 perdenin medyan yukselisi (davul ve genel ses artisi
+            // butun perdeleri birlikte yukseltir). Solo piyanoda gercek tuslarda medyan 0.93, atak
+            // olmayan anlarda 0.27.
+            var HOP = 0.005, N2 = 2048, LAG = 4, rT0 = grid[0] - P8;
+            var nR = Math.max(0, Math.ceil((grid[grid.length - 1] + 0.3 - rT0) / HOP)), rise = new Float32Array(nR * 12);
+            var hist = [], d = new Float64Array(12), srt = new Float64Array(12);
+            for (var f = 0; f < nR; f++) {
+                var cf = new Float64Array(12), tot = 0;
+                chromaInto(cf, Math.round((rT0 + f * HOP) * sr) - N2 / 2, N2);
+                for (k = 0; k < 12; k++) tot += cf[k];
+                if (hist.length === LAG) {
+                    var eps = tot * 0.01 + 1e-12;
+                    for (k = 0; k < 12; k++) {
+                        var pm = 0;
+                        for (var h = 0; h < LAG; h++) if (hist[h][k] > pm) pm = hist[h][k];
+                        d[k] = Math.log((cf[k] + eps) / (pm + eps)); srt[k] = d[k];
+                    }
+                    Array.prototype.sort.call(srt, function (x, y) { return x - y; });
+                    for (k = 0; k < 12; k++) rise[f * 12 + k] = d[k] - (srt[5] + srt[6]) / 2;
+                    hist.shift();
+                }
+                hist.push(cf);
+            }
+            // [t0, t1] icinde k perdesinin en guclu atagi
+            var bestRise = function (t0, t1, pc) {
+                var f0 = Math.max(LAG, Math.ceil((t0 - rT0) / HOP)), f1 = Math.min(nR - 1, Math.floor((t1 - rT0) / HOP)), bt = null, bv = -Infinity;
+                for (var q = f0; q <= f1; q++) if (rise[q * 12 + pc] > bv) { bv = rise[q * 12 + pc]; bt = rT0 + q * HOP; }
+                return { t: bt, v: bv };
             };
             var slots = [], energies = [];
             for (var gi = 0; gi < grid.length; gi++) {
@@ -510,20 +548,43 @@
                     if (cv[k] > cv[top]) top = k;
                 }
                 for (k = 0; k < 12; k++) if (k !== top && (second < 0 || cv[k] > cv[second])) second = k;
-                slots.push({ t: t, top: top, margin: cv[top] / (cv[second] + 1e-20), e: e });
+                // atak var mi: noktanin -40..+20 ms'sindeki en yuksek (sd ile olcekli) onset zarfi
+                var ei = Math.round(t / w) - i0, on = 0;
+                for (var z = Math.max(0, ei - 8); z <= Math.min(L - 1, ei + 4); z++) if (env[z] > on) on = env[z];
+                slots.push({ t: t, top: top, margin: cv[top] / (cv[second] + 1e-20), e: e, on: on });
                 energies.push(e);
             }
             var sortedE = energies.slice().sort(function (x, y) { return x - y; });
             var quiet = (sortedE[sortedE.length >> 1] || 0) * 0.01;
-            var NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'], cur = -1;
+            // atak esikleri sarkiya gore: noktalarin medyan atak gucune oranla (sessizlikten ilk giris
+            // gibi tek bir dev atak sd'yi sisirip digerlerini kucultmesin)
+            var ons = slots.map(function (x) { return x.on; }).sort(function (x, y) { return x - y; });
+            var medOn = ons[ons.length >> 1] || 1;
+            var NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'], cur = -1, last = -Infinity, MINGAP = 0.09;
             for (k = 0; k < slots.length; k++) {
-                var sl = slots[k];
+                var sl = slots[k], at = null;
                 if (sl.e <= quiet) { cur = -1; continue; }
                 var stable = (k + 1 < slots.length && slots[k + 1].top === sl.top) || sl.margin >= 1.5;
-                if (sl.top === cur || !stable) continue;
-                cur = sl.top;
-                out.push(sl.t); // takip noktasi zaten ataga oturuyor
-                names.push(NAMES[sl.top]);
+                if (sl.top !== cur && stable) {
+                    cur = sl.top;
+                    if (sl.on >= 0.6 * medOn) at = sl.t; // nokta bir atakta
+                    else {
+                        // Noktada atak yok (solo piyanoda ritim sekizlikten saptiginda takip atagin 0.2 sn
+                        // sonrasina dusebiliyor): nota o perdenin en guclu atagina tasinir. Atak da yoksa
+                        // perde degisimi sonumden (akorun bir sesi sonerken digeri one cikar), nota degil.
+                        var b = bestRise(Math.max(sl.t - 0.75 * P8, last + MINGAP), sl.t + 0.15, cur);
+                        if (b.v >= 0.45) at = b.t;
+                    }
+                } else if (sl.top === cur) {
+                    // Ayni perdenin yeniden vurusu: guclu atak + o perdede yukselis ya da orta atak + belirgin
+                    // perde yukselisi. Davul tum perdeleri birlikte yukseltir, tek basina nota olmaz.
+                    var rv = bestRise(sl.t - 0.04, sl.t + 0.03, cur).v;
+                    if ((sl.on >= 1.4 * medOn && rv >= 0.2) || (sl.on >= 0.8 * medOn && rv >= 0.6)) at = sl.t;
+                }
+                if (at === null || at < last + MINGAP) continue;
+                out.push(at);
+                names.push(NAMES[cur]);
+                last = at;
             }
         } finally { fs.closeSync(fd); }
         return { notes: out, names: names, bpm: 60 / beat };

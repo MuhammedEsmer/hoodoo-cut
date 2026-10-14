@@ -11,6 +11,21 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Solo piyanodan öğrenme + seçenek (c) donma (CEP 0.9.8.0)
+
+- Kullanıcı: "(c) ile devam et" + yeni şarkı (In the End EASY Piano Tutorial, A3, kaynak 121.65 sn)
+  "kolay kısımdan analiz edip öğren".
+- Bağımsız referans (spektral akış, 60 sn'de 121 tuş): eski nota tespiti %74 isabet / %53 yakalama.
+  Hatalar: ızgara noktası atakta değil (0.2 sn geç), sönümden fazla nota, aynı nota tekrarı yok.
+- `detectRiffNotes`: perdeye özgü atak gücü; atağa taşıma / sönüm eleme; yeniden vuruş; göreli atak
+  eşikleri; dB tabanı. Piyano %88 / %72; In the End 2 ölçü tekrar %47 → %73.
+- `alignToNotes`: aday tabanlı karar (yaklaşma, yavaşlatma, baş + yaklaşma, donma, son çare görünür);
+  fazla tık sesi 150 ms. Host: donma satırı `,f`, donan parçanın sesi silinir.
+- Canlı HDpiano 3 tur, nota dışı tık 29 → 15 → 8 (hiçbiri orijinal tık değil); tıkların %95'i notada,
+  notaların %97'sinde tık. 54 donma 27.5 sn, video +9.45 sn. In the End planı: 35.7 sn donma (canlı yok).
+- Testler 119 PASS (sentetik piyanoda aynı tel yeniden vurulunca eski titreşim kesilir). Paket
+  0.9.8.0. Release yok. Rapor: [[reports/2026-10-14-piyano-melodi-ogrenme|solo piyano raporu]].
+
 ## 2026-10-14 — Riff notaları + seçenek (b) (CEP 0.9.7.0)
 
 - Kullanıcı: yeni yöntem + (b) fazla tıkları kes.

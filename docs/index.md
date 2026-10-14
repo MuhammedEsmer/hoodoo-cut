@@ -38,6 +38,7 @@ değişiklikler: [[log]].
 - [[reports/2026-10-06-uxp-network-hotfix|2026-10-06 UXP 0.9.6 bağlantı izni]]
 - [[reports/2026-10-07-uxp-permission|2026-10-07 UXP 0.9.7 izin ve eski kurulum kaydı]]
 - [[reports/2026-10-07-uxp-path-identity|2026-10-07 UXP 0.9.8 Windows proje yolu kimliği]]
+- [[reports/2026-10-14-piyano-melodi-ogrenme|2026-10-14 CEP 0.9.8.0 solo piyanodan melodi tespiti + seçenek (c) donma]]
 
 ## 🗂️ Planlar (`plans/`)
 

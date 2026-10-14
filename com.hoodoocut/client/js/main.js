@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.7.0'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.8.0'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -656,8 +656,8 @@
 
     function finishTickAnalysis(onsets, plan, opts) {
         state.tickPlan = plan.gaps.length ? plan : null;
-        // Silinecek parçalar (hız 0) hız aralığına girmez.
-        var speeds = plan.gaps.filter(function (g) { return g.speed > 0; }).map(function (g) { return g.speed; });
+        // Silinecek parçalar (hız 0) ve donan kareler hız aralığına girmez.
+        var speeds = plan.gaps.filter(function (g) { return g.speed > 0 && !g.freeze; }).map(function (g) { return g.speed; });
         if (!speeds.length) speeds = [1];
         var melody = opts.target === 'melody';
         var natural = ACSTickPlan.medianInterval(onsets);
@@ -680,6 +680,8 @@
                 Math.round(Math.max.apply(null, speeds) * 100) + ' · süre değişimi ' +
                 (plan.deltaSec >= 0 ? '+' : '') + plan.deltaSec.toFixed(2) + ' sn<br>' +
                 (melody ? (plan.merged ? plan.merged + ' fazla tık; aralarından ' + plan.cutSec.toFixed(1) + ' sn kesilecek. ' : '') +
+                    (plan.freezes ? 'Uzun nota aralarında ' + plan.freezes + ' yerde görüntü donacak (toplam ' + plan.frozenSec.toFixed(1) + ' sn). ' : '') +
+                    (plan.visible ? plan.visible + ' fazla tık görünür kalacak. ' : '') +
                     plan.skipped + ' nota tıksız geçti. '
                     : (plan.merged ? plan.merged + ' yakın tık öncekine katıldı. ' : '')) +
                 (plan.limited ? plan.limited + ' arada hız sınırı aşıldı, fazlası kesilecek. ' : '') +
@@ -726,7 +728,9 @@
         }
         function retime() {
             btn.textContent = '⏳ Ritme oturtuluyor…';
-            var gaps = plan.gaps.map(function (g) { return [g.start, g.end, g.target, g.speed].join(','); }).join(';');
+            var gaps = plan.gaps.map(function (g) {
+                return [g.start, g.end, g.target, g.speed].join(',') + (g.freeze ? ',f' : '');
+            }).join(';');
             evalJsx('ACS_tickRetime("' + gaps + '")', function (res) {
                 var p = res.split('|');
                 if (p[0] !== 'OK') { fail(p.slice(1).join('|')); return; }

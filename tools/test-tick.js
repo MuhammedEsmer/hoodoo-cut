@@ -126,32 +126,99 @@ function writeWav(samples) {
     fs.writeFileSync(file, Buffer.concat([h, data]));
     return file;
 }
-test('riff notes are the pitch changes on the detected eighth-note grid (not repeats or drums)', () => {
-    // 100 BPM: sekizlik 0.3 sn. Her sekizlik çalınır (aynı perde tekrarları dahil), her vuruşta davul.
-    const hz = { 'D#': 311.13, 'A#': 466.16, 'F#': 369.99, 'F': 349.23 };
-    const pattern = ['D#', 'D#', 'D#', 'A#', 'A#', 'F#', 'F#', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F#'];
-    const t0 = 0.3, e8 = 0.3, dur = 10, n = Math.round(dur * SR), s = new Float64Array(n), changes = [];
-    let prev = null;
-    for (let k = 0; t0 + k * e8 < dur - 0.5; k++) {
-        const at = t0 + k * e8, name = pattern[k % pattern.length];
-        if (name !== prev) changes.push(at);
-        prev = name;
-        for (let i = Math.round(at * SR); i < Math.min(n, Math.round((at + 1.2) * SR)); i++) {
-            const t = i / SR - at;
-            let v = 0;
-            for (let h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * hz[name] * h * t) / h;
-            s[i] += 4000 * Math.min(1, t / 0.004) * Math.exp(-t / 0.2) * v;
+// Piyano benzeri ses: strikes = [{ at, tones: [{ hz, amp, decay }] }], drums = [zaman]. Her vuruşta kısa
+// çekiç sesi; aynı tel yeniden vurulunca önceki titreşim biter (üst üste eklenen aynı frekanslı
+// sinüsler birbirini söndürürdü).
+function synthMusic(dur, strikes, drums) {
+    const n = Math.round(dur * SR), s = new Float64Array(n);
+    for (const st of strikes) {
+        for (let i = Math.round(st.at * SR); i < Math.round((st.at + 0.008) * SR); i++) s[i] += (rand() * 2 - 1) * 1500;
+        for (const tn of st.tones) {
+            const next = strikes.find(o => o.at > st.at && o.tones.some(x => x.hz === tn.hz));
+            const stop = next ? next.at + 0.005 : Infinity;
+            for (let i = Math.round(st.at * SR); i < Math.min(n, Math.round(Math.min(st.at + 6 * tn.decay, stop) * SR)); i++) {
+                const t = i / SR - st.at;
+                let v = 0;
+                for (let h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * tn.hz * h * t) / h;
+                s[i] += tn.amp * Math.min(1, t / 0.004, (stop - i / SR) / 0.005) * Math.exp(-t / tn.decay) * v;
+            }
         }
     }
-    for (let at = t0; at < dur - 0.5; at += 2 * e8) { // her vuruşta davul
+    for (const at of drums) {
         for (let i = Math.round(at * SR); i < Math.round((at + 0.04) * SR); i++) s[i] += (rand() * 2 - 1) * 9000 * Math.exp(-(i / SR - at) / 0.01);
     }
-    const file = writeWav(s);
+    return writeWav(s);
+}
+const HZ = { 'C#': 277.18, 'D#': 311.13, 'F': 349.23, 'F#': 369.99, 'G': 392.0, 'A#': 466.16 };
+test('riff notes: pitch changes and re-struck notes on the eighth grid; held notes are not notes', () => {
+    // 100 BPM solo piyano: sekizlik 0.3 sn; '-' = önceki nota tutuluyor (vuruş yok). Yeniden vuruşlar bir
+    // tutulan sekizlikten sonra (hemen ardışık aynı nota tekrarı sesten her zaman ayrılamıyor).
+    const pattern = ['D#', '-', 'D#', 'A#', '-', 'F#', '-', 'F#', 'F', '-', 'F', '-', 'A#', '-', 'A#', 'F#'];
+    const t0 = 0.3, e8 = 0.3, dur = 10, strikes = [];
+    for (let k = 0; t0 + k * e8 < dur - 0.5; k++) {
+        const name = pattern[k % pattern.length];
+        if (name !== '-') strikes.push({ at: t0 + k * e8, tones: [{ hz: HZ[name], amp: 4000, decay: 0.8 }] });
+    }
+    const file = synthMusic(dur, strikes, []);
     try {
         const res = analyzer.detectRiffNotes(fs, file, [0, dur]);
         assert(Math.abs(res.bpm - 100) <= 1, 'tempo ' + res.bpm);
-        assert.strictEqual(res.notes.length, changes.length, JSON.stringify(res.notes) + ' vs ' + JSON.stringify(changes));
-        res.notes.forEach((t, i) => assert(Math.abs(t - changes[i]) <= 0.03, t + ' vs ' + changes[i]));
+        const want = strikes.map(x => x.at);
+        assert.strictEqual(res.notes.length, want.length, JSON.stringify(res.notes) + ' vs ' + JSON.stringify(want));
+        res.notes.forEach((t, i) => assert(Math.abs(t - want[i]) <= 0.03, t + ' vs ' + want[i]));
+    } finally { fs.unlinkSync(file); }
+});
+test('a drum hit during a held note is not a note', () => {
+    // Kullanıcı: riff takip edilsin, davul değil. Davul yalnız tutulan sekizliklerde.
+    const pattern = ['D#', 'A#', 'F#', 'F', '-', '-', 'F#', 'A#'];
+    const e8 = 0.3, dur = 10, strikes = [], drums = [];
+    for (let k = 0; 0.3 + k * e8 < dur - 0.5; k++) {
+        const name = pattern[k % pattern.length], at = 0.3 + k * e8;
+        if (name === '-') drums.push(at);
+        else strikes.push({ at: at, tones: [{ hz: HZ[name], amp: 4000, decay: 0.8 }] });
+    }
+    const file = synthMusic(dur, strikes, drums);
+    try {
+        const res = analyzer.detectRiffNotes(fs, file, [0, dur]);
+        res.notes.forEach(t => assert(!drums.some(d => Math.abs(d - t) <= 0.03), 'davul nota sayildi: ' + t.toFixed(3)));
+        assert(res.notes.length >= strikes.length - 2, res.notes.length + ' / ' + strikes.length);
+    } finally { fs.unlinkSync(file); }
+});
+test('a note played off the eighth grid is placed on its own attack', () => {
+    // Solo piyanoda canlı: tuş 3.17'de (iki sekizlik arası), sonraki takip noktası 3.37'de ve nota orada
+    // tutuluyor → nota 0.2 sn geç kalıyordu. Her 8 sekizlikte biri yarım sekizlik gecikir, ardından tutulur.
+    const names = ['D#', 'A#', 'F#', 'F'], e8 = 0.3, dur = 10, strikes = [];
+    for (let k = 0; 0.3 + k * e8 < dur - 0.5; k++) {
+        if (k % 8 === 6) continue;
+        const at = 0.3 + k * e8 + (k % 8 === 5 ? 0.15 : 0);
+        strikes.push({ at: at, tones: [{ hz: HZ[names[k % 4]], amp: 4000, decay: 0.5 }] });
+    }
+    const file = synthMusic(dur, strikes, []);
+    try {
+        const res = analyzer.detectRiffNotes(fs, file, [0, dur]);
+        strikes.filter(x => x.at > 1 && x.at < dur - 1).forEach(x =>
+            assert(res.notes.some(t => Math.abs(t - x.at) <= 0.03), 'tus ' + x.at.toFixed(2) + ' yok: ' + JSON.stringify(res.notes.map(t => +t.toFixed(3)))));
+        res.notes.filter(t => t > 1 && t < dur - 1).forEach(t =>
+            assert(strikes.some(x => Math.abs(t - x.at) <= 0.03), 'fazla nota ' + t.toFixed(3)));
+    } finally { fs.unlinkSync(file); }
+});
+test('a pitch that takes over only while a chord decays is not a new note', () => {
+    // Canlı (solo piyano 6.65): G tuşu sönerken akordaki sessiz C# baskın perde oldu, nota sanıldı.
+    const e8 = 0.3, dur = 10, strikes = [];
+    const pattern = ['D#', 'A#', 'chord', '-', '-', '-', 'F#', 'F'];
+    for (let k = 0; 0.3 + k * e8 < dur - 0.5; k++) {
+        const at = 0.3 + k * e8, name = pattern[k % pattern.length];
+        if (name === '-') continue;
+        strikes.push({ at: at, tones: name === 'chord' ?
+            [{ hz: HZ.G, amp: 4000, decay: 0.12 }, { hz: HZ['C#'], amp: 1500, decay: 1.2 }] :
+            [{ hz: HZ[name], amp: 4000, decay: 0.25 }] });
+    }
+    const file = synthMusic(dur, strikes, []);
+    try {
+        const res = analyzer.detectRiffNotes(fs, file, [0, dur]);
+        res.notes.filter(t => t > 1 && t < dur - 1).forEach(t =>
+            assert(strikes.some(x => Math.abs(t - x.at) <= 0.03), 'sonumden nota ' + t.toFixed(3) + ' ' + JSON.stringify(res.names)));
+        assert(res.names.indexOf('C#') < 0, 'C# nota sayildi: ' + JSON.stringify(res.names));
     } finally { fs.unlinkSync(file); }
 });
 test('riff notes do not depend on the analysed range (beat tracking, no global grid drift)', () => {
@@ -177,6 +244,9 @@ test('riff notes do not depend on the analysed range (beat tracking, no global g
     } finally { fs.unlinkSync(file); }
 });
 const cutOpts = { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 4, regionStart: 0 };
+const gapRows = p => p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), +x.target.toFixed(4), +x.speed.toFixed(4)]);
+// Planın çıktısı: kaynak zamanı x'in timeline'daki yeri (x hiçbir aranın içinde değilken)
+const outAt = (p, x) => p.gaps.filter(g => g.end <= x + 1e-9).reduce((s, g) => s - (g.end - g.start - g.target), x);
 test('option (b): every melody note gets a click, extra clicks are cut, kept footage plays at most normal speed', () => {
     // Tık aralığı 0.4 sn; nota aralıkları kesmeye izin verecek kadar kısa ya da yavaşlatmaya uygun.
     const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0];
@@ -186,13 +256,47 @@ test('option (b): every melody note gets a click, extra clicks are cut, kept foo
     for (let i = 1; i < p.targets.length; i++) assert(p.targets[i] > p.targets[i - 1]);
     p.targets.forEach(t => assert(notes.some(nt => near(Math.round(nt * 30) / 30, t, 1e-9)), 'hedef nota degil: ' + t));
     assert(p.gaps.some(g => g.target === 0), 'fazla tiklar kesilmeli');
-    p.gaps.forEach(g => assert(g.target === 0 ? g.speed === 0 : g.speed >= 0.5 - 1e-9 && g.speed <= 1 + 1e-9, JSON.stringify(g)));
-    p.gaps.filter(g => g.target > 0).forEach(g => assert(p.clicks.some(c => near(c, g.end, 1e-9)), 'kalan parca bir tikta bitmeli'));
+    p.gaps.forEach(g => assert(g.target === 0 ? g.speed === 0 : g.freeze || (g.speed >= 0.5 - 1e-9 && g.speed <= 1 + 1e-9), JSON.stringify(g)));
+    p.gaps.filter(g => g.target > 0 && !g.freeze).forEach(g => assert(p.clicks.some(c => near(c, g.end, 1e-9)), 'kalan parca bir tikta bitmeli'));
+    p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
-test('option (b): a dropped click inside the kept window is avoided by starting after it', () => {
+test('option (b): a dropped click inside the kept window is cut out; footage after the click and before the next stay natural', () => {
+    // a=1.0 → b=2.0, nota arası 0.8: tık parçasından sonra doğal, fazla tık (1.3) ve 150 ms'lik sesi
+    // (30 fps'te 5 kare) kesilir, b'ye kadar doğal.
     const p = plan.alignToNotes([1.0, 1.3, 2.0], [1.0, 1.8], cutOpts);
-    const g = p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), +x.target.toFixed(4), +x.speed.toFixed(4)]);
-    assert.deepStrictEqual(g, [[1.1, 1.4, 0, 0], [1.4, 2.0, 0.7, +(0.6 / 0.7).toFixed(4)]]);
+    assert.deepStrictEqual(gapRows(p), [[1.2667, 1.4667, 0, 0]]);
+    assert(near(outAt(p, 2.0), 1.8, 1e-9));
+});
+test('option (b): when only a short clean approach exists it is slowed down (no freeze for a small stretch)', () => {
+    const p = plan.alignToNotes([1.0, 1.1, 2.0], [1.0, 2.0], cutOpts);
+    const last = p.gaps[p.gaps.length - 1];
+    assert(near(last.end, 2.0, 1e-9) && last.speed >= 0.5 && last.speed < 1, JSON.stringify(p.gaps));
+    assert.strictEqual(p.freezes, 0);
+    p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
+});
+test('option (c): a long note gap freezes the last clean frame instead of showing extra blocks or slow motion', () => {
+    // Tıklar 0.4 sn arayla, notalar 1.0 / 3.0 / 3.4: 1.9 sn'lik arada temiz görüntü 0.3 + 0.3 sn.
+    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 3.4];
+    const p = plan.alignToNotes(clicks, [1.0, 3.0, 3.4], cutOpts);
+    assert.strictEqual(p.clicks.length, 3, JSON.stringify(p.clicks));
+    // a'dan sonra 7 kare doğal, son 2 karesi kalan süreyi doldurana dek dondurulur, sonrası kesilir
+    const fr = p.gaps.find(g => g.target > 0 && g.speed < 0.5);
+    assert(fr && near(fr.start, 1 + 10 / 30, 1e-9) && near(fr.end, 1.4, 1e-9), JSON.stringify(p.gaps));
+    assert.strictEqual(p.freezes, 1);
+    assert.strictEqual(p.visible, 0);
+    p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
+    clicks.filter(c => p.clicks.indexOf(c) < 0 && c < p.clicks[p.clicks.length - 1]).forEach(c =>
+        assert(p.gaps.some(g => g.target === 0 && g.start <= c + 1e-9 && c < g.end), 'fazla tik gorunuyor: ' + c));
+    p.gaps.filter(g => g.target > 0).forEach(g =>
+        assert(g.speed >= 0.5 - 1e-9 || near(g.end - g.start, 2 / 30, 1e-9), 'agir cekim: ' + JSON.stringify(g)));
+});
+test('option (c): a note gap longer than all remaining footage is filled by a freeze once the click sound is over', () => {
+    // Fazla tık yok, kaynak hedefin yarısından kısa (yavaşlatma minSpeed altına düşerdi): tıkın sesi
+    // bitince (150 ms = 5 kare) 2 kare dondurulur, kalan doğal oynar.
+    const p = plan.alignToNotes([1.0, 1.5, 2.0], [1.0, 2.5, 3.0], cutOpts);
+    assert.deepStrictEqual(p.clicks, [1.0, 1.5, 2.0]);
+    assert.deepStrictEqual(gapRows(p), [[1.1667, 1.2333, 1.0667, +(2 / 32).toFixed(4)]]);
+    p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
 test('option (b): the region start is cut so the first click lands on its note', () => {
     const p = plan.alignToNotes([1.0, 1.8], [0.7, 1.5], Object.assign({}, cutOpts, { regionStart: 0.2 }));

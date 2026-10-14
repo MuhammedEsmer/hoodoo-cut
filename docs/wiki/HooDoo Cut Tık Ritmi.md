@@ -50,10 +50,31 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
-## Hedef: Müzik melodisi — güncel yöntem (0.9.7.0)
+## Hedef: Müzik melodisi — güncel yöntem (0.9.8.0)
 
 > 0.9.6.x'teki HPSS yöntemi (aşağıda tarihçe olarak duruyor) piyano riff'ini **takip etmiyordu**;
-> 0.9.7.0'da tamamen değiştirildi.
+> 0.9.7.0'da değiştirildi, 0.9.8.0'da solo piyano ile ayarlandı ve seçenek (c) eklendi. Ölçümler ve
+> denenip bırakılanlar: [[reports/2026-10-14-piyano-melodi-ogrenme|solo piyano raporu]].
+
+**0.9.8.0 farkları**
+
+- Nota tespiti (solo piyano *In the End EASY Piano Tutorial* referansıyla): perde değişiminde ızgara
+  noktası atakta değilse nota o perdenin gerçek atağına taşınır, atak yoksa (akorun bir sesi sönerken
+  diğeri öne çıkması) nota yazılmaz; aynı perdenin **yeniden vuruşu** da nota (güçlü atak + o perdede
+  yükseliş; davul tek başına değil). Atak eşikleri şarkının medyan atağına göre; dB tabanı medyan − 40 dB
+  (dijital sessizlikten giriş tempoyu 2/3'e düşürüyordu). Piyano: notaların gerçek tuşa denk gelen oranı
+  %74 → %88, yakalanan tuş %53 → %72. In the End: 2 ölçü sonra tekrar eden nota %47 → %73.
+- **Seçenek (c)** (kullanıcı kararı): uzun nota aralarında görünür fazla blok ve ağır çekim yerine
+  **donma** — a'dan sonraki temiz görüntü oynar, son 2 karesi kalan süre boyunca çok yavaş hızla
+  dondurulur, ortası silinir. Donan karenin **sesi silinir** (uzayan 2 karelik ses tık gibi duyuluyordu).
+- Fazla tıktan sonraki temiz görüntü **150 ms sonra** başlar (blok sesi ~0.3 sn; kuyruk kesimden sonra
+  yeni tık gibi duyuluyordu); fazla tık yoksa donma tıkın sesi bittikten sonra.
+- Canlı (HDpiano, 3 tur): son turda tıkların %95'i notada (medyan 5 ms), notaların %97'sinde tık;
+  nota dışı 8 tıkın hiçbiri orijinal bir tık değil (görünür fazla blok yok). 54 donma (27.5 sn), 22 yavaş
+  ara (%73–94), video +9.45 sn. Premiere %3'e kadar düşük hızları kabul etti, 3 track aynı.
+- In the End için plan (canlı uygulanmadı): 158 tık notada, 50 donma (35.7 sn), video +18.3 sn.
+
+**Yöntem**
 
 1. **Riff notaları** — `ACSAnalyzer.detectRiffNotes`:
    - Tempo: orta bant (300–3000 Hz) onset gücünde **sekizlik periyodu** doğrudan aranır
@@ -62,21 +83,26 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
    - Sekizlikler **dinamik programlamalı takiple** (Ellis tarzı, sıkılık 100) bulunur; her nokta
      yerel atağa oturur. Sabit (tempo, faz) ızgarası 100 sn'de 50+ ms kayıyordu ve sonuç analiz
      aralığına göre değişiyordu (ortak bölgede 0/52 eşleşme) → takiple 48/49, 50/50, 24/24.
-   - Her sekizlikte baskın perde (kromagram 150–2500 Hz); **perde değişimi = melodi notası**.
-     Aynı perdenin tekrarı ve davul nota sayılmaz.
+   - Her sekizlikte baskın perde (kromagram 150–2500 Hz); **perde değişimi = melodi notası**
+     (0.9.8.0: atağa taşıma / sönüm eleme, yukarı). Aynı perdenin yeniden vuruşu nota (0.9.8.0);
+     tutulan nota ve davul nota sayılmaz.
    - In the End: 105.3 BPM, riff D♯ A♯ F♯ F F♯ … 2 ölçüde bir tekrar.
-2. **Eşleşme, seçenek (b)** — `ACSTickPlan.alignToNotes`: her melodi notasına bir tık; arada kalan
-   fazla tıkların görüntüsü **silinir** (plan parçası `target 0, speed 0`), kalan pencere normal
-   hızda; pencereye fazla tık düşerse pencere onun ardından başlar (minSpeed'e kadar yavaşlar).
-   Maliyet: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + görünür fazla tık 0.5 + atlanan nota 0.4
-   + düşen tık 0.02 − ödül 1. Bölge başı da aynı kuralla.
-3. **Host** — `ACS_tickRetime` hedefi 0 olan parçayı ripple'sız siler (önce), sonra kısalt/taşı/uzat.
+2. **Eşleşme** — `ACSTickPlan.alignToNotes`: her melodi notasına bir tık; arada kalan fazla tıkların
+   görüntüsü **silinir** (seçenek b; plan parçası `target 0, speed 0`). Adaylar: yaklaşma ≥ D ise son D
+   kare normal hızda; yaklaşma minSpeed'e kadar yavaşlatılır; baş + yaklaşma ≥ D ise ikisi normal hızda,
+   ortası silinir; değilse **donma** (seçenek c, plan parçası `freeze`); temiz kısım 2 kareden kısaysa
+   fazla tıklar görünür kalır. Maliyet: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + ek kesme 0.05 +
+   donma 0.3 + 0.5/sn + görünür fazla tık 0.5 + atlanan nota 0.4 + düşen tık 0.02 − ödül 1. Bölge başı da
+   aynı kuralla.
+3. **Host** — `ACS_tickRetime` hedefi 0 olan parçayı ve donan parçanın ses kısmını ripple'sız siler
+   (önce), sonra kısalt/taşı/uzat. Donma plan satırında 5. alan `f`.
 
 **Fiziksel sınır:** tıklar ~0.4 sn arayla; 0.3 sn'den uzun temiz (blok koymasız) görüntü yok.
-Nota arası uzun olduğunda (ör. uzun F, 2.3 sn) ya ağır çekim ya da görünen fazla blok gerekir.
-minSpeed 0.5: 54 görünür fazla tık; 0.25: 34 ama çok yavaş ve video uzar. Kullanıcıya soruldu.
+Nota arası uzun olduğunda ağır çekim, görünen fazla blok ya da donma gerekir. 0.9.7.0'da minSpeed 0.5 ile
+54 görünür fazla tık kalıyordu; kullanıcı **(c) donmayı** seçti (0.9.8.0). Bedeli: uzun notalı şarkıda
+toplam donma yüksek (In the End planında 35.7 sn).
 
-**Bağımsız son kontrol** (düzenlenmiş HDend'in oyun sesi + müziği dışa aktarılıp sesten):
+**Bağımsız son kontrol, 0.9.7.0** (düzenlenmiş HDend'in oyun sesi + müziği dışa aktarılıp sesten):
 - İlk deneme (sabit ızgara): plan hedeflerinin 74/76'sında tık vardı (uygulama doğru) ama
   kontrol aralığında notalar farklı çıktı → tutarsızlık bulundu, takiple düzeltildi.
 - Son: **riff notalarının 85/89'unda (%96) bir kare içinde tık**, medyan 5 ms, en kötü 15 ms;

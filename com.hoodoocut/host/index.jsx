@@ -1183,10 +1183,11 @@ function ACS_tickRetime(gapsStr) {
         for (i = 0; i < parts.length; i++) {
             if (!parts[i]) continue;
             var f = parts[i].split(','), gp = { start: parseFloat(f[0]), end: parseFloat(f[1]),
-                target: parseFloat(f[2]), speed: parseFloat(f[3]) };
+                target: parseFloat(f[2]), speed: parseFloat(f[3]), freeze: f[4] === 'f' };
             // hedef 0 + hiz 0 = parcayi sil (melodi hedefi, secenek b: fazla tiklarin goruntusu)
             var isDelete = gp.target === 0 && gp.speed === 0;
-            if (f.length !== 4 || !(gp.end > gp.start) || (!isDelete && (!(gp.target > 0) || !(gp.speed > 0)))) {
+            if ((f.length !== 4 && !(f.length === 5 && gp.freeze)) || !(gp.end > gp.start) ||
+                (!isDelete && (!(gp.target > 0) || !(gp.speed > 0)))) {
                 return 'ERR|Gecersiz tik plani';
             }
             gaps.push(gp);
@@ -1244,9 +1245,11 @@ function ACS_tickRetime(gapsStr) {
 
         var speeded = 0, moved = 0, deleted = 0;
         // 0) Silinecek parcalar (ripple'siz); kalanlarin hedef konumu bunu zaten hesaba katar.
+        // Donan karenin (secenek c) sesi de silinir: 2 karelik ses %3-18 hizda uzayip garip bir ses
+        // oluyordu (canli: donma parcalarinda tik sanilan sesler); goruntu donarken ses sessiz.
         var kept = [];
         for (i = 0; i < items.length; i++) {
-            if (items[i].gap && items[i].gap.target === 0) {
+            if (items[i].gap && (items[i].gap.target === 0 || (items[i].gap.freeze && items[i].g === 1))) {
                 var rr = items[i].ref.remove(false, false);
                 if (rr !== undefined && rr !== 0 && rr !== true) throw new Error('Parca silinemedi: ' + rr);
                 deleted++;
