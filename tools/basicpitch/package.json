@@ -1,0 +1,14 @@
+{
+  "name": "hoodoo-basicpitch-build",
+  "private": true,
+  "description": "Spotify Basic Pitch'i CEP paneli icin tek dosyaya paketler (node build.js)",
+  "devDependencies": {
+    "@spotify/basic-pitch": "1.0.1",
+    "@tensorflow/tfjs-backend-cpu": "4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "4.22.0",
+    "@tensorflow/tfjs-converter": "4.22.0",
+    "@tensorflow/tfjs-core": "4.22.0",
+    "esbuild": "0.24.2"
+  }
+}

@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.8.1'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.9.0'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -621,20 +621,47 @@
             selRanges.forEach(function (r) { rs = Math.min(rs, r[0]); re = Math.max(re, r[1]); });
             exportMusic(opts.musicTrack, function (err, musicWav) {
                 if (err) { tickAnalysisFailed(err); return; }
-                try {
-                    // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
-                    // Riff: tempo ızgarasında perde değişimleri (piyano riff'i gibi melodi notaları).
-                    var riff = ACSAnalyzer.detectRiffNotes(fs, musicWav, [rs, re + (re - rs) / opts.minSpeed + 5]);
-                    log('Müzik melodisi: ' + riff.notes.length + ' nota, tempo ' + (riff.bpm ? riff.bpm.toFixed(1) : '?') +
-                        ' BPM (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
-                        (riff.names.length ? ', ilk notalar ' + riff.names.slice(0, 6).join(' ') : ''));
-                    finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, riff.notes, {
-                        fps: opts.fps, holdFrames: opts.holdFrames, minSpeed: opts.minSpeed,
-                        maxSpeed: opts.maxSpeed, regionStart: rs }), opts);
-                } catch (e3) { tickAnalysisFailed(e3); }
-                try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e4) {}
+                $('btnAnalyze').textContent = '⏳ Melodi notaları çıkarılıyor…';
+                // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
+                melodyNotes(musicWav, [rs, re + (re - rs) / opts.minSpeed + 5], function (e1, mel) {
+                    try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e4) {}
+                    if (e1) { tickAnalysisFailed(e1); return; }
+                    try {
+                        log('Müzik melodisi: ' + mel.notes.length + ' nota, ' + mel.source + ' (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
+                            (mel.names.length ? ', ilk notalar ' + mel.names.slice(0, 6).join(' ') : ''));
+                        finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, mel.notes, {
+                            fps: opts.fps, holdFrames: opts.holdFrames, minSpeed: opts.minSpeed,
+                            maxSpeed: opts.maxSpeed, regionStart: rs }), opts);
+                    } catch (e3) { tickAnalysisFailed(e3); }
+                });
             });
         }, 50);
+    }
+
+    /* Melodi notaları: Spotify Basic Pitch (client/lib/basicpitch, TF.js WASM) ile perde başına nota
+     * başlangıçları. Kong piyano transkripsiyonu referansıyla solo piyanoda F1 0.97 / zaman hatası 4 ms
+     * (eski DSP: 0.85 / 10 ms). Paket yüklenemez ya da hata verirse eski DSP yöntemine düşülür.
+     * cb(err, { notes, names, source }) */
+    var basicPitch = null;
+    function melodyNotes(musicWav, range, cb) {
+        var t0 = Date.now(), bpDir = extPath + '/client/lib/basicpitch';
+        function fallback(e) {
+            log('Basic Pitch kullanılamadı (' + (e && e.message ? e.message : e) + '); eski melodi yöntemi kullanılıyor.');
+            var r;
+            try { r = ACSAnalyzer.detectRiffNotes(fs, musicWav, range); } catch (e2) { cb(e2); return; }
+            r.source = 'DSP, tempo ' + (r.bpm ? r.bpm.toFixed(1) : '?') + ' BPM';
+            cb(null, r);
+        }
+        try {
+            if (!basicPitch) basicPitch = nodeRequire(bpDir + '/basicpitch.js');
+            var samples = ACSAnalyzer.readMonoResampled(fs, musicWav, range, 22050);
+            basicPitch.transcribe(samples, { baseDir: bpDir }).then(function (events) {
+                events.forEach(function (e) { e.t += range[0]; });
+                var mel = ACSAnalyzer.melodyFromNoteEvents(events);
+                mel.source = 'Basic Pitch (' + basicPitch.backend() + ', ' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)';
+                cb(null, mel);
+            }, fallback);
+        } catch (e) { fallback(e); }
     }
 
     /* Melodi hedefi: yalnız müzik track'inin sesi ayrı WAV'a aktarılır (diğerleri geçici mute). */

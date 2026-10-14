@@ -32,10 +32,15 @@ node tools/test-analyzer.js
 | `tools/test-bulk-bridge.js` | Yerel köprü: origin/token, tek seferlik iş, idempotent onay (3) |
 | `tools/test-bulk-network.js` | UXP `network.js`: sabit loopback adresi, redirect/dış URL reddi (2) |
 | `tools/test-bulk-companion.js` | Yardımcı panel bağlantı/onay kurtarma (2) |
-| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi notaları (perde değişimi, yeniden vuruş, tutulan nota/davul nota değil, ızgara dışı atak, sönüm), (b)/(c) eşleşmesi: fazla tıklar arası bölümler, hafif ağır çekim, kısa donma, uzun donma yerine tık düşürme (25) |
+| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi notaları (perde değişimi, yeniden vuruş, tutulan nota/davul nota değil, ızgara dışı atak, sönüm), (b)/(c) eşleşmesi: fazla tıklar arası bölümler, hafif ağır çekim, kısa donma, uzun donma yerine tık düşürme; Basic Pitch nota seçimi, yeniden örnekleme ve **gerçek paketle** sentetik piyano transkripsiyonu (28) |
 | `tools/test-tick-host.js` | `ACS_tickRetime`: çakışmasız yeniden zamanlama, silme, donan karenin sesi, kilitli track, hız tavanı, marker'lar (11) |
 
-**2026-10-14 son koşu: 122 PASS, 0 FAIL** (CEP 0.9.8.1, motor 0.9.9). Geçici
+**2026-10-14 son koşu: 125 PASS, 0 FAIL** (CEP 0.9.9.0, motor 0.9.9).
+
+**Nota doğruluğu ölçümü (geliştirme):** Kong piyano transkripsiyonu (Python, `piano_transcription_inference`)
+referans olarak kullanılır; spektral akış referansı zayıf. Ayrıntı:
+[[reports/2026-10-14-basic-pitch-entegrasyon|Basic Pitch raporu]]. Basic Pitch paketi:
+`cd tools/basicpitch && npm install && node build.js`. Geçici
 `test-speed-probe.js` tanı bitince kaldırıldı. Sentetik piyano sesinde aynı tel yeniden vurulunca
 önceki titreşim kesilir (üst üste eklenen aynı frekanslı sinüsler birbirini söndürüp testi yanıltıyordu).
 

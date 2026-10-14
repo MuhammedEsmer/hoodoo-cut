@@ -50,12 +50,31 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
-## Hedef: Müzik melodisi — güncel yöntem (0.9.8.1)
+## Hedef: Müzik melodisi — güncel yöntem (0.9.9.0)
 
 > 0.9.6.x'teki HPSS yöntemi (aşağıda tarihçe olarak duruyor) piyano riff'ini **takip etmiyordu**;
 > 0.9.7.0'da değiştirildi, 0.9.8.0'da solo piyano ile ayarlandı ve seçenek (c) eklendi, 0.9.8.1'de
-> donma azaltıldı. Ölçümler: [[reports/2026-10-14-piyano-melodi-ogrenme|solo piyano raporu]],
-> [[reports/2026-10-14-donma-azaltma|donma azaltma raporu]].
+> donma azaltıldı, **0.9.9.0'da notalar Spotify Basic Pitch ile** bulunuyor. Ölçümler:
+> [[reports/2026-10-14-piyano-melodi-ogrenme|solo piyano raporu]],
+> [[reports/2026-10-14-donma-azaltma|donma azaltma raporu]],
+> [[reports/2026-10-14-acik-kaynak-arastirma|açık kaynak araştırması]],
+> [[reports/2026-10-14-basic-pitch-entegrasyon|Basic Pitch entegrasyonu]].
+
+**0.9.9.0 farkları**
+
+- Melodi notaları **Spotify Basic Pitch** ile çıkarılır. Model panelde çalışır (TF.js WASM, Premiere 26 CEP'te
+  Node 17.7, 5 sn ses 0.5 sn, Python yok).
+  - Paket: `com.hoodoocut/client/lib/basicpitch/` (4.2 MB, `tools/basicpitch` ile üretilir).
+  - Nota seçimi: genlik ≥ 0.45, MIDI 40–88, 30 ms içi tek nota (`analyzer.melodyFromNoteEvents`).
+  - Ses 22050 Hz mono'ya sinc ile yeniden örneklenir (`analyzer.readMonoResampled`).
+  - Paket yüklenemezse eski DSP yöntemi (`detectRiffNotes`) devreye girer, günlüğe yazılır.
+- Bağımsız referansla (Kong piyano transkripsiyonu) solo piyano doğruluğu: F1 0.85 → **0.97**; zaman
+  hatası 9.9 → **4.4 ms**; 10 ms içinde %51 → %87. In the End girişinde riff notalarının hepsi.
+- Canlı:
+  - piyano donma 6.5 → 1.1 sn, tıkların %87'si gerçek tuşta;
+  - In the End donma 5.4 → 4.1 sn;
+  - görünür fazla blok yok;
+  - videolar 61 / 70 sn'ye kısaldı (piyanoda atlanan uzun bölümlerde blok tıkı yok).
 
 **0.9.8.1 farkları** (kullanıcı: "donmayı azalt", hafif ağır çekime onay)
 
@@ -92,7 +111,8 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 
 **Yöntem**
 
-1. **Riff notaları** — `ACSAnalyzer.detectRiffNotes`:
+1. **Melodi notaları** — 0.9.9.0'dan beri Basic Pitch (yukarı). Aşağıdaki DSP yöntemi yalnız yedek —
+   `ACSAnalyzer.detectRiffNotes`:
    - Tempo: orta bant (300–3000 Hz) onset gücünde **sekizlik periyodu** doğrudan aranır
      (1, 2 ve 4 katında da güçlü olmalı); vuruş araması düzgün sekizlik akışta 3 sekizliği seçip
      tempoyu 2/3 küçük bulabiliyordu (sentetik 100.4 → 66.9).

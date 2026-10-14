@@ -11,6 +11,20 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Basic Pitch ile melodi notaları (CEP 0.9.9.0)
+
+- Kullanıcı: lisans önemli değil, istediğini kullan; en iyi yöntemi panele entegre et ve test et.
+- Ölçüm: Kong piyano transkripsiyonu referans (Python venv, yalnız geliştirme). Solo piyano F1: 0.9.7.0
+  0.67, 0.9.8.1 0.85, **Basic Pitch 0.97** (zaman hatası 4.4 ms). Demucs ve Beat This denendi; Basic Pitch
+  karışımda da riff'i bulduğu için panele alınmadı.
+- Entegrasyon: `tools/basicpitch` (esbuild) → `client/lib/basicpitch/` (4.2 MB, WASM);
+  `analyzer.readMonoResampled`, `analyzer.melodyFromNoteEvents`, `main.js melodyNotes` (yedek: DSP).
+  Premiere CEP'te Node 17.7.2 + wasm çalıştı.
+- Canlı: piyano donma 1.1 sn, tıkların %87'si gerçek tuşta (Kong); In the End donma 4.1 sn; görünür fazla
+  blok yok; videolar 61 / 70 sn. Önceki sonuçlar projede "Piyano v2 (0.9.8.1)", "Melodi v4 (0.9.8.1)".
+- Testler 125 PASS (gerçek paketle sentetik transkripsiyon dahil). Paket 0.9.9.0. Release yok.
+  Rapor: [[reports/2026-10-14-basic-pitch-entegrasyon|Basic Pitch entegrasyonu]].
+
 ## 2026-10-14 — Açık kaynak araştırması (kod değişmedi)
 
 - Kullanıcı: benzer işi yapan açık kaynak projeleri tara, çözümlerini araştır, doğruluğu artır.

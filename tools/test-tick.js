@@ -353,4 +353,62 @@ test('a slow swell crossing the region start is not taken as a click', () => {
         assert.deepStrictEqual(on, []);
     } finally { fs.unlinkSync(file); }
 });
-if (failed) process.exitCode = 1;
+// --- Basic Pitch melodi notaları (0.9.9.0) ---
+test('melody notes from Basic Pitch events: loud notes in range, simultaneous notes merged', () => {
+    const ev = [
+        { t: 1.00, p: 53, a: 0.7 }, { t: 1.01, p: 41, a: 0.6 },   // akor: tek nota, adı en güçlüden (F)
+        { t: 1.50, p: 60, a: 0.30 },                              // zayıf: atılır
+        { t: 2.00, p: 35, a: 0.9 },                               // derin bas (B1): atılır
+        { t: 2.50, p: 95, a: 0.9 },                               // tiz synth: atılır
+        { t: 3.00, p: 63, a: 0.5 }, { t: 3.04, p: 58, a: 0.6 }    // 40 ms ayrı: iki nota
+    ];
+    const m = analyzer.melodyFromNoteEvents(ev);
+    assert.deepStrictEqual(m.notes, [1.00, 3.00, 3.04]);
+    assert.deepStrictEqual(m.names, ['F', 'D#', 'A#']);
+});
+test('resampling to 22050 Hz mono keeps timing and pitch', () => {
+    // 48 kHz stereo: 0.5 sn'de tek örneklik darbe, sonra 440 Hz sinüs; aralık 0.25–1.25 sn.
+    const sr = 48000, n = Math.round(1.5 * sr), data = Buffer.alloc(n * 4);
+    for (let i = 0; i < n; i++) {
+        const t = i / sr, v = i === Math.round(0.5 * sr) ? 30000 : (t > 0.7 ? 10000 * Math.sin(2 * Math.PI * 440 * t) : 0);
+        data.writeInt16LE(Math.round(v), i * 4); data.writeInt16LE(Math.round(v), i * 4 + 2);
+    }
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+    h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(2, 22); h.writeUInt32LE(sr, 24);
+    h.writeUInt32LE(sr * 4, 28); h.writeUInt16LE(4, 32); h.writeUInt16LE(16, 34); h.write('data', 36);
+    h.writeUInt32LE(data.length, 40);
+    const file = path.join(os.tmpdir(), 'hoodoo-resample-' + process.pid + '.wav');
+    fs.writeFileSync(file, Buffer.concat([h, data]));
+    try {
+        const y = analyzer.readMonoResampled(fs, file, [0.25, 1.25], 22050);
+        assert.strictEqual(y.length, 22050);
+        let pk = 0; for (let i = 0; i < 0.4 * 22050; i++) if (Math.abs(y[i]) > Math.abs(y[pk])) pk = i;
+        assert(Math.abs(pk / 22050 + 0.25 - 0.5) <= 1 / 22050, 'darbe ' + (pk / 22050 + 0.25));
+        let zc = 0; for (let i = Math.round(0.6 * 22050); i < 22050 - 1; i++) if (y[i] <= 0 && y[i + 1] > 0) zc++;
+        assert(Math.abs(zc / ((22050 - 1 - Math.round(0.6 * 22050)) / 22050) - 440) < 5, 'frekans ' + zc);
+        let peak = 0; for (let i = Math.round(0.6 * 22050); i < 22050; i++) peak = Math.max(peak, Math.abs(y[i]));
+        assert(Math.abs(peak - 10000 / 32768) < 0.01, 'genlik ' + peak);
+    } finally { fs.unlinkSync(file); }
+});
+// Gerçek paket (client/lib/basicpitch): sentetik piyano notaları 30 ms içinde bulunmalı.
+(async () => {
+    const name = 'vendored Basic Pitch finds synthetic piano notes (pitch changes and re-strikes) within 30 ms';
+    try {
+        const BP = require('../com.hoodoocut/client/lib/basicpitch/basicpitch.js');
+        const pattern = ['D#', 'D#', 'A#', '-', 'F#', 'F#', 'F', '-'], strikes = [];
+        for (let k = 0; 0.3 + k * 0.3 < 7; k++) {
+            const nm = pattern[k % pattern.length];
+            if (nm !== '-') strikes.push({ at: 0.3 + k * 0.3, tones: [{ hz: HZ[nm], amp: 6000, decay: 0.8 }] });
+        }
+        const file = synthMusic(7.5, strikes, []);
+        try {
+            const y = analyzer.readMonoResampled(fs, file, [0, 7.5], 22050);
+            const m = analyzer.melodyFromNoteEvents(await BP.transcribe(y));
+            strikes.forEach(s => assert(m.notes.some(t => Math.abs(t - s.at) <= 0.03), 'kacan ' + s.at.toFixed(2) + ' / ' + JSON.stringify(m.notes.map(t => +t.toFixed(3)))));
+            m.notes.forEach(t => assert(strikes.some(s => Math.abs(t - s.at) <= 0.03), 'fazla ' + t.toFixed(3)));
+        } finally { fs.unlinkSync(file); }
+        console.log('PASS ' + name);
+    } catch (e) { failed++; console.error('FAIL ' + name + ': ' + e.message); }
+    if (failed) process.exitCode = 1;
+})();

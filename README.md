@@ -37,7 +37,8 @@ içindeki Node.js ile yapılır.
   koyma/kırma tıklarını bulur (marker olarak gösterir), her tıktan sonraki arayı
   hızlandırıp/yavaşlatarak tıkları sabit aralığa (sn ya da BPM) oturtur; tık anı
   normal hızda kalır. 0.9.6.0: **Hedef = Müzik melodisi** ile kilitli müzik track'inin
-  notalarına (davul değil, nota çalan sesler) oturtur. Ayrıntı: [docs/wiki/HooDoo Cut Tık Ritmi.md](docs/wiki/HooDoo%20Cut%20Tık%20Ritmi.md).
+  notalarına (davul değil, nota çalan sesler) oturtur. 0.9.9.0: notalar panel içinde
+  **Spotify Basic Pitch** (TF.js WASM, Python gerekmez) ile bulunur. Ayrıntı: [docs/wiki/HooDoo Cut Tık Ritmi.md](docs/wiki/HooDoo%20Cut%20Tık%20Ritmi.md).
 - **Kapsam seçimi:** tüm sequence ya da sadece timeline'da seçili clipler.
   Bölge bölge farklı şablon: bölgeyi seç → şablon → analiz → kes, tekrarla.
 - **Parçalı işleme:** uzun videolarda Premiere kilitlenmez; butonda canlı
@@ -60,10 +61,11 @@ com.hoodoocut/
 ├── client/
 │   ├── index.html         # Panel arayüzü (Türkçe)
 │   ├── css/style.css
-│   └── js/
-│       ├── CSInterface.js # Adobe resmi kütüphane (CEP 12)
-│       ├── analyzer.js    # WAV stream okuma + RMS dB + oto eşik + tespit (UMD)
-│       └── main.js        # Panel mantığı, JSX köprüsü, parçalı kesim orkestrasyonu
+│   ├── js/
+│   │   ├── CSInterface.js # Adobe resmi kütüphane (CEP 12)
+│   │   ├── analyzer.js    # WAV stream okuma + RMS dB + oto eşik + tespit (UMD)
+│   │   └── main.js        # Panel mantığı, JSX köprüsü, parçalı kesim orkestrasyonu
+│   └── lib/basicpitch/    # Spotify Basic Pitch + TF.js WASM paketi (tools/basicpitch ile üretilir)
 ├── host/index.jsx         # ExtendScript: export, razor (QE), silme/susturma, yedek
 └── assets/wav48k16.epr    # Premiere ses export preseti (AME sistem presetinden)
 ```
