@@ -11,6 +11,11 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — setSpeed üçüncü sonuç
+
+- `0.5 r` (p4 = true): çağrılar `true`, raporda süre/sonraki klip değişmedi. p4'ün ripple olmadığı
+  ya da DOM'un hemen güncellenmediği ihtimali; kullanıcıdan timeline gözlemi + ayrı "incele" istendi.
+
 ## 2026-10-14 — setSpeed ikinci sonuç
 
 - 0.9.4.4 canlı: hız tüm linkli parçalara uygulanıyor (0.5 ve 2 denendi). p4 = false iken süre sabit,
