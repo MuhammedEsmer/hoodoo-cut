@@ -11,6 +11,17 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Donma azaltma + In the End canlı (CEP 0.9.8.1)
+
+- Kullanıcı: "donmayı azalt", "In the End'i de yeni sürümle dene" (hafif ağır çekim önerisi sorulmuştu).
+- Sebep: DP her tıkı eşlemek için seyrek melodide boşluğu donmayla dolduruyordu. `alignToNotes`: donma
+  0.3 + 2.5/sn, fazla tıklar arası temiz bölümler, birlikte hafif yavaşlama (≥ %70), kısa donma en son;
+  bölüm fazla tıktan 1 kare önce biter, 175 ms sonra başlar (canlıda 7 yerde atak ms'leri duyuldu).
+- Canlı: piyano donma 27.5 → 6.5 sn, In the End 35.7 (plan) → 5.4 sn; görünür fazla blok yok; tıkların
+  %89 / %90'ı notada; ~45 sn hafif ağır çekim. Önceki sonuçlar projede "Piyano v1 (0.9.8.0)" ve
+  "Melodi v3 (0.9.7.0)". Testler 122 PASS. Paket 0.9.8.1. Release yok.
+  Rapor: [[reports/2026-10-14-donma-azaltma|donma azaltma]].
+
 ## 2026-10-14 — Solo piyanodan öğrenme + seçenek (c) donma (CEP 0.9.8.0)
 
 - Kullanıcı: "(c) ile devam et" + yeni şarkı (In the End EASY Piano Tutorial, A3, kaynak 121.65 sn)

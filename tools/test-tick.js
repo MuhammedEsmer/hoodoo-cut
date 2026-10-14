@@ -247,6 +247,9 @@ const cutOpts = { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 4, regionStar
 const gapRows = p => p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), +x.target.toFixed(4), +x.speed.toFixed(4)]);
 // Planın çıktısı: kaynak zamanı x'in timeline'daki yeri (x hiçbir aranın içinde değilken)
 const outAt = (p, x) => p.gaps.filter(g => g.end <= x + 1e-9).reduce((s, g) => s - (g.end - g.start - g.target), x);
+// Eşleşen ilk ve son tık arasındaki fazla tıkların hepsi silinen bir parçada olmalı (görünür fazla blok yok)
+const hiddenExtras = (p, clicks) => clicks.filter(c => p.clicks.indexOf(c) < 0 && c > p.clicks[0] && c < p.clicks[p.clicks.length - 1])
+    .forEach(c => assert(p.gaps.some(g => g.target === 0 && g.start <= c + 1e-9 && c < g.end), 'fazla tik gorunuyor: ' + c));
 test('option (b): every melody note gets a click, extra clicks are cut, kept footage plays at most normal speed', () => {
     // Tık aralığı 0.4 sn; nota aralıkları kesmeye izin verecek kadar kısa ya da yavaşlatmaya uygun.
     const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0];
@@ -257,7 +260,7 @@ test('option (b): every melody note gets a click, extra clicks are cut, kept foo
     p.targets.forEach(t => assert(notes.some(nt => near(Math.round(nt * 30) / 30, t, 1e-9)), 'hedef nota degil: ' + t));
     assert(p.gaps.some(g => g.target === 0), 'fazla tiklar kesilmeli');
     p.gaps.forEach(g => assert(g.target === 0 ? g.speed === 0 : g.freeze || (g.speed >= 0.5 - 1e-9 && g.speed <= 1 + 1e-9), JSON.stringify(g)));
-    p.gaps.filter(g => g.target > 0 && !g.freeze).forEach(g => assert(p.clicks.some(c => near(c, g.end, 1e-9)), 'kalan parca bir tikta bitmeli'));
+    hiddenExtras(p, clicks);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
 test('option (b): a dropped click inside the kept window is cut out; footage after the click and before the next stay natural', () => {
@@ -274,29 +277,55 @@ test('option (b): when only a short clean approach exists it is slowed down (no 
     assert.strictEqual(p.freezes, 0);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
-test('option (c): a long note gap freezes the last clean frame instead of showing extra blocks or slow motion', () => {
-    // Tıklar 0.4 sn arayla, notalar 1.0 / 3.0 / 3.4: 1.9 sn'lik arada temiz görüntü 0.3 + 0.3 sn.
-    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 3.4];
-    const p = plan.alignToNotes(clicks, [1.0, 3.0, 3.4], cutOpts);
-    assert.strictEqual(p.clicks.length, 3, JSON.stringify(p.clicks));
-    // a'dan sonra 7 kare doğal, son 2 karesi kalan süreyi doldurana dek dondurulur, sonrası kesilir
-    const fr = p.gaps.find(g => g.target > 0 && g.speed < 0.5);
-    assert(fr && near(fr.start, 1 + 10 / 30, 1e-9) && near(fr.end, 1.4, 1e-9), JSON.stringify(p.gaps));
-    assert.strictEqual(p.freezes, 1);
+test('option (c): a long note gap uses the clean stretches between extra blocks with light slow motion, no freeze', () => {
+    // Tıklar 0.4 sn arayla, notalar 1.0 / 2.6 / 3.0 …: 1.0 → 3.0 tıkı, 1.6 sn'lik arada baş + 3 ara + yaklaşma.
+    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 3.4, 3.8, 4.2];
+    const p = plan.alignToNotes(clicks, [1.0, 2.6, 3.0, 3.4, 3.8, 4.2], cutOpts);
+    assert.deepStrictEqual(p.clicks, [1.0, 3.0, 3.4, 3.8, 4.2]);
+    assert.strictEqual(p.freezes, 0);
     assert.strictEqual(p.visible, 0);
+    assert.strictEqual(p.gaps.filter(g => g.target === 0).length, 4, JSON.stringify(gapRows(p)));
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
-    clicks.filter(c => p.clicks.indexOf(c) < 0 && c < p.clicks[p.clicks.length - 1]).forEach(c =>
-        assert(p.gaps.some(g => g.target === 0 && g.start <= c + 1e-9 && c < g.end), 'fazla tik gorunuyor: ' + c));
-    p.gaps.filter(g => g.target > 0).forEach(g =>
-        assert(g.speed >= 0.5 - 1e-9 || near(g.end - g.start, 2 / 30, 1e-9), 'agir cekim: ' + JSON.stringify(g)));
+    hiddenExtras(p, clicks);
+    // %70 sınırı; kare yuvarlaması bir kare kadar altına indirebilir
+    p.gaps.filter(g => g.target > 0).forEach(g => assert(g.speed >= 0.65 && g.speed < 1, 'agir cekim: ' + JSON.stringify(g)));
 });
-test('option (c): a note gap longer than all remaining footage is filled by a freeze once the click sound is over', () => {
-    // Fazla tık yok, kaynak hedefin yarısından kısa (yavaşlatma minSpeed altına düşerdi): tıkın sesi
-    // bitince (150 ms = 5 kare) 2 kare dondurulur, kalan doğal oynar.
-    const p = plan.alignToNotes([1.0, 1.5, 2.0], [1.0, 2.5, 3.0], cutOpts);
-    assert.deepStrictEqual(p.clicks, [1.0, 1.5, 2.0]);
-    assert.deepStrictEqual(gapRows(p), [[1.1667, 1.2333, 1.0667, +(2 / 32).toFixed(4)]]);
+test('option (c): when the clean stretches are not enough, a short freeze sits just before the extra block', () => {
+    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6];
+    const p = plan.alignToNotes(clicks, [1.0, 1.8333, 2.2333, 2.6333], cutOpts);
+    assert.deepStrictEqual(p.clicks, [1.0, 1.8, 2.2, 2.6]);
+    // baş %75, son 2 karesi (fazla tıktan 1 kare önce biter) donar, fazla tık kesilir, yaklaşma %70
+    assert.deepStrictEqual(gapRows(p), [[1.1, 1.3, 0.2667, 0.75], [1.3, 1.3667, 0.1333, 0.5], [1.3667, 1.5667, 0, 0], [1.5667, 1.8, 0.3333, 0.7]]);
+    assert(p.gaps[1].freeze && p.freezes === 1);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
+    hiddenExtras(p, clicks);
+});
+test('option (c): clean stretches between extra blocks are used (jump cuts) before slowing', () => {
+    // a=1.0 → b=2.2, nota arası 0.8333: baş + ara + yaklaşma; eksik 1 kare en uzun bölüme (baş, %89),
+    // iki fazla tık ve sesleri kesilir.
+    const p = plan.alignToNotes([1.0, 1.4, 1.8, 2.2], [1.0, 1.8333], cutOpts);
+    assert.deepStrictEqual(p.clicks, [1.0, 2.2]);
+    assert.deepStrictEqual(gapRows(p), [[1.1, 1.3667, 0.3, 0.8889], [1.3667, 1.5667, 0, 0], [1.7667, 1.9667, 0, 0]]);
+    assert(near(outAt(p, 2.2), 1.8333, 0.02));
+});
+test('option (c): a note gap longer than all remaining footage is slowed lightly, then frozen once the click sound is over', () => {
+    // a=1.0 → b=1.5 arası fazla tık yok, kaynak hedefin yarısından kısa: tıkın sesi bitince (150 ms = 5 kare)
+    // 2 kare donar, kalan %70'te oynar.
+    const clicks = [1.0, 1.5, 2.0, 2.4, 2.8];
+    const p = plan.alignToNotes(clicks, [1.0, 2.5, 3.0, 3.4, 3.8], cutOpts);
+    assert.deepStrictEqual(p.clicks, clicks);
+    assert.deepStrictEqual(gapRows(p), [[1.1667, 1.2333, 0.9667, +(2 / 29).toFixed(4)], [1.2333, 1.5, 0.3667, +(8 / 11).toFixed(4)]]);
+    assert(p.gaps[0].freeze);
+    p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
+});
+test('option (c): a long freeze is avoided by dropping one more click and cutting', () => {
+    // Tıklar 0.4, notalar 0.6 sn arayla: ardışık tıkları eşlemek her arada donma isterdi.
+    const clicks = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0, 3.4, 3.8];
+    const p = plan.alignToNotes(clicks, [1.0, 1.6, 2.2, 2.8, 3.4], cutOpts);
+    assert(p.frozenSec < 0.25, 'donma ' + p.frozenSec);
+    assert(p.clicks.length < clicks.length && p.clicks.length >= 4, JSON.stringify(p.clicks));
+    p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
+    hiddenExtras(p, clicks);
 });
 test('option (b): the region start is cut so the first click lands on its note', () => {
     const p = plan.alignToNotes([1.0, 1.8], [0.7, 1.5], Object.assign({}, cutOpts, { regionStart: 0.2 }));

@@ -50,11 +50,27 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
-## Hedef: Müzik melodisi — güncel yöntem (0.9.8.0)
+## Hedef: Müzik melodisi — güncel yöntem (0.9.8.1)
 
 > 0.9.6.x'teki HPSS yöntemi (aşağıda tarihçe olarak duruyor) piyano riff'ini **takip etmiyordu**;
-> 0.9.7.0'da değiştirildi, 0.9.8.0'da solo piyano ile ayarlandı ve seçenek (c) eklendi. Ölçümler ve
-> denenip bırakılanlar: [[reports/2026-10-14-piyano-melodi-ogrenme|solo piyano raporu]].
+> 0.9.7.0'da değiştirildi, 0.9.8.0'da solo piyano ile ayarlandı ve seçenek (c) eklendi, 0.9.8.1'de
+> donma azaltıldı. Ölçümler: [[reports/2026-10-14-piyano-melodi-ogrenme|solo piyano raporu]],
+> [[reports/2026-10-14-donma-azaltma|donma azaltma raporu]].
+
+**0.9.8.1 farkları** (kullanıcı: "donmayı azalt", hafif ağır çekime onay)
+
+- Donmanın asıl sebebi: DP her tıkı bir notaya oturtmak için (ödül 1) melodi tıklardan seyrekken
+  boşluğu donmayla dolduruyordu. Donma pahalı yapıldı (0.3 + **2.5/sn**): DP uzun donma yerine bir
+  tıkı daha düşürüp keser.
+- Temiz görüntü artık iki fazla tık **arasından** da alınır (fazla blok anı kesilir); yetmezse bölümler
+  birlikte **hafifçe yavaşlar** (sınır max(minSpeed, **%70**)), en son kısa donma.
+- Fazla tıktan önceki bölüm 1 kare erken biter (atağın ilk ms'leri yavaşlayınca tık gibi duyuluyordu);
+  fazla tıktan sonraki bölüm **175 ms** sonra başlar (200 ms temiz görüntüyü fazla azaltıp piyanoda
+  planı saniyelerce görüntü atlamaya itti).
+- Canlı (0.9.8.1): piyano 54 donma / 27.5 sn → **19 / 6.5 sn**, video süresi aynı (−0.15 sn); In the
+  End plan 35.7 sn → **16 donma / 5.4 sn**, video −3.7 sn. İkisinde de görünür fazla blok yok; tıkların
+  %89 / %90'ı notada. Bedeli: ~45 sn hafif ağır çekim (%67–98), notada tık sayısı azaldı (piyano
+  153 → 125, In the End 158 → 114).
 
 **0.9.8.0 farkları**
 
@@ -88,19 +104,21 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
      tutulan nota ve davul nota sayılmaz.
    - In the End: 105.3 BPM, riff D♯ A♯ F♯ F F♯ … 2 ölçüde bir tekrar.
 2. **Eşleşme** — `ACSTickPlan.alignToNotes`: her melodi notasına bir tık; arada kalan fazla tıkların
-   görüntüsü **silinir** (seçenek b; plan parçası `target 0, speed 0`). Adaylar: yaklaşma ≥ D ise son D
-   kare normal hızda; yaklaşma minSpeed'e kadar yavaşlatılır; baş + yaklaşma ≥ D ise ikisi normal hızda,
-   ortası silinir; değilse **donma** (seçenek c, plan parçası `freeze`); temiz kısım 2 kareden kısaysa
-   fazla tıklar görünür kalır. Maliyet: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + ek kesme 0.05 +
-   donma 0.3 + 0.5/sn + görünür fazla tık 0.5 + atlanan nota 0.4 + düşen tık 0.02 − ödül 1. Bölge başı da
-   aynı kuralla.
+   görüntüsü **silinir** (seçenek b; plan parçası `target 0, speed 0`). Temiz bölümler: baş, fazla tıklar
+   arası, yaklaşma (0.1 sn'den kısası kullanılmaz). Adaylar: yaklaşma ≥ D ise son D kare normal hızda;
+   yaklaşma hafifçe yavaşlatılır; bölümler toplamı ≥ D ise baş + yaklaşma (+ en uzun aralar) normal
+   hızda; değilse bölümler hafifçe yavaşlar, yetmezse ilk bölümde **donma** (seçenek c, plan parçası
+   `freeze`); hiçbiri olmazsa fazla tıklar görünür kalır. Yavaşlama sınırı max(minSpeed, %70). Maliyet:
+   yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + ek kesme 0.05 + donma 0.3 + 2.5/sn + görünür fazla tık
+   0.5 + atlanan nota 0.4 + düşen tık 0.02 − ödül 1. Bölge başı da aynı kuralla.
 3. **Host** — `ACS_tickRetime` hedefi 0 olan parçayı ve donan parçanın ses kısmını ripple'sız siler
    (önce), sonra kısalt/taşı/uzat. Donma plan satırında 5. alan `f`.
 
 **Fiziksel sınır:** tıklar ~0.4 sn arayla; 0.3 sn'den uzun temiz (blok koymasız) görüntü yok.
 Nota arası uzun olduğunda ağır çekim, görünen fazla blok ya da donma gerekir. 0.9.7.0'da minSpeed 0.5 ile
-54 görünür fazla tık kalıyordu; kullanıcı **(c) donmayı** seçti (0.9.8.0). Bedeli: uzun notalı şarkıda
-toplam donma yüksek (In the End planında 35.7 sn).
+54 görünür fazla tık kalıyordu; kullanıcı **(c) donmayı** seçti (0.9.8.0), donma çok olunca (In the End
+planında 35.7 sn) azaltılmasını istedi (0.9.8.1): şimdi önce fazla tık kesilir, sonra hafif ağır çekim,
+en son kısa donma.
 
 **Bağımsız son kontrol, 0.9.7.0** (düzenlenmiş HDend'in oyun sesi + müziği dışa aktarılıp sesten):
 - İlk deneme (sabit ızgara): plan hedeflerinin 74/76'sında tık vardı (uygulama doğru) ama

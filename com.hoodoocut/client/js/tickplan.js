@@ -62,27 +62,32 @@
 
     /* Müzik melodisi hedefi: her melodi notasına bir tık oturur; iki eşleşen tık arasındaki fazla
      * tıkların görüntüsü KESİLİR (seçenek b). Bir geçişte (tık a → tık b, nota j → nota j2) kaynak
-     * = b − (a + tık parçası), hedef D = nota arası − tık parçası. Temiz (fazla tıksız) kısımlar:
-     * "baş" = a'dan sonraki ilk fazla tıka kadar, "yaklaşma" = son fazla tıkın sesi bittikten (150 ms,
-     * en az tık parçası) b'ye kadar. Adaylar (en ucuzu seçilir):
+     * = b − (a + tık parçası), hedef D = nota arası − tık parçası. Temiz (fazla tıksız) bölümler:
+     * "baş" = a'dan sonraki ilk fazla tıka kadar, "ara" = iki fazla tık arası, "yaklaşma" = son fazla
+     * tıktan b'ye kadar; fazla tıktan sonraki bölüm tıkın sesi bitince (150 ms, en az tık parçası)
+     * başlar, 0.1 sn'den kısa bölüm kullanılmaz. Adaylar (en ucuzu seçilir):
      *   - yaklaşma ≥ D: b'den önceki son D kare normal hızda, öncesi silinir;
-     *   - yaklaşma minSpeed'e kadar yavaşlatılır;
-     *   - baş + yaklaşma ≥ D: ikisi de normal hızda, ortası silinir;
-     *   - seçenek (c), uzun nota arası: baş (yoksa yaklaşma) normal hızda, son 2 karesi DONDURULUR
-     *     (çok yavaş) ve D dolana kadar bekler, ortası silinir; görünür fazla blok ve ağır çekim yok;
-     *   - hiçbiri olmazsa (temiz kısım 2 kareden kısa) fazla tıklar görünür kalır.
-     * Maliyet: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + ek kesme 0.05 + donma 0.3 + 0.5/sn +
-     * görünür fazla tık 0.5 + atlanan nota 0.4 + düşen tık 0.02 − eşleşme ödülü 1. Bölge başı da aynı
-     * kuralla ilk notaya oturtulur. Dönüş planTicks biçiminde; silinecek parça = { target: 0, speed: 0 };
-     * normal hızda tutulan parça plana yazılmaz (yalnız kayar). */
+     *   - yaklaşma hafifçe yavaşlatılır;
+     *   - bölümlerin toplamı ≥ D: baş + yaklaşma (+ gerektiği kadar en uzun aralar) normal hızda,
+     *     aradaki fazla tıklar silinir;
+     *   - toplam < D: bölümler birlikte hafifçe yavaşlatılır, yine yetmezse ilk bölümde 2 kare
+     *     DONDURULUR (seçenek c; görünür fazla blok yok);
+     *   - hiçbiri olmazsa fazla tıklar görünür kalır.
+     * Yavaşlama sınırı max(minSpeed, %70) ("hafif ağır çekim"). Donma pahalı (0.3 + 2.5/sn): DP uzun
+     * donma yerine bir tıkı daha düşürüp kesmeyi seçer (kullanıcı: "donmayı azalt"; canlı piyanoda
+     * eski maliyetle 54 donma / 27.5 sn). Maliyet: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + ek
+     * kesme 0.05 + donma + görünür fazla tık 0.5 + atlanan nota 0.4 + düşen tık 0.02 − eşleşme ödülü 1.
+     * Bölge başı da aynı kuralla ilk notaya oturtulur. Dönüş planTicks biçiminde; silinecek parça =
+     * { target: 0, speed: 0 }; normal hızda tutulan parça plana yazılmaz (yalnız kayar). */
     function alignToNotes(clicks, notes, opts) {
-        var fps = opts.fps, hold = opts.holdFrames, minS = opts.minSpeed, rs = Math.round(opts.regionStart * fps);
+        var fps = opts.fps, hold = opts.holdFrames, minS = Math.max(opts.minSpeed, 0.7), rs = Math.round(opts.regionStart * fps);
         var SKIP = 0.4, DROP = 0.02, CUT = 0.1, JUMP = 0.05, VISIBLE = 0.5, REWARD = 1, MAXDROP = 12, MAXSKIP = 4;
-        var FZ = 2, FREEZE = 0.3, FREEZE_SEC = 0.5;
-        // Fazla tıktan sonraki temiz görüntü 150 ms sonra başlar: blok sesi ~0.3 sn sürüyor ve ilk
-        // 60 ms'de tepeye yakın; tık parçasından (3 kare) hemen sonra kesilince kuyruk yeni bir tık gibi
-        // duyuluyordu (canlı: 15 nota dışı tıkın çoğu kesimden 20-30 ms sonra).
-        var tail = Math.max(hold, Math.round(0.15 * fps));
+        var FZ = 2, FREEZE = 0.3, FREEZE_SEC = 2.5, MINSEG = Math.max(FZ + 1, Math.round(0.1 * fps));
+        // Fazla tıktan sonraki temiz görüntü 175 ms sonra başlar: blok sesi ~0.3 sn sürüyor, ilk 60 ms'de
+        // ve 130-160 ms'de tepeye yakın; daha erken kesilince kuyruk yeni bir tık gibi duyuluyordu
+        // (canlı: tık parçasından sonra 11 yerde, 150 ms'de 1 yerde). 200 ms temiz görüntüyü o kadar
+        // azaltıyor ki piyanoda plan saniyelerce görüntü atlıyordu (video 87 → 61 sn).
+        var tail = Math.max(hold, Math.round(0.175 * fps));
         function frames(list) {
             var out = [];
             list.map(function (t) { return Math.round(t * fps); }).sort(function (a, b) { return a - b; })
@@ -102,23 +107,55 @@
             function offer(pieces, cost, visible, frozen) {
                 if (!best || cost < best.cost) best = { pieces: pieces, cost: cost, visible: visible, frozen: frozen };
             }
-            var lead = dropped.length ? Math.max(0, endF - (dropped[dropped.length - 1] + tail)) : avail;
-            var head = dropped.length ? Math.max(0, dropped[0] - startF) : 0;
+            var lead = dropped.length ? Math.max(0, endF - (dropped[dropped.length - 1] + tail)) : avail, q;
             if (lead >= D) offer([{ s: endF - D, e: endF, t: D }], cut, 0, 0);
             else {
                 if (lead >= 1 && lead / D >= minS) offer([{ s: endF - lead, e: endF, t: D }], Math.abs(Math.log(lead / D)) + cut, 0, 0);
-                if (head + lead >= D) offer([{ s: startF, e: startF + D - lead, t: D - lead }, { s: endF - lead, e: endF, t: lead }], cut + JUMP, 0, 0);
-                else {
-                    var fill = D - head - lead; // dondurularak doldurulacak kare
-                    if (head >= FZ) {
-                        offer([{ s: startF, e: startF + head - FZ, t: head - FZ }, { s: startF + head - FZ, e: startF + head, t: FZ + fill },
-                            { s: endF - lead, e: endF, t: lead }], FREEZE + FREEZE_SEC * fill / fps + cut + (lead ? JUMP : 0), 0, fill);
-                    } else if (lead >= FZ) {
-                        // Yaklaşmanın başında donar; fazla tık yoksa a'nın sesi bittikten sonra (donan karenin
-                        // sesi silinir, ses tıkın kuyruğunun ortasından başlarsa yeni bir tık gibi duyuluyordu).
-                        var fp = endF - lead + (dropped.length ? 0 : Math.min(Math.max(0, tail - hold), lead - FZ));
-                        offer([{ s: endF - lead, e: fp, t: fp - (endF - lead) }, { s: fp, e: fp + FZ, t: FZ + fill },
-                            { s: fp + FZ, e: endF, t: endF - fp - FZ }], FREEZE + FREEZE_SEC * fill / fps + cut, 0, fill);
+                var segs = [], S = 0;
+                var seg = function (s, e, kind) { if (e - s >= MINSEG) { segs.push({ s: s, e: e, kind: kind }); S += e - s; } };
+                // Fazla tıktan önceki bölüm 1 kare erken biter: tık zamanı kareye yuvarlanınca atağın ilk
+                // milisaniyeleri bölüme giriyor, yavaşlatınca tık gibi duyuluyordu (canlı, 7 yerde).
+                if (dropped.length) {
+                    seg(startF, dropped[0] - 1, 'head');
+                    for (q = 0; q + 1 < dropped.length; q++) seg(dropped[q] + tail, dropped[q + 1] - 1, 'mid');
+                }
+                seg(endF - lead, endF, 'lead');
+                var jumps = JUMP * Math.max(0, segs.length - 1);
+                if (S >= D) {
+                    // baş + yaklaşma, gerekirse en uzun aralar; fazlası son eklenen bölümden kırpılır
+                    var use = segs.filter(function (x) { return x.kind !== 'mid'; }), tot = 0, lastAdd = null;
+                    use.forEach(function (x) { tot += x.e - x.s; lastAdd = x.kind === 'head' ? x : lastAdd; });
+                    var mids = segs.filter(function (x) { return x.kind === 'mid'; })
+                        .sort(function (x, y) { return (y.e - y.s) - (x.e - x.s); });
+                    for (q = 0; q < mids.length && tot < D; q++) { use.push(mids[q]); tot += mids[q].e - mids[q].s; lastAdd = mids[q]; }
+                    use.sort(function (x, y) { return x.s - y.s; });
+                    var pcs = use.map(function (x) {
+                        var s = x.s, e = x.e;
+                        if (x === lastAdd) { if (x.kind === 'head') e -= tot - D; else s += tot - D; } // baş a'nın devamı kalsın
+                        return { s: s, e: e, t: e - s };
+                    });
+                    offer(pcs, cut + JUMP * (use.length - 1), 0, 0);
+                } else if (segs.length) {
+                    // hafif ağır çekim; yetmezse ilk bölümde donma
+                    var sp = Math.max(minS, S / D), slowCost = Math.abs(Math.log(sp)), sum = 0;
+                    var sl = segs.map(function (x) { var t = Math.floor((x.e - x.s) / sp); sum += t; return { s: x.s, e: x.e, t: t }; });
+                    if (S / D >= minS) {
+                        // yuvarlama artığı (bölüm sayısından az kare) en uzun bölümlerden başlayarak dağıtılır
+                        var order = sl.slice().sort(function (x, y) { return (y.e - y.s) - (x.e - x.s); });
+                        for (q = 0; sum < D; q = (q + 1) % order.length) { order[q].t++; sum++; }
+                        offer(sl, slowCost + cut + jumps, 0, 0);
+                    } else {
+                        // Baş/ara: sonunda (sıradaki fazla bloktan hemen önce). Yalnız yaklaşma varsa başında;
+                        // fazla tık yoksa a'nın sesi bittikten sonra (donan karenin sesi silinir, ses tıkın
+                        // kuyruğunun ortasından başlarsa yeni bir tık gibi duyuluyordu).
+                        var P = sl[0], fp = segs[0].kind !== 'lead' ? P.e - FZ
+                            : P.s + (dropped.length ? 0 : Math.min(Math.max(0, tail - hold), P.e - P.s - FZ));
+                        var frz = { s: fp, e: fp + FZ, t: 0, freeze: true };
+                        var all = [{ s: P.s, e: fp, t: Math.floor((fp - P.s) / sp) }, frz, { s: fp + FZ, e: P.e, t: Math.floor((P.e - fp - FZ) / sp) }]
+                            .filter(function (x) { return x.e > x.s; }).concat(sl.slice(1)), others = 0;
+                        all.forEach(function (x) { if (x !== frz) others += x.t; });
+                        frz.t = D - others;
+                        if (frz.t > FZ) offer(all, slowCost + FREEZE + FREEZE_SEC * (frz.t - FZ) / fps + cut + jumps, 0, frz.t - FZ);
                     }
                 }
             }
@@ -169,11 +206,12 @@
                 if (pc.s > pos) { gaps.push({ start: pos / fps, end: pc.s / fps, target: 0, speed: 0 }); cutF += pc.s - pos; }
                 if (pc.e > pc.s && pc.t !== pc.e - pc.s) {
                     var g = { start: pc.s / fps, end: pc.e / fps, target: pc.t / fps, speed: (pc.e - pc.s) / pc.t };
-                    if (d.frozen && pc.e - pc.s === FZ && pc.t > FZ) g.freeze = true;
+                    if (pc.freeze) g.freeze = true;
                     gaps.push(g);
                 }
                 pos = Math.max(pos, pc.e);
             });
+            if (endF > pos) { gaps.push({ start: pos / fps, end: endF / fps, target: 0, speed: 0 }); cutF += endF - pos; } // yaklaşma kullanılmadıysa
             visible += d.visible;
             if (d.frozen) { freezes++; frozenF += d.frozen; }
             delta += D - (endF - startF);
