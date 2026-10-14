@@ -11,6 +11,14 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — 0.9.4.2 yerel kurulum
+
+- Premiere kapalıyken `HooDooCut-Kurulum-v0.9.4.2.zip` → `kurulum.ps1` çalıştırıldı.
+- UPIA `/list all`: yalnız **HooDoo Cut Toplu Motor 0.9.9** (eski 0.9.8 kaydı kalmadı).
+- CEP: kaynakla 0 dosya farkı (SHA-256), `ExtensionBundleVersion="0.9.4.2"`.
+- UXP External `com.hoodoocut.bulk_0.9.9`: JS/HTML hash eşit; `manifest.json` yalnız biçimce farklı, JSON içeriği aynı.
+- Canlı ripple ve setSpeed testi henüz yapılmadı.
+
 ## 2026-10-14 — Tık ritmi tasarımı, setSpeed tanısı (CEP 0.9.4.2)
 
 - Yeni istek: Minecraft blok tıklarını sabit ızgaraya oturtmak. Kullanıcı kararları ve
