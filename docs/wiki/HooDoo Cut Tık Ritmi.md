@@ -33,8 +33,10 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 1. **Mod → Tık ritmi.** Ses eşiği ve şablon kartları gizlenir.
 2. **Analiz Sesi:** yalnız oyun sesi track'i (test projesinde A2).
 3. **Kapsam → Seçili clipler**, timeline'da inşaat bölümünü seç (zorunlu).
-4. Ayarlar: tık aralığı (sn) **veya** BPM + bölüm; tık parçası (kare, varsayılan 3);
-   hassasiyet (dB, 12); en kısa tık aralığı (ms, 200); hız sınırı (%50–%400).
+4. Ayarlar: tık aralığı (sn) **veya** BPM + bölüm — iki tık arasında olmasını istediğin
+   süre, sonuçtaki "doğal tık aralığı"na yakın seçilmeli; tık parçası (kare, varsayılan 3);
+   hassasiyet (dB, 12 = yalnız güçlü tıklar); en kısa tık aralığı (ms, 200, en az 100);
+   hız sınırı (%50–%400).
 5. **🎵 Tıkları Bul** → tıklar `HooDoo tik` adlı sequence marker'ı olarak konur;
    sonuçta tık/ara sayısı, hız aralığı, süre değişimi.
 6. **🎯 Ritme Oturt** (iki tık onay) → razor + yeniden zamanlama; marker'lar silinir.
@@ -43,7 +45,7 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 
 | Katman | Fonksiyon | Görev |
 |---|---|---|
-| Tespit | `ACSAnalyzer.detectOnsets` | 5 ms pencere, HPF 1 kHz; **15 ms** içinde ≥10 dB yükseliş = aday; bölgedeki en güçlü tıkın `relDb` altı elenir; `minGap` içindeki ikinci tık elenir. Yükselişin tabanı bölge içinde olmalı |
+| Tespit | `ACSAnalyzer.detectOnsets` | (0.9.5.1) Tam bant 60 Hz–15 kHz, 5 ms zarf — Premiere dalga formuyla aynı. Tık = iki yana da ≥12 dB düşen **belirgin tepe**; zaman = tepenin atak başlangıcı (tepe −10 dB). Bölgedeki en güçlü tıkın `relDb` altı elenir; `minGap` (en az 100 ms) içindeki iki tepeden **güçlü olan** kalır. Atak bölgeden önce başlıyorsa sayılmaz |
 | Plan | `ACSTickPlan.planTicks` | Kareye hizalar; alt hız sınırına inmeyi gerektiren yakın tık öncekine katılır (`merged`); üst sınırı aşan hız sınıra çekilir (`limited`, fazla kaynak düşer) |
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
@@ -65,7 +67,19 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 |---|---|---|---|
 | Yapay tıklar 100–103.35 sn | — | 0.5 | 6 tık 0.5 sn ızgarada, 3 track aynı, kaynak kesintisiz (649 ms) |
 | 172–180 sn (panel arayüzü) | A1 | 0.4 | 7–8 tık 0.4 sn ızgarada, 3 track aynı (1.1–1.5 sn) |
-| **954.46–961.76 sn (kullanıcının seçtiği bölüm)** | **A2** | **0.3** | **16 tık, 15 ara, hız %60–207, tıklar tam 0.3 sn arayla, 3 track aynı, kuyruk −0.10 sn (2.6–3.2 sn)** |
+| 954.46–961.76 sn, 0.9.5.0 tespiti | A2 | 0.3 | 16 tık ızgarada ama marker'lar 12–62 ms erken ve zayıf sesler de tık sayıldı (aşağıya bkz.) |
+| **954.46–961.76 sn, 0.9.5.1 tespiti** | **A2** | **0.4** | **10 tık (doğal aralık 0.40 sn), marker'lar tepe atağının 6–11 ms içinde; yalnız bir çift aralık ×2.14; tıklar tam 0.4 sn arayla, 3 track aynı (1.1 sn)** |
+
+### 0.9.5.1 düzeltmesi (kullanıcı geri bildirimi: "marker'lar asla oturmuyor")
+
+- Bölümde iki ses ailesi var: güçlü blok sesleri (−26…−30 dB, zaten ~0.4 sn ritimde) ve
+  12–15 dB zayıf başka bir ses. Eski HPF 1 kHz ikisini eşit gösterip hepsini tık sayıyordu.
+- Eski "ani yükseliş" yöntemi dijital sessizlikte tıktan hemen önceki küçük sesi seçiyordu
+  (marker 12–62 ms erken). Tepe tabanlı tespitle düzeldi; regresyon testi:
+  `a faint sound just before a click does not steal its marker`.
+- Kullanıcı ayarı: aralık 0.1 sn (doğal 0.4) → hızlar %400 sınırında, −2.75 sn. Sonuca
+  "Doğal tık aralığı" ve çok farklıysa uyarı eklendi; en kısa tık aralığı ≥100 ms
+  (tek blok sesinin ~60 ms arayla iki tepesi var).
 
 Testler: `tools/test-tick.js` (plan + tespit, 9), `tools/test-tick-host.js` (host, 5),
 `tools/test-panel.js` tık senaryoları (4).

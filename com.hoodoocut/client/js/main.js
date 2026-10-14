@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.5.0'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.5.1'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -579,7 +579,8 @@
         var bpm = numField('tickBpm', 0, 0);
         if (bpm > 0) interval = ACSTickPlan.intervalFromBpm(bpm, parseFloat($('tickBeats').value) || 1);
         return { fps: state.fps, interval: interval, holdFrames: Math.round(numField('tickHold', 3, 0)),
-            relDb: numField('tickRel', 12, 1), minGap: numField('tickMinGap', 200, 0) / 1000,
+            // Tek blok sesinin iki tepesi ~60 ms arayla gelebiliyor; 100 ms alti ikisini ayri tik sayar.
+            relDb: numField('tickRel', 12, 1), minGap: Math.max(100, numField('tickMinGap', 200, 0)) / 1000,
             minSpeed: numField('tickMinSpeed', 50, 1) / 100, maxSpeed: numField('tickMaxSpeed', 400, 100) / 100 };
     }
 
@@ -600,8 +601,13 @@
                 var plan = ACSTickPlan.planTicks(onsets, opts);
                 state.tickPlan = plan.gaps.length ? plan : null;
                 var speeds = plan.gaps.map(function (g) { return g.speed; });
+                var natural = ACSTickPlan.medianInterval(onsets);
+                var naturalNote = natural ? 'Doğal tık aralığı ≈ ' + natural.toFixed(2) + ' sn' +
+                    (natural / opts.interval > 2 || opts.interval / natural > 2
+                        ? ' — girilen aralık (' + opts.interval.toFixed(2) + ' sn) bundan çok farklı, hızlar sınıra takılabilir.' : '') : '';
                 log('Tık analizi: ' + onsets.length + ' tık, ' + plan.merged + ' birleşti, ' + plan.gaps.length +
-                    ' ara, aralık ' + opts.interval.toFixed(3) + ' sn' + (plan.limited ? ', ' + plan.limited + ' ara hız sınırında' : ''));
+                    ' ara, aralık ' + opts.interval.toFixed(3) + ' sn' + (plan.limited ? ', ' + plan.limited + ' ara hız sınırında' : '') +
+                    (natural ? ', doğal aralık ' + natural.toFixed(3) + ' sn' : ''));
                 evalJsx('ACS_setTickMarkers("' + plan.clicks.join(';') + '")', function (res) {
                     if (res.split('|')[0] !== 'OK') log('Tık marker\'ları konamadı: ' + res);
                 });
@@ -615,7 +621,7 @@
                         (plan.deltaSec >= 0 ? '+' : '') + plan.deltaSec.toFixed(2) + ' sn<br>' +
                         (plan.merged ? plan.merged + ' yakın tık öncekine katıldı. ' : '') +
                         (plan.limited ? plan.limited + ' arada hız sınırı aşıldı, fazlası kesilecek. ' : '') +
-                        'Tıklar timeline\'da marker olarak işaretli.');
+                        'Tıklar timeline\'da marker olarak işaretli.' + (naturalNote ? '<br>' + naturalNote : ''));
                     $('btnCut').style.display = 'block';
                     $('backupRow').style.display = 'block';
                     resetCutButton();

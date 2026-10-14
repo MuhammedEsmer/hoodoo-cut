@@ -50,5 +50,15 @@
         };
     }
 
-    return { intervalFromBpm: intervalFromBpm, planTicks: planTicks };
+    /* Bulunan tıkların doğal aralığı (ardışık farkların medyanı) — aralık önerisi için. */
+    function medianInterval(clicks) {
+        if (clicks.length < 2) return null;
+        var d = [];
+        for (var i = 1; i < clicks.length; i++) d.push(clicks[i] - clicks[i - 1]);
+        d.sort(function (a, b) { return a - b; });
+        var m = Math.floor(d.length / 2);
+        return d.length % 2 ? d[m] : (d[m - 1] + d[m]) / 2;
+    }
+
+    return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval };
 });

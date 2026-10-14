@@ -49,7 +49,7 @@
         </div>
         <div class="field">
           <span>En kısa tık aralığı</span>
-          <div class="unit"><input type="number" id="tickMinGap" min="0" max="2000" step="10" value="200"><i>ms</i></div>
+          <div class="unit"><input type="number" id="tickMinGap" min="100" max="2000" step="10" value="200"><i>ms</i></div>
         </div>
         <div class="field">
           <span>Hız sınırı</span>
@@ -57,7 +57,7 @@
             <input type="number" id="tickMaxSpeed" min="100" max="2000" step="25" value="400"><i>%</i></div>
         </div>
       </div>
-      <p class="hint">Yalnız <b>seçili cliplerde</b> çalışır. Analiz sesinde oyun sesi track'ini işaretleyin. Tıklar timeline'a marker olarak konur; her tıktan sonraki ara hızlanır/yavaşlar ve bir sonraki tık tam bir aralık sonra gelir. BPM girilirse aralık BPM'den hesaplanır. Hassasiyet: en güçlü tıkın kaç dB altına kadar sayılacağı.</p>
+      <p class="hint">Yalnız <b>seçili cliplerde</b> çalışır. Analiz sesinde oyun sesi track'ini işaretleyin. Tıklar timeline'a marker olarak konur; her tıktan sonraki ara hızlanır/yavaşlar ve bir sonraki tık tam bir aralık sonra gelir. BPM girilirse aralık BPM'den hesaplanır. <b>Tık aralığı</b> = iki tık arasında olmasını istediğin süre (sonuçtaki "doğal tık aralığı"na yakın seçin). Hassasiyet: en güçlü tıkın kaç dB altına kadar sayılacağı (12 = yalnız güçlü tıklar, büyütürsen zayıf sesler de girer). En kısa tık aralığı en az 100 ms.</p>
     </div>
   </section>
 

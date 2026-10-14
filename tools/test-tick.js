@@ -92,13 +92,26 @@ test('detects strong clicks inside the region and ignores weak ones and the outs
         on.forEach((t, i) => assert(Math.abs(t - strong[i]) <= 0.01, t + ' vs ' + strong[i]));
     } finally { fs.unlinkSync(file); }
 });
-test('minimum gap keeps only the first of two close clicks', () => {
-    const file = wavWithClicks(3, [{ at: 1.0, amp: 20000 }, { at: 1.1, amp: 20000 }, { at: 2.0, amp: 20000 }]);
+test('minimum gap keeps the stronger of two close clicks', () => {
+    const file = wavWithClicks(3, [{ at: 1.0, amp: 8000 }, { at: 1.1, amp: 20000 }, { at: 2.0, amp: 20000 }]);
     try {
         const on = analyzer.detectOnsets(fs, file, [[0, 3]], { relDb: 12, minGap: 0.2 });
         assert.strictEqual(on.length, 2, JSON.stringify(on));
-        assert(Math.abs(on[0] - 1.0) <= 0.01 && Math.abs(on[1] - 2.0) <= 0.01);
+        assert(Math.abs(on[0] - 1.1) <= 0.01 && Math.abs(on[1] - 2.0) <= 0.01, JSON.stringify(on));
     } finally { fs.unlinkSync(file); }
+});
+test('a faint sound just before a click does not steal its marker', () => {
+    // Canlı hata: sessiz bölgede tıkın 50 ms öncesindeki küçük ses marker'ı erkene çekiyordu.
+    const file = wavWithClicks(3, [{ at: 0.95, amp: 2000 }, { at: 1.0, amp: 20000 }, { at: 2.0, amp: 20000 }]);
+    try {
+        const on = analyzer.detectOnsets(fs, file, [[0.5, 2.5]], { relDb: 12, minGap: 0.2 });
+        assert.strictEqual(on.length, 2, JSON.stringify(on));
+        assert(Math.abs(on[0] - 1.0) <= 0.01 && Math.abs(on[1] - 2.0) <= 0.01, JSON.stringify(on));
+    } finally { fs.unlinkSync(file); }
+});
+test('natural click interval is the median spacing', () => {
+    assert(near(plan.medianInterval([1, 1.4, 1.8, 2.6, 3.0]), 0.4));
+    assert.strictEqual(plan.medianInterval([1]), null);
 });
 test('a slow swell crossing the region start is not taken as a click', () => {
     // 0.9-1.1 sn: genlik 30 -> 20000, dB'de düzgün yükseliş (~14 dB / 50 ms), keskin tık yok.

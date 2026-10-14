@@ -11,6 +11,18 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Tık marker'ları oturmuyordu: tepe tabanlı tespit (CEP 0.9.5.1)
+
+- Kullanıcı (ekran görüntüsü, ayarlar: aralık 0.1, hassasiyet 10, en kısa 50 ms): "marker'lar asla oturmuyor".
+- Ölçüm (HDtest A2 dışa aktarımı + 19 marker): marker'lar dalga formu tepelerinden 12–62 ms erken;
+  bölümde güçlü (zaten ~0.4 sn ritim) ve 12–15 dB zayıf iki ses ailesi; HPF 1 kHz ikisini eşitliyordu.
+- Düzeltme: `detectOnsets` tam bant + belirgin tepe + atak başlangıcı; minGap'te güçlü olan kalır;
+  `tickplan.medianInterval` ile "doğal tık aralığı" ve uyarı; en kısa aralık ≥100 ms.
+  +3 test (stronger-of-two, faint precursor, median), toplam **102 PASS**.
+- Canlı (yeni `HDcheck` kopyası, kullanıcının HDtest'ine dokunulmadı): 10 tık, doğal 0.40 sn,
+  marker'lar atağın 6–11 ms içinde; T 0.4 ile uygulandı, tıklar tam ızgarada, 3 track aynı.
+  Ayrıntı: [[HooDoo Cut Tık Ritmi]].
+
 ## 2026-10-14 — Tık ritmi modu çalışıyor (CEP 0.9.5.0)
 
 - Kullanıcı izniyle canlı testler Claude tarafından yapıldı: CEP debug portu (`.debug` kurulu panele

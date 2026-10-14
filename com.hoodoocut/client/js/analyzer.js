@@ -338,37 +338,51 @@
         return aligned;
     }
 
-    /* Tık ritmi: ranges ([[bas, son], ...] sn) icindeki ani ses yukselislerinin
-     * baslangic zamanlari. 5 ms pencere, yuksek geciren filtre (tik/darbe sesleri).
-     * opts: riseDb (15 ms icindeki yukselis; yavas kabaran ses tik sayilmaz), relDb
-     * (bolgedeki en guclu tikin kac dB altina kadar sayilir), minGap (sn; daha yakin
-     * ikinci tik elenir), hpHz. Yukselisin tabani bolge icinde olmali: bolge sinirina
-     * denk gelen devam eden ses tik sanilmaz. */
+    /* Tık ritmi: ranges ([[bas, son], ...] sn) icindeki tiklarin zamanlari.
+     * Premiere dalga formu gibi tam bant (60 Hz-15 kHz) 5 ms zarf; tik = iki yana da
+     * >= 12 dB dusen belirgin tepe (yavas kabaran/suren ses tik sayilmaz). Zaman =
+     * tepenin atak baslangici (tepe - 10 dB). Canli hata: "ani yukselis" yontemi
+     * sessiz bolgede tikin hemen onceki kucuk sesi secip marker'i 12-62 ms erken koyuyordu.
+     * opts: relDb (bolgedeki en guclu tikin kac dB altina kadar sayilir), minGap
+     * (sn; daha yakin iki tikten guclu olan kalir), hpHz. */
     function detectOnsets(fs, filePath, ranges, opts) {
         opts = opts || {};
-        var rise = opts.riseDb || 10, rel = opts.relDb || 12, minGap = opts.minGap || 0.2;
-        var analysis = computeWindowDb(fs, filePath, 5, { hpHz: opts.hpHz || 1000, lpHz: 12000 });
-        var db = analysis.db, win = analysis.windowMs / 1000, RISE = 3, LOOK = 10;
-        var cand = [], strongest = -Infinity;
+        var rel = opts.relDb || 12, minGap = opts.minGap || 0.2, PROM = 12, SIDE = 20;
+        var analysis = computeWindowDb(fs, filePath, 5, { hpHz: opts.hpHz || 60, lpHz: 15000 });
+        var db = analysis.db, win = analysis.windowMs / 1000;
+        var nb = Math.max(1, Math.round(minGap / 2 / win));
+        var peaks = [], strongest = -Infinity;
         for (var r = 0; r < ranges.length; r++) {
-            var from = Math.ceil(ranges[r][0] / win) + RISE;
-            var to = Math.min(db.length - 1, Math.floor(ranges[r][1] / win));
+            var from = Math.max(SIDE, Math.ceil(ranges[r][0] / win));
+            var to = Math.min(db.length - 1 - SIDE, Math.floor(ranges[r][1] / win));
             for (var i = from; i <= to; i++) {
-                var low = Infinity, peak = -Infinity, k;
-                for (k = i - RISE; k < i; k++) if (db[k] < low) low = db[k];
-                if (db[i] - low < rise) continue;
-                for (k = i; k <= Math.min(db.length - 1, i + LOOK); k++) if (db[k] > peak) peak = db[k];
-                cand.push({ t: i * win, peak: peak });
-                if (peak > strongest) strongest = peak;
+                var isPeak = true, k;
+                for (k = Math.max(0, i - nb); k <= Math.min(db.length - 1, i + nb) && isPeak; k++) {
+                    if (k !== i && (db[k] > db[i] || (k < i && db[k] === db[i]))) isPeak = false;
+                }
+                if (!isPeak) continue;
+                var leftMin = Infinity, rightMin = Infinity;
+                for (k = i - SIDE; k < i; k++) if (db[k] < leftMin) leftMin = db[k];
+                for (k = i + 1; k <= i + SIDE; k++) if (db[k] < rightMin) rightMin = db[k];
+                if (db[i] - leftMin < PROM || db[i] - rightMin < PROM) continue;
+                var s = i;
+                while (s > i - SIDE && db[s - 1] > db[i] - 10) s--;
+                if (s * win < ranges[r][0]) continue; // atak bolgeden once basliyor
+                peaks.push({ t: s * win, db: db[i] });
+                if (db[i] > strongest) strongest = db[i];
             }
         }
-        var out = [];
-        for (var c = 0; c < cand.length; c++) {
-            if (cand[c].peak < strongest - rel) continue;
-            if (out.length && cand[c].t - out[out.length - 1] < minGap) continue;
-            out.push(cand[c].t);
+        var kept = [];
+        for (var p = 0; p < peaks.length; p++) {
+            if (peaks[p].db < strongest - rel) continue;
+            var last = kept[kept.length - 1];
+            if (last && peaks[p].t - last.t < minGap) {
+                if (peaks[p].db > last.db) kept[kept.length - 1] = peaks[p];
+                continue;
+            }
+            kept.push(peaks[p]);
         }
-        return out;
+        return kept.map(function (x) { return x.t; });
     }
 
     return {
