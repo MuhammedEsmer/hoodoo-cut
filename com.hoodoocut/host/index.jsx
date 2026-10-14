@@ -1165,25 +1165,33 @@ function ACS_findAndRemoveGap(track, iv, eps) {
 }
 
 /* ---- Gecici tani (0.9.4.2): QE setSpeed imzasi ve davranisi ----
- * Timeline'da tek secili klip. applyValue bos: yalniz incele (degisiklik yok).
- * Dolu: yansitilan imzaya gore setSpeed cagrilir; once/sonra hiz, sure ve
- * sonraki klibin baslangici raporlanir (ripple davranisi). */
+ * Secili klip (linkli secimde video parcasi). applyValue bos: yalniz incele.
+ * Dolu: yansitilan imzaya gore setSpeed cagrilir; secili tum parcalarin once/sonra
+ * hiz, sure ve sonraki klip baslangici raporlanir (ripple ve link davranisi). */
 function ACS_speedProbe(applyValue) {
     try {
         var seq = app.project.activeSequence;
         if (!seq) return 'ERR|Aktif sequence yok';
         var sel = seq.getSelection();
-        if (!sel || sel.length !== 1) return 'ERR|Timeline\'da tek klip secin';
-        var clip = sel[0], groups = [seq.videoTracks, seq.audioTracks], g = -1, t = -1, idx = -1;
-        for (var gi = 0; gi < 2 && g < 0; gi++) {
-            for (var ti = 0; ti < groups[gi].numTracks && g < 0; ti++) {
-                for (var ci = 0; ci < groups[gi][ti].clips.numItems; ci++) {
-                    if (groups[gi][ti].clips[ci].nodeId === clip.nodeId) { g = gi; t = ti; idx = ci; break; }
+        if (!sel || sel.length < 1) return 'ERR|Timeline\'da bir klip secin';
+        // Linkli secim (V + A parcalari) normal; setSpeed video parcasina uygulanir.
+        var groups = [seq.videoTracks, seq.audioTracks], parts = [];
+        for (var s0 = 0; s0 < sel.length; s0++) {
+            var hit = false;
+            for (var gi = 0; gi < 2 && !hit; gi++) {
+                for (var ti = 0; ti < groups[gi].numTracks && !hit; ti++) {
+                    for (var ci = 0; ci < groups[gi][ti].clips.numItems; ci++) {
+                        if (groups[gi][ti].clips[ci].nodeId === sel[s0].nodeId) {
+                            parts.push({ g: gi, t: ti, idx: ci }); hit = true; break;
+                        }
+                    }
                 }
             }
         }
-        if (g < 0) return 'ERR|Secili klip track\'te bulunamadi';
-        var track = groups[g][t], start = clip.start.seconds;
+        if (!parts.length) return 'ERR|Secili klip track\'te bulunamadi';
+        parts.sort(function (a, b) { return a.g - b.g || a.t - b.t || a.idx - b.idx; });
+        var g = parts[0].g, t = parts[0].t;
+        var clip = groups[g][t].clips[parts[0].idx], start = clip.start.seconds;
         app.enableQE();
         var qs = qe.project.getActiveSequence();
         var qt = g === 0 ? qs.getVideoTrackAt(t) : qs.getAudioTrackAt(t);
@@ -1193,7 +1201,7 @@ function ACS_speedProbe(applyValue) {
             if (it && it.type !== 'Empty' && Math.abs(ACS_qeItemSec(it.start) - start) < 0.001) { q = it; break; }
         }
         if (!q) return 'ERR|QE klibi eslesmedi';
-        var out = ['klip: ' + (g === 0 ? 'V' : 'A') + (t + 1) + ' @' + start + 's'];
+        var out = ['secili ' + parts.length + ' parca; setSpeed: ' + (g === 0 ? 'V' : 'A') + (t + 1) + ' @' + start + 's'];
         var ms = q.reflect.methods, names = [], sig = null;
         for (var m = 0; m < ms.length; m++) {
             names.push(ms[m].name);
@@ -1208,9 +1216,16 @@ function ACS_speedProbe(applyValue) {
         if (sig) for (var si = 0; si < sig.length; si++) sigText.push(sig[si].name + ':' + sig[si].type);
         out.push('setSpeed imzasi: ' + (sig ? '(' + sigText.join(', ') + ')' : 'YOK'));
         function state(label) {
-            var c = track.clips[idx], n = idx + 1 < track.clips.numItems ? track.clips[idx + 1] : null;
-            return label + ': hiz=' + (typeof c.getSpeed === 'function' ? c.getSpeed() : '?') +
-                ' sure=' + c.duration.seconds + ' sonraki=' + (n ? n.start.seconds : '-');
+            var lines = [];
+            for (var pi = 0; pi < parts.length; pi++) {
+                var tr = groups[parts[pi].g][parts[pi].t], c = tr.clips[parts[pi].idx];
+                var n = parts[pi].idx + 1 < tr.clips.numItems ? tr.clips[parts[pi].idx + 1] : null;
+                lines.push((parts[pi].g === 0 ? 'V' : 'A') + (parts[pi].t + 1) + '#' + (parts[pi].idx + 1) +
+                    ' hiz=' + (typeof c.getSpeed === 'function' ? c.getSpeed() : '?') +
+                    ' sure=' + (c.duration ? c.duration.seconds : c.end.seconds - c.start.seconds) +
+                    ' bas=' + c.start.seconds + ' sonraki=' + (n ? n.start.seconds : '-'));
+            }
+            return label + ': ' + lines.join(' | ');
         }
         out.push(state('once'));
         if (applyValue !== '') {

@@ -11,6 +11,14 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Hız testi linkli seçim düzeltmesi (CEP 0.9.4.3)
+
+- Canlı ilk deneme: `ERR|Timeline'da tek klip secin` — linkli klip tıklanınca V + A1 + A2 birlikte seçiliyor.
+- `ACS_speedProbe` artık linkli seçimi kabul eder: `setSpeed` video parçasına uygulanır, seçili tüm
+  parçaların hız/süre/başlangıç/sonraki klip bilgisi önce/sonra raporlanır (link + ripple davranışı görünür).
+- Test: `tools/test-speed-probe.js` 4 senaryo; toplam **84 PASS**. CEP dosyaları kurulu klasöre kopyalandı
+  (motor değişmedi, 0.9.9). Release yok.
+
 ## 2026-10-14 — 0.9.4.2 yerel kurulum
 
 - Premiere kapalıyken `HooDooCut-Kurulum-v0.9.4.2.zip` → `kurulum.ps1` çalıştırıldı.

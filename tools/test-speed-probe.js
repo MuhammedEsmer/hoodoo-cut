@@ -38,11 +38,17 @@ test('apply builds arguments from the reflected signature and reports before/aft
     const { f, calls } = probeFixture(1);
     const res = f.host.ACS_speedProbe('0.5');
     assert.deepStrictEqual(calls, [[0.5, '', false]]);
-    assert(/once: hiz=1 sure=1/.test(res) && /sonra: hiz=0.5 sure=2/.test(res), res);
+    assert(/once:.*V1#1 hiz=1 sure=1/.test(res) && /sonra:.*V1#1 hiz=0.5 sure=2/.test(res), res);
 });
-test('requires exactly one selected clip', () => {
+test('linked selection applies to the video clip and reports every selected part', () => {
     const { f, calls } = probeFixture(2);
-    assert(/tek klip/i.test(f.host.ACS_speedProbe('0.5')));
+    const res = f.host.ACS_speedProbe('0.5');
+    assert.deepStrictEqual(calls, [[0.5, '', false]]);
+    assert(/secili 2 parca/.test(res) && /V1#1/.test(res) && /V1#2/.test(res), res);
+});
+test('requires a selected clip', () => {
+    const { f, calls } = probeFixture(0);
+    assert(/klip secin/i.test(f.host.ACS_speedProbe('0.5')));
     assert.strictEqual(calls.length, 0);
 });
 if (failed) process.exitCode = 1;
