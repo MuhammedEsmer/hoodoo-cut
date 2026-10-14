@@ -11,6 +11,16 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Tık ritmi tasarımı, setSpeed tanısı (CEP 0.9.4.2)
+
+- Yeni istek: Minecraft blok tıklarını sabit ızgaraya oturtmak. Kullanıcı kararları ve
+  tasarım: [[plans/2026-10-14-tik-ritmi|tık ritmi planı]] (ara kısım hızlandır/yavaşlat, tık %100;
+  T saniye/kare + BPM; oyun sesi ayrı track).
+- UXP'de hız değiştirme API'si yok (yalnız `getSpeed`); QE `setSpeed` belgelenmemiş →
+  0.9.4.2'ye geçici "🧪 Hız testi" butonu (`ACS_speedProbe`) eklendi. Test: `tools/test-speed-probe.js`.
+- Testler **83 PASS, 0 FAIL**. Paket `dist/HooDooCut-Kurulum-v0.9.4.2.zip` (motor 0.9.9 dahil). Kurulmadı, Release yok.
+- Açık: ripple canlı testi ve setSpeed tanısı kullanıcıda.
+
 ## 2026-10-14 — Ripple ile boşluk kapatma (CEP 0.9.4.1, motor 0.9.9)
 
 - Kullanıcının canlı logu (STT EP6, 37 dk sequence, seçili 4.9 sn bölge, 12 kesim): razor 1.7 sn,

@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.4.1'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.4.2'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -905,6 +905,14 @@
         document.execCommand('copy');
         document.body.removeChild(ta);
         log('Günlük panoya kopyalandı.');
+    });
+    // Geçici tanı (0.9.4.2): seçili tek klipte QE setSpeed imzası/davranışı
+    $('btnSpeedProbe').addEventListener('click', function () {
+        var value = $('speedProbeValue').value.trim();
+        log('Hız testi başladı' + (value ? ' (uygula: ' + value + ')' : ' (sadece incele)') + '…');
+        evalJsx('ACS_speedProbe("' + jsxEscape(value) + '")', function (res) {
+            log('Hız testi: ' + res.replace(/^OK\|/, ''));
+        });
     });
 
     // Şablon chipleri

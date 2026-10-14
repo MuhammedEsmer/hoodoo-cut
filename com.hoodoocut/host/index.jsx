@@ -1163,3 +1163,84 @@ function ACS_findAndRemoveGap(track, iv, eps) {
     } catch (eAll) {}
     return 'yok';
 }
+
+/* ---- Gecici tani (0.9.4.2): QE setSpeed imzasi ve davranisi ----
+ * Timeline'da tek secili klip. applyValue bos: yalniz incele (degisiklik yok).
+ * Dolu: yansitilan imzaya gore setSpeed cagrilir; once/sonra hiz, sure ve
+ * sonraki klibin baslangici raporlanir (ripple davranisi). */
+function ACS_speedProbe(applyValue) {
+    try {
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        var sel = seq.getSelection();
+        if (!sel || sel.length !== 1) return 'ERR|Timeline\'da tek klip secin';
+        var clip = sel[0], groups = [seq.videoTracks, seq.audioTracks], g = -1, t = -1, idx = -1;
+        for (var gi = 0; gi < 2 && g < 0; gi++) {
+            for (var ti = 0; ti < groups[gi].numTracks && g < 0; ti++) {
+                for (var ci = 0; ci < groups[gi][ti].clips.numItems; ci++) {
+                    if (groups[gi][ti].clips[ci].nodeId === clip.nodeId) { g = gi; t = ti; idx = ci; break; }
+                }
+            }
+        }
+        if (g < 0) return 'ERR|Secili klip track\'te bulunamadi';
+        var track = groups[g][t], start = clip.start.seconds;
+        app.enableQE();
+        var qs = qe.project.getActiveSequence();
+        var qt = g === 0 ? qs.getVideoTrackAt(t) : qs.getAudioTrackAt(t);
+        var q = null;
+        for (var k = 0; k < qt.numItems; k++) {
+            var it = qt.getItemAt(k);
+            if (it && it.type !== 'Empty' && Math.abs(ACS_qeItemSec(it.start) - start) < 0.001) { q = it; break; }
+        }
+        if (!q) return 'ERR|QE klibi eslesmedi';
+        var out = ['klip: ' + (g === 0 ? 'V' : 'A') + (t + 1) + ' @' + start + 's'];
+        var ms = q.reflect.methods, names = [], sig = null;
+        for (var m = 0; m < ms.length; m++) {
+            names.push(ms[m].name);
+            if (ms[m].name === 'setSpeed') {
+                sig = [];
+                var a = ms[m].arguments || [];
+                for (var ai = 0; ai < a.length; ai++) sig.push({ name: a[ai].name, type: a[ai].dataType });
+            }
+        }
+        out.push('QE metodlari: ' + names.join(','));
+        var sigText = [];
+        if (sig) for (var si = 0; si < sig.length; si++) sigText.push(sig[si].name + ':' + sig[si].type);
+        out.push('setSpeed imzasi: ' + (sig ? '(' + sigText.join(', ') + ')' : 'YOK'));
+        function state(label) {
+            var c = track.clips[idx], n = idx + 1 < track.clips.numItems ? track.clips[idx + 1] : null;
+            return label + ': hiz=' + (typeof c.getSpeed === 'function' ? c.getSpeed() : '?') +
+                ' sure=' + c.duration.seconds + ' sonraki=' + (n ? n.start.seconds : '-');
+        }
+        out.push(state('once'));
+        if (applyValue !== '') {
+            var v = parseFloat(applyValue);
+            if (isNaN(v)) return 'ERR|Gecersiz hiz degeri';
+            if (!sig) return 'ERR|setSpeed yok\n' + out.join('\n');
+            // Imza bilgisi yoksa toplulukta gecen 5 parametreli bicim denenir.
+            var types = sig.length ? sig : [{ type: 'number' }, { type: 'string' }, { type: 'boolean' },
+                { type: 'boolean' }, { type: 'boolean' }];
+            var args = [], usedNumber = false;
+            for (var ki = 0; ki < types.length; ki++) {
+                var ty = String(types[ki].type).toLowerCase();
+                if (!usedNumber && /num|float|double|int/.test(ty)) { args.push(v); usedNumber = true; }
+                else if (/str/.test(ty)) args.push('');
+                else if (/bool/.test(ty)) args.push(false);
+                else args.push(/num|float|double|int/.test(ty) ? 0 : '');
+            }
+            var r;
+            switch (args.length) {
+                case 1: r = q.setSpeed(args[0]); break;
+                case 2: r = q.setSpeed(args[0], args[1]); break;
+                case 3: r = q.setSpeed(args[0], args[1], args[2]); break;
+                case 4: r = q.setSpeed(args[0], args[1], args[2], args[3]); break;
+                default: r = q.setSpeed(args[0], args[1], args[2], args[3], args[4]);
+            }
+            out.push('cagri: setSpeed(' + args.join(', ') + ') -> ' + r);
+            out.push(state('sonra'));
+        }
+        return 'OK|' + out.join('\n');
+    } catch (e) {
+        return 'ERR|' + e.toString();
+    }
+}

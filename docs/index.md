@@ -41,6 +41,7 @@ değişiklikler: [[log]].
 ## 🗂️ Planlar (`plans/`)
 
 - [[plans/2026-10-06-toplu-silme|2026-10-06 Toplu silme tasarımı ve uygulama planı]]
+- [[plans/2026-10-14-tik-ritmi|2026-10-14 Tık ritmi modu (blok tıklarını ızgaraya oturtma, setSpeed)]]
 
 ## 📄 Repo kökündeki belgeler
 
