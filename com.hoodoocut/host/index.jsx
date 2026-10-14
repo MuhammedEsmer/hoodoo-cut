@@ -1238,8 +1238,11 @@ function ACS_speedProbe(applyValue) {
         if (applyValue !== '') {
             // "0.5 r": son boolean (ripple adayi) true. "0.5 d": metin parametresine
             // hedef sure (sure / hiz) timecode olarak verilir (Speed/Duration "sure" adayi).
+            // "2 e": setSpeed sureyi korudugu icin her parcanin end'i DOM'dan
+            // baslangic + (onceki sure / hiz) noktasina yazilir.
             var flags = ' ' + applyValue.toLowerCase().split(/\s+/).slice(1).join(' ') + ' ';
             var rippleFlag = flags.indexOf(' r ') >= 0, durationFlag = flags.indexOf(' d ') >= 0;
+            var endFlag = flags.indexOf(' e ') >= 0;
             var v = parseFloat(applyValue);
             if (isNaN(v)) return 'ERR|Gecersiz hiz degeri';
             if (!sig) return 'ERR|setSpeed yok\n' + out.join('\n');
@@ -1262,6 +1265,12 @@ function ACS_speedProbe(applyValue) {
                 var tc = ACS_frameToTimecode(Math.round(dur / v * fps), fps, cti.indexOf(';') >= 0);
                 for (var di = 0; di < args.length; di++) if (typeof args[di] === 'string') { args[di] = tc; break; }
             }
+            var before = [];
+            for (var bi = 0; bi < parts.length; bi++) {
+                var bc = groups[parts[bi].g][parts[bi].t].clips[parts[bi].idx];
+                before.push({ start: bc.start.seconds,
+                    dur: bc.duration ? bc.duration.seconds : bc.end.seconds - bc.start.seconds });
+            }
             // setSpeed linkli partnerlere yayilmiyor (canli: yalniz V degisti) — her parca ayri.
             var results = [];
             for (var qi = 0; qi < qItems.length; qi++) {
@@ -1276,6 +1285,18 @@ function ACS_speedProbe(applyValue) {
                 results.push(r);
             }
             out.push('cagri: setSpeed(' + args.join(', ') + ') x' + qItems.length + ' -> ' + results.join(','));
+            if (endFlag) {
+                var endErrors = [];
+                for (var ei = 0; ei < parts.length; ei++) {
+                    try {
+                        var et = new Time();
+                        et.seconds = before[ei].start + before[ei].dur / v;
+                        groups[parts[ei].g][parts[ei].t].clips[parts[ei].idx].end = et;
+                    } catch (eE) { endErrors.push((ei + 1) + ': ' + eE.toString()); }
+                }
+                out.push('end yazildi x' + (parts.length - endErrors.length) +
+                    (endErrors.length ? ' | hata: ' + endErrors.join('; ') : ''));
+            }
             out.push(state('sonra'));
         }
         return 'OK|' + out.join('\n');

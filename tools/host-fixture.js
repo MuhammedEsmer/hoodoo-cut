@@ -22,8 +22,8 @@ function fixture(ranges, videoCount = 1, audioCount = 1, hostSource) {
                 move(delta) { s += delta; e += delta; }
             };
             Object.defineProperties(item, {
-                start: { get() { stats.reads++; return { seconds: s }; } },
-                end: { get() { stats.reads++; return { seconds: e }; } }
+                start: { get() { stats.reads++; return { seconds: s }; }, configurable: true },
+                end: { get() { stats.reads++; return { seconds: e }; }, configurable: true }
             });
             return item;
         });

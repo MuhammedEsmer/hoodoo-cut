@@ -62,6 +62,18 @@ test('"d" flag sends the target duration (duration / speed) as timecode in the s
     const res = f.host.ACS_speedProbe('0.5 d');
     assert.deepStrictEqual(calls, [[0, 0.5, '00:00:02:00', false, false, false]], res);
 });
+test('"e" flag trims every part end to start + duration / speed after setSpeed', () => {
+    const { f, calls } = probeFixture(2);
+    const ends = [];
+    f.host.Time = function () {};
+    [['V', f.seq.videoTracks[0].items[0]], ['A', f.seq.audioTracks[0].items[0]]].forEach(([name, item]) =>
+        Object.defineProperty(item, 'end', { get: () => ({ seconds: 2 }), set: t => ends.push([name, t.seconds]) }));
+    const res = f.host.ACS_speedProbe('2 e');
+    assert.strictEqual(calls.length, 2, res);
+    // Premiere keeps duration on setSpeed, so the target uses the pre-speed duration: 1 + 1 / 2.
+    assert.deepStrictEqual(ends, [['V', 1.5], ['A', 1.5]], res);
+    assert(/end yazildi x2/.test(res), res);
+});
 test('requires a selected clip', () => {
     const { f, calls } = probeFixture(0);
     assert(/klip secin/i.test(f.host.ACS_speedProbe('0.5')));

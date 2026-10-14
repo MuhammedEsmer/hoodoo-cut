@@ -11,6 +11,12 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — setSpeed süreyi asla değiştirmiyor; DOM end denemesi (CEP 0.9.4.6)
+
+- `0.5 d` canlı: süre aynı → setSpeed yalnız hız. Süre ayrı ayarlanacak.
+- 0.9.4.6: hız testine `e` eki (DOM `end` yazma). `host-fixture.js` start/end özellikleri
+  `configurable` yapıldı (test için). Test 7 senaryo, toplam **87 PASS**. CEP kopyalandı. Release yok.
+
 ## 2026-10-14 — setSpeed: süre değişmiyor, p1 süre denemesi (CEP 0.9.4.5)
 
 - Ekran görüntüsü: `0.5 r` sonrası klip `[50%]`, boyu ve sonraki klip aynı → setSpeed süreyi korur, p4 ripple değil.
