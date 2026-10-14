@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.6.0'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.6.1'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -623,8 +623,12 @@
                 if (err) { tickAnalysisFailed(err); return; }
                 try {
                     // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
-                    var notes = ACSAnalyzer.detectNotes(fs, musicWav, [rs, re + (re - rs) / opts.minSpeed + 5]);
-                    log('Müzik notaları: ' + notes.length + ' nota (A' + (parseInt(opts.musicTrack, 10) + 1) + ')');
+                    var allNotes = ACSAnalyzer.detectNotes(fs, musicWav, [rs, re + (re - rs) / opts.minSpeed + 5]);
+                    // Riff filtresi: tekrar eden melodi (ör. piyano riff'i) kalır, tek seferlik vuruşlar elenir.
+                    var riff = ACSTickPlan.keepRepeating(allNotes), notes = riff.notes;
+                    log('Müzik notaları: ' + allNotes.length + ' nota (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
+                        (riff.period ? ', riff periyodu ' + riff.period.toFixed(2) + ' sn, tekrar eden ' + riff.repeating +
+                            ', kullanılan ' + notes.length : ''));
                     finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, notes, {
                         fps: opts.fps, holdFrames: opts.holdFrames, minSpeed: opts.minSpeed,
                         maxSpeed: opts.maxSpeed, regionStart: rs }), opts);
@@ -729,7 +733,7 @@
                 var capped = parseInt(p[4], 10) || 0;
                 finish(true, 'Ritme oturtuldu: ' + plan.gaps.length + ' ara, ' + p[1] + ' hız değişimi, ' + p[2] +
                     ' taşıma (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)' +
-                    (capped ? '. ' + capped + ' arada Premiere hızı sınırladı; tıklar yine ızgarada, aranın sonu biraz kısaldı.' : ''));
+                    (capped ? '. ' + capped + ' arada Premiere hızı sınırladı; tıklar yine hedef anlarında, aranın sonu biraz kısaldı.' : ''));
             });
         }
         log('Tık ritmi başladı: ' + plan.gaps.length + ' ara, ' + plan.boundaries.length + ' razor sınırı');

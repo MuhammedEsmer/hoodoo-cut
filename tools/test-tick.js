@@ -170,6 +170,21 @@ test('the region start is retimed so the first click lands on its note', () => {
     assert(near(prefix.speed, 0.8));
     assert(near(p.targets[0], 1.2));
 });
+test('repetition filter finds the riff period and drops one-off notes', () => {
+    const riff = [0, 0.3, 0.9, 1.2, 1.5], period = 2.4, notes = [];
+    for (let r = 0; r < 5; r++) riff.forEach(t => notes.push(1 + r * period + t));
+    const extras = [1.65, 4.15, 6.9, 9.6, 11.05]; // birbirine ve riff'e periyot uzaklığında değil
+    const res = plan.keepRepeating(notes.concat(extras).sort((a, b) => a - b));
+    assert(Math.abs(res.period - period) <= 0.02, 'periyot ' + res.period);
+    assert.deepStrictEqual(res.notes.map(t => +t.toFixed(3)), notes.map(t => +t.toFixed(3)));
+});
+test('repetition filter keeps original notes where the riff is absent for a while', () => {
+    const notes = [];
+    for (let r = 0; r < 4; r++) [0, 0.4, 0.8].forEach(t => notes.push(r * 2.4 + t));
+    const solo = [12, 12.5, 13.3, 14.1]; // riff yok, 2 sn'den uzun boşluk olurdu
+    const res = plan.keepRepeating(notes.concat(solo), { fillGap: 1.5 });
+    solo.forEach(t => assert(res.notes.includes(t), 'boslukta nota kalmali: ' + t));
+});
 test('a slow swell crossing the region start is not taken as a click', () => {
     // 0.9-1.1 sn: genlik 30 -> 20000, dB'de düzgün yükseliş (~14 dB / 50 ms), keskin tık yok.
     const n = Math.round(2 * SR), data = Buffer.alloc(n * 2);

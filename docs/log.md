@@ -11,6 +11,16 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Piyano riff'ine odak (CEP 0.9.6.1)
+
+- Kullanıcı: ana melodi piyano riff'i; iki iyileştirme istendi.
+- Ölçüm (2 ölçü tekrar oranı, 20 sn dilimler): bant daraltma yardımcı olmadı; sönüm ağırlığı riff'e uyan
+  notayı ~%30 artırdı, şarkı sonunu %22 → %57 yaptı. Riff filtresi periyodu 2.27 sn (1 ölçü) buldu.
+- Eklendi: `detectNotes` `decayK` (varsayılan 1), `ACSTickPlan.keepRepeating` (periyot + boşluk dolgusu),
+  panelde melodi akışına filtre. Testler +2 (16 tık testi, toplam 111 PASS).
+- Canlı: eski HDend "Melodi v1" olarak saklandı; yeni HDend: 151/158 tık, 150/150 tık parçası riff notasında
+  (≤8.3 ms), 3 track aynı, müzik kilitli/dokunulmadı, 138 sn.
+
 ## 2026-10-14 — Müzik melodisi hedefi (CEP 0.9.6.0)
 
 - Kullanıcı: 128 BPM sonucu oturuyor ama "sabit davula göre" hissettiriyor; tıklar melodiye (piyano)

@@ -445,7 +445,7 @@
             }
         } finally { fs.closeSync(fd); }
         var N = 2048, hop = Math.round(sr * 0.01), K = 8;
-        var b0 = Math.floor(150 / sr * N), b1 = Math.ceil(4000 / sr * N), nb = b1 - b0;
+        var b0 = Math.floor((opts.loHz || 150) / sr * N), b1 = Math.ceil((opts.hiHz || 4000) / sr * N), nb = b1 - b0;
         var frames = Math.max(0, Math.floor((mono.length - N) / hop) + 1), S = [], f, b, g;
         var win = new Float64Array(N);
         for (i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
@@ -473,15 +473,24 @@
         // Kalici akis: 60 ms sonraki enerji - onceki 60 ms'nin en yuksegi (bin bazinda).
         // Nota surer; davul vurusu ~30 ms'de soner. "Onceki maksimum", davul aninda maskenin
         // actigi kisa deligin ardindan sesin geri gelmesini yeni nota sanmayi onler (SuperFlux fikri).
-        var flux = new Float64Array(frames), AFTER = 6, BEFORE = 6;
+        // decayK (varsayilan 1): piyano gibi atak sonrasi sonen sesin akisi buyutulur (yukselen
+        // binlerde 60 ms -> 250 ms log-enerji dususu); suren distorsiyonlu gitar/yayli etkilenmez.
+        // In the End: riff'e uyan nota ~%30 artti (413x%74 -> 533x%74), sarki sonu %22 -> %57.
+        var flux = new Float64Array(frames), AFTER = 6, BEFORE = 6, DECAY = 25;
+        var decayK = opts.decayK === undefined ? 1 : opts.decayK;
         for (f = BEFORE; f < frames - AFTER; f++) {
-            var sum = 0, later = L[f + AFTER];
+            var sum = 0, later = L[f + AFTER], drop = 0, rising = 0;
+            var tail = decayK && f + DECAY < frames ? L[f + DECAY] : null;
             for (b = 0; b < nb; b++) {
                 var prior = 0;
                 for (g = f - BEFORE; g < f; g++) if (L[g][b] > prior) prior = L[g][b];
-                sum += Math.max(0, later[b] - prior);
+                var up = later[b] - prior;
+                if (up > 0) {
+                    sum += up;
+                    if (tail) { drop += later[b] - tail[b]; rising++; }
+                }
             }
-            flux[f] = sum;
+            flux[f] = rising ? sum * (1 + decayK * Math.max(0, drop / rising)) : sum;
         }
         var peak = 0;
         for (f = 0; f < frames; f++) if (flux[f] > peak) peak = flux[f];

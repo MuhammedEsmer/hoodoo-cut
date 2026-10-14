@@ -76,6 +76,23 @@ Doğrulama (In the End – Linkin Park, instrumental; kullanıcı projeye ekledi
 - Testler: `detectNotes` (armonikli piyano benzeri notalar + çalarken düşen davul vuruşları),
   `alignToNotes` (sıralı/sınırlı hızlar, ön ek ara).
 
+### Piyano riff'ine odak (0.9.6.1)
+
+Kullanıcı: bu şarkıda takip edilecek ana melodi **piyano riff'i**. İki iyileştirme:
+
+1. **Sönüm ağırlığı** (`detectNotes` `decayK`, varsayılan 1): atak sonrası 60 → 250 ms'de sönen
+   sesin (piyano) akışı büyütülür; süren distorsiyonlu gitar/yaylı etkilenmez. Bant daraltma
+   denendi (300–4000, 400–2500, 500–5000) — yardımcı olmadı, şarkı sonunu silebildi.
+2. **Riff filtresi** (`ACSTickPlan.keepRepeating`): 2–12 sn arası en çok eşleşen gecikme = tekrar
+   periyodu (plato ortası); bir periyot önce/sonra karşılığı olan nota kalır. Filtre 1.5 sn'den
+   uzun boşluk bırakırsa (riff'siz bölüm) oradaki notalar geri konur.
+
+In the End ölçümü: periyot **2.27 sn** (105 BPM'de 1 ölçü); 533 nota → 390 tekrar eden + boşluk
+dolgusu = 426. Eşleşme: 151/158 tık (eskisi 149), atlanan nota 105 → 66, medyan hız 0.94, süre
++2.4 sn. Canlı (HDend, 0.9.6.1): **150/150 tık parçası riff notasının 1 kare içinde** (en kötü
+8.3 ms), 3 track konumları aynı, kilitli müzik dokunulmadı, 138 sn, 21 arada hız tavanı.
+Karşılaştırma için önceki sürüm projede **"Melodi v1"** adıyla duruyor.
+
 ## Müzik track'i (0.9.5.2)
 
 Müziği bir ses track'ine koyup **kilitle**: tık ritmi kilitli track'leri tamamen işlem

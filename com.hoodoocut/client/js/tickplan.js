@@ -141,6 +141,47 @@
         };
     }
 
+    /* Riff filtresi: şarkının tekrar periyodunu (2-12 sn arası en çok eşleşen gecikme) bulur, bir
+     * periyot öncesinde/sonrasında karşılığı olan notaları tutar — tekrar eden riff kalır, tek
+     * seferlik gitar vuruşu/dolgu elenir. Filtre fillGap'ten (sn) uzun bir boşluk bırakırsa
+     * (riff'in olmadığı bölüm) oradaki notalar geri konur ki tık eşleşmesi kopmasın. */
+    function keepRepeating(notes, opts) {
+        opts = opts || {};
+        var eps = opts.eps || 0.05, fillGap = opts.fillGap || 1.5, minP = opts.minPeriod || 2, maxP = opts.maxPeriod || 12;
+        var sorted = notes.slice().sort(function (a, b) { return a - b; });
+        if (sorted.length < 4) return { notes: sorted, period: null };
+        function hasNear(t) {
+            var lo = 0, hi = sorted.length - 1;
+            while (lo <= hi) {
+                var mid = (lo + hi) >> 1;
+                if (sorted[mid] < t - eps) lo = mid + 1;
+                else if (sorted[mid] > t + eps) hi = mid - 1;
+                else return true;
+            }
+            return false;
+        }
+        // Tolerans yüzünden en iyi skor bir plato oluşturur (ör. 2.35-2.45); platonun ortası alınır.
+        var bestLag = null, bestScore = 0, plateauEnd = null;
+        for (var lag = minP; lag <= maxP + 1e-9; lag += 0.01) {
+            var score = 0;
+            for (var i = 0; i < sorted.length; i++) if (hasNear(sorted[i] + lag)) score++;
+            if (score > bestScore) { bestScore = score; bestLag = lag; plateauEnd = lag; }
+            else if (score === bestScore && plateauEnd !== null && lag - plateauEnd < 0.015) plateauEnd = lag;
+        }
+        if (!bestLag) return { notes: sorted, period: null };
+        bestLag = (bestLag + plateauEnd) / 2;
+        var kept = sorted.filter(function (t) { return hasNear(t + bestLag) || hasNear(t - bestLag); });
+        var out = [], k = 0;
+        for (var j = 0; j < sorted.length; j++) {
+            var t = sorted[j];
+            while (k < kept.length && kept[k] < t) k++;
+            if (kept[k] === t) { out.push(t); continue; }
+            var before = k > 0 ? kept[k - 1] : -Infinity, after = k < kept.length ? kept[k] : Infinity;
+            if (after - before > fillGap) out.push(t);
+        }
+        return { notes: out, period: Math.round(bestLag * 100) / 100, repeating: kept.length };
+    }
+
     return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval,
-        alignToNotes: alignToNotes };
+        alignToNotes: alignToNotes, keepRepeating: keepRepeating };
 });
