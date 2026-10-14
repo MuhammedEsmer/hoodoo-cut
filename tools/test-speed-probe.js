@@ -57,6 +57,11 @@ test('"r" suffix sets the last boolean (ripple candidate) to true', () => {
     f.host.ACS_speedProbe('0.5 r');
     assert.deepStrictEqual(calls, [[0, 0.5, '', false, false, true], [1, 0.5, '', false, false, true]]);
 });
+test('"d" flag sends the target duration (duration / speed) as timecode in the string slot', () => {
+    const { f, calls } = probeFixture(1);
+    const res = f.host.ACS_speedProbe('0.5 d');
+    assert.deepStrictEqual(calls, [[0, 0.5, '00:00:02:00', false, false, false]], res);
+});
 test('requires a selected clip', () => {
     const { f, calls } = probeFixture(0);
     assert(/klip secin/i.test(f.host.ACS_speedProbe('0.5')));

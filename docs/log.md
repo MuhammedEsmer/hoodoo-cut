@@ -11,6 +11,12 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — setSpeed: süre değişmiyor, p1 süre denemesi (CEP 0.9.4.5)
+
+- Ekran görüntüsü: `0.5 r` sonrası klip `[50%]`, boyu ve sonraki klip aynı → setSpeed süreyi korur, p4 ripple değil.
+- 0.9.4.5: hız testine `d` eki — p1 metnine hedef süre timecode'u. Test 6 senaryo, toplam **86 PASS**.
+  CEP kurulu klasöre kopyalandı. Release yok.
+
 ## 2026-10-14 — setSpeed üçüncü sonuç
 
 - `0.5 r` (p4 = true): çağrılar `true`, raporda süre/sonraki klip değişmedi. p4'ün ripple olmadığı

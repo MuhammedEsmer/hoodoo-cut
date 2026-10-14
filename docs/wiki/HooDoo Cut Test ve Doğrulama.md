@@ -32,7 +32,7 @@ node tools/test-analyzer.js
 | `tools/test-bulk-bridge.js` | Yerel köprü: origin/token, tek seferlik iş, idempotent onay (3) |
 | `tools/test-bulk-network.js` | UXP `network.js`: sabit loopback adresi, redirect/dış URL reddi (2) |
 | `tools/test-bulk-companion.js` | Yardımcı panel bağlantı/onay kurtarma (2) |
-| `tools/test-speed-probe.js` | Geçici QE `setSpeed` tanısı (5) |
+| `tools/test-speed-probe.js` | Geçici QE `setSpeed` tanısı (6) |
 
 **2026-10-11 koşusu: 74 geçti, 0 başarısız** (sistem Node'u, UXP 0.9.8 / CEP 0.9.4.0
 çalışma ağacı). Sayılar zamanla değişir; güncel sayı için testleri çalıştır.

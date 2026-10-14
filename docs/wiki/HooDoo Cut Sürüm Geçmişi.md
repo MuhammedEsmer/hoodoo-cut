@@ -24,6 +24,7 @@ commit'te toplandı: `85002f9` (2026-10-11).
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
+| 2026-10-14 | 0.9.4.5 | 0.9.9 | — | Hız testine `d` eki (p1 = hedef süre timecode). Release yok |
 | 2026-10-14 | 0.9.4.4 | 0.9.9 | — | Hız testi tüm linkli parçalara uygular, `r` = ripple adayı. Release yok |
 | 2026-10-14 | 0.9.4.3 | 0.9.9 | `026b0b1` | Hız testi linkli seçimi (V+A) kabul eder, tüm parçaları raporlar. Release yok |
 | 2026-10-14 | 0.9.4.2 | 0.9.9 | `1c8f1e7` | Geçici "🧪 Hız testi" butonu: QE `setSpeed` imza/davranış tanısı ([[plans/2026-10-14-tik-ritmi\|tık ritmi planı]]). Release yok |

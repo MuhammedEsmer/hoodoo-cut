@@ -1236,8 +1236,10 @@ function ACS_speedProbe(applyValue) {
         }
         out.push(state('once'));
         if (applyValue !== '') {
-            // "0.5 r": son boolean (ripple adayi) true gonderilir.
-            var rippleFlag = /\sr$/i.test(applyValue);
+            // "0.5 r": son boolean (ripple adayi) true. "0.5 d": metin parametresine
+            // hedef sure (sure / hiz) timecode olarak verilir (Speed/Duration "sure" adayi).
+            var flags = ' ' + applyValue.toLowerCase().split(/\s+/).slice(1).join(' ') + ' ';
+            var rippleFlag = flags.indexOf(' r ') >= 0, durationFlag = flags.indexOf(' d ') >= 0;
             var v = parseFloat(applyValue);
             if (isNaN(v)) return 'ERR|Gecersiz hiz degeri';
             if (!sig) return 'ERR|setSpeed yok\n' + out.join('\n');
@@ -1253,6 +1255,13 @@ function ACS_speedProbe(applyValue) {
                 else args.push(/num|float|double|int/.test(ty) ? 0 : '');
             }
             if (rippleFlag && typeof args[args.length - 1] === 'boolean') args[args.length - 1] = true;
+            if (durationFlag) {
+                var fps = ACS_TICKS_PER_SECOND / parseFloat(seq.timebase);
+                var cti = qs.CTI && qs.CTI.timecode ? String(qs.CTI.timecode) : '';
+                var dur = clip.duration ? clip.duration.seconds : clip.end.seconds - clip.start.seconds;
+                var tc = ACS_frameToTimecode(Math.round(dur / v * fps), fps, cti.indexOf(';') >= 0);
+                for (var di = 0; di < args.length; di++) if (typeof args[di] === 'string') { args[di] = tc; break; }
+            }
             // setSpeed linkli partnerlere yayilmiyor (canli: yalniz V degisti) — her parca ayri.
             var results = [];
             for (var qi = 0; qi < qItems.length; qi++) {
