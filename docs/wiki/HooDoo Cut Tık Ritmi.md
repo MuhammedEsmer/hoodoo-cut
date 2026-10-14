@@ -93,6 +93,28 @@ dolgusu = 426. Eşleşme: 151/158 tık (eskisi 149), atlanan nota 105 → 66, me
 8.3 ms), 3 track konumları aynı, kilitli müzik dokunulmadı, 138 sn, 21 arada hız tavanı.
 Karşılaştırma için önceki sürüm projede **"Melodi v1"** adıyla duruyor.
 
+### ⚠️ Gerçek notalarla kontrol (2026-10-14): melodi tespiti UYMUYOR
+
+Kullanıcı: "hiç uymadı". Önceki "150/150 tık parçası riff notasında" doğrulaması **döngüseldi**
+(tıklar kendi tespit ettiğimiz notalarla karşılaştırıldı; tespit yanlışsa yakalanamaz).
+
+Bağımsız referans:
+- İnternet: Hooktheory — D♯ minör, 4/4, 105 BPM (giriş 106), giriş akorları i → VII → VI → VII
+  (D♯m–C♯–B–C♯). Riff notalarının güvenilir transkripsiyonu bulunamadı (kaynaklar çelişkili,
+  Ultimate Guitar sayfası JS ile yükleniyor).
+- Sesin kendisi (kromagram, sekizlik ızgara, faz 0.059 sn): en güçlü perdeler F, F♯, D♯, A♯
+  (D♯ minörle uyumlu); 16 sekizlikte (2 ölçü, 4.57 sn) tekrar eden desen
+  **F♯ → D♯ (×3) → A♯ (×2) → F♯ (×2) → uzun F (×8)**. Melodi nota değişimleri ör. 5.49, 5.77,
+  6.63, 7.20, 7.77, 10.06 … sn (2–3–2–2–7 sekizlik aralık). Girişte güçlü vuruşlar her vuruşta
+  (çeyrek), aradakiler zayıf.
+- `detectNotes` sonucu (0–20 sn): tespitlerin yalnız **%24'ü** sekizlik ızgarada, riff
+  sekizliklerinin **%14'ü** yakalanmış; yakın olanlar ±70–80 ms kayık, çok sayıda fazladan nota.
+
+Sonuç: HPSS akış tespiti piyano riff'ini takip etmiyor. Gerekli: (1) tempo/faz bulunmuş
+sekizlik ızgarada perde değişimi + yeniden vuruş ile riff notaları; (2) doğrulama bağımsız
+referansla (kromagram) yapılmalı; (3) melodi notası ~1/sn, tıklar ~2.5/sn → notalar arasındaki
+fazla tıkların ne olacağı kullanıcıya soruldu.
+
 ## Müzik track'i (0.9.5.2)
 
 Müziği bir ses track'ine koyup **kilitle**: tık ritmi kilitli track'leri tamamen işlem

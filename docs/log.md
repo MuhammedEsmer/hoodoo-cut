@@ -11,6 +11,14 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Melodi tespiti gerçek notalarla kontrol edildi: uymuyor
+
+- Kullanıcı: HDend "hiç uymadı"; internetten notaları araştırıp kontrol istendi.
+- Hooktheory: D♯ minör, 105 BPM, i–VII–VI–VII. Sesin kromagramı: riff F♯ → D♯ → A♯ → F♯ → uzun F,
+  2 ölçüde tekrar. `detectNotes` sekizlik ızgarayla %24 hassas, %14 yakalama → uymuyor.
+- Önceki doğrulama döngüseldi (kendi tespitimize karşı); kasaya düzeltme yazıldı. Kod değişmedi.
+  Ayrıntı: [[HooDoo Cut Tık Ritmi#⚠️ Gerçek notalarla kontrol (2026-10-14): melodi tespiti UYMUYOR]].
+
 ## 2026-10-14 — Piyano riff'ine odak (CEP 0.9.6.1)
 
 - Kullanıcı: ana melodi piyano riff'i; iki iyileştirme istendi.
