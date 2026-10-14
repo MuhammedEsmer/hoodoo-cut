@@ -38,6 +38,14 @@
           <span>Müzik track'i (kilitli)</span>
           <select id="tickMusicTrack"><option value="0">A1</option><option value="1">A2</option><option value="2" selected>A3</option><option value="3">A4</option><option value="4">A5</option><option value="5">A6</option></select>
         </div>
+        <div class="field" id="tickSeparateField" style="display:none" title="Demucs: müziği kanallara ayırır (yerel Python, tools/setup-ml.ps1). Davul/gitar yoğun bölümlerde piyano notalarını daha çok bulur.">
+          <span>Melodi kaynağı</span>
+          <select id="tickSeparate"><option value="none" selected>Karışım (hızlı)</option><option value="piano">Piyano kanalı (Demucs)</option><option value="drumless">Davulsuz (Demucs)</option></select>
+        </div>
+        <div class="field" id="tickSlicesField" style="display:none" title="Eşleşen her tıkın sesi kaynak videodan %100 hızda yeni bir ses track'ine, sesi tam notaya düşecek şekilde (kare arası hassasiyetle) konur; bölgedeki asıl oyun sesi silinir. Ağır çekimde ses perdesi düşmez, kesimlerde tık kuyruğu duyulmaz.">
+          <span>Tık sesleri</span>
+          <label class="row"><input type="checkbox" id="tickSlices" checked><span>Ayrı yerleştir (notaya hizalı)</span></label>
+        </div>
         <div class="field tickGridField">
           <span>Tık aralığı</span>
           <div class="unit"><input type="number" id="tickInterval" min="0.05" max="5" step="0.01" value="0.5"><i>sn</i></div>

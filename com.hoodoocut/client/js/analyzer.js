@@ -382,7 +382,42 @@
             }
             kept.push(peaks[p]);
         }
-        return kept.map(function (x) { return x.t; });
+        return refineAttacks(fs, filePath, kept, opts.hpHz || 60);
+    }
+
+    /* Atak zamanını 1 ms çözünürlükle inceltir: aynı ölçüt (5 ms tepe − 10 dB), 1 ms RMS pencerelerinde,
+     * bulunan anın ±6 ms'inde ilk aşan pencere. 5 ms pencereler, tık sesi notaya örnek hassasiyetiyle
+     * konunca kalan ±2.5 ms belirsizliğin kaynağıydı (canlı 0.9.9.2: dilim yerleşimi < 1 ms, ölçüm 4.3 ms). */
+    function refineAttacks(fs, filePath, peaks, hpHz) {
+        if (!peaks.length) return [];
+        var fd = fs.openSync(filePath, 'r');
+        try {
+            var fmt = readWavHeader(fs, fd), bps = fmt.bitsPerSample / 8, fb = bps * fmt.numChannels, sr = fmt.sampleRate;
+            if (!((fmt.audioFormat === 1 && (bps === 2 || bps === 3)) || (fmt.audioFormat === 3 && bps === 4))) {
+                return peaks.map(function (x) { return x.t; });
+            }
+            var total = Math.floor(fmt.dataSize / fb), w1 = Math.max(1, Math.round(sr / 1000));
+            var PRE = 30 * w1, SPAN = 45 * w1, buf = Buffer.alloc((PRE + SPAN) * fb);
+            return peaks.map(function (pk) {
+                var s0 = Math.round(pk.t * sr) - PRE;
+                if (s0 < 0 || s0 + PRE + SPAN > total) return pk.t;
+                fs.readSync(fd, buf, 0, buf.length, fmt.dataOffset + s0 * fb);
+                var f = biquadHP(sr, hpHz, 0.707), lv = [], acc = 0, cnt = 0, s, c, k;
+                for (s = 0; s < PRE + SPAN; s++) {
+                    var v = 0;
+                    for (c = 0; c < fmt.numChannels; c++) {
+                        var p = s * fb + c * bps;
+                        v += fmt.audioFormat === 3 ? buf.readFloatLE(p) : (bps === 2 ? buf.readInt16LE(p) / 32768 : buf.readIntLE(p, 3) / 8388608);
+                    }
+                    v = biquad(f, v / fmt.numChannels);
+                    acc += v * v;
+                    if (++cnt === w1) { lv.push(10 * Math.log10(acc / cnt + 1e-12)); acc = 0; cnt = 0; }
+                }
+                // filtre 30 ms önceden oturur; arama t ± 6 ms
+                for (k = 24; k <= 36 && k < lv.length; k++) if (lv[k] >= pk.db - 10) return (s0 + k * w1) / sr;
+                return pk.t;
+            });
+        } finally { fs.closeSync(fd); }
     }
 
     /* Yerinde radix-2 FFT (re/im Float64Array, uzunluk 2'nin kuvveti). */

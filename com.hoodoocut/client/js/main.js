@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.9.1'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.9.2'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -582,7 +582,8 @@
             // Tek blok sesinin iki tepesi ~60 ms arayla gelebiliyor; 100 ms alti ikisini ayri tik sayar.
             relDb: numField('tickRel', 12, 1), minGap: Math.max(100, numField('tickMinGap', 200, 0)) / 1000,
             minSpeed: numField('tickMinSpeed', 50, 1) / 100, maxSpeed: numField('tickMaxSpeed', 400, 100) / 100,
-            target: $('tickTarget').value === 'melody' ? 'melody' : 'grid', musicTrack: $('tickMusicTrack').value };
+            target: $('tickTarget').value === 'melody' ? 'melody' : 'grid', musicTrack: $('tickMusicTrack').value,
+            separate: $('tickSeparate') ? $('tickSeparate').value : 'none' };
     }
 
     function applyWorkMode() {
@@ -591,6 +592,8 @@
         $('thresholdCard').style.display = tick ? 'none' : '';
         $('templateCard').style.display = tick ? 'none' : '';
         $('tickMusicField').style.display = melody ? '' : 'none';
+        if ($('tickSeparateField')) $('tickSeparateField').style.display = melody ? '' : 'none';
+        if ($('tickSlicesField')) $('tickSlicesField').style.display = melody ? '' : 'none';
         var gridFields = document.querySelectorAll('.tickGridField');
         for (var i = 0; i < gridFields.length; i++) gridFields[i].style.display = melody ? 'none' : '';
         if (!state.busy) $('btnAnalyze').textContent = tick ? '🎵 Tıkları Bul' : '🔍 Analiz Et';
@@ -623,7 +626,7 @@
                 if (err) { tickAnalysisFailed(err); return; }
                 $('btnAnalyze').textContent = '⏳ Melodi notaları çıkarılıyor…';
                 // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
-                melodyNotes(musicWav, [rs, re + (re - rs) / opts.minSpeed + 5], function (e1, mel) {
+                melodyNotes(musicWav, [rs, re + (re - rs) / opts.minSpeed + 5], opts.separate, function (e1, mel) {
                     try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e4) {}
                     if (e1) { tickAnalysisFailed(e1); return; }
                     try {
@@ -641,9 +644,11 @@
     /* Melodi notaları: Spotify Basic Pitch (client/lib/basicpitch, TF.js WASM) ile perde başına nota
      * başlangıçları. Kong piyano transkripsiyonu referansıyla solo piyanoda F1 0.97 / zaman hatası 4 ms
      * (eski DSP: 0.85 / 10 ms). Paket yüklenemez ya da hata verirse eski DSP yöntemine düşülür.
+     * separate: 'none' | 'piano' | 'drumless' — Demucs ile önce kanallara ayrılır (yerel Python;
+     * In the End'in tam bant bölümlerinde piyano kanalı riff'i karışımdan 2–3 kat fazla buluyor).
      * cb(err, { notes, names, source }) */
     var basicPitch = null;
-    function melodyNotes(musicWav, range, cb) {
+    function melodyNotes(musicWav, range, separate, cb) {
         var t0 = Date.now(), bpDir = extPath + '/client/lib/basicpitch';
         function fallback(e) {
             log('Basic Pitch kullanılamadı (' + (e && e.message ? e.message : e) + '); eski melodi yöntemi kullanılıyor.');
@@ -652,16 +657,68 @@
             r.source = 'DSP, tempo ' + (r.bpm ? r.bpm.toFixed(1) : '?') + ' BPM';
             cb(null, r);
         }
+        function transcribe(files, label, cleanup) {
+            try {
+                if (!basicPitch) basicPitch = nodeRequire(bpDir + '/basicpitch.js');
+                var samples = null;
+                files.forEach(function (f) { // kanallar toplanır
+                    var y = ACSAnalyzer.readMonoResampled(fs, f, range, 22050);
+                    if (!samples) samples = y;
+                    else for (var i = 0; i < Math.min(samples.length, y.length); i++) samples[i] += y[i];
+                });
+                $('btnAnalyze').textContent = '⏳ Melodi notaları çıkarılıyor…';
+                basicPitch.transcribe(samples, { baseDir: bpDir }).then(function (events) {
+                    if (cleanup) cleanup();
+                    events.forEach(function (e) { e.t += range[0]; });
+                    // ayrık piyano kanalı karışımdan daha sessiz: eşik 0.4 (karışım/davulsuz 0.45)
+                    var mel = ACSAnalyzer.melodyFromNoteEvents(events, { minAmp: separate === 'piano' && label ? 0.4 : 0.45 });
+                    mel.source = 'Basic Pitch' + (label ? ' + ' + label : '') + ' (' + basicPitch.backend() + ', ' +
+                        ((Date.now() - t0) / 1000).toFixed(1) + ' sn)';
+                    cb(null, mel);
+                }, function (e) { if (cleanup) cleanup(); fallback(e); });
+            } catch (e) { if (cleanup) cleanup(); fallback(e); }
+        }
+        if (!separate || separate === 'none') { transcribe([musicWav]); return; }
+        separateStems(musicWav, separate, function (err, files, cleanup) {
+            if (err) {
+                log('Müzik ayrıştırılamadı (' + err.message + '); karışım kullanılıyor.');
+                transcribe([musicWav]);
+                return;
+            }
+            transcribe(files, separate === 'piano' ? 'Demucs piyano' : 'Demucs davulsuz', cleanup);
+        });
+    }
+
+    /* Demucs (htdemucs_6s) ile müzik kanallara ayrılır. Python ortamı tools/setup-ml.ps1 ile
+     * %LOCALAPPDATA%\HooDooCut\ml\venv'e kurulur. cb(err, [wav...], temizle) */
+    function separateStems(musicWav, mode, cb) {
+        var env = typeof process !== 'undefined' && process.env ? process.env : {};
+        var py = (env.LOCALAPPDATA || '') + '\\HooDooCut\\ml\\venv\\Scripts\\python.exe';
+        if (!fs.existsSync(py)) { cb(new Error('Demucs kurulu değil — tools\\setup-ml.ps1')); return; }
+        var outDir = path.join(os.tmpdir(), 'hoodoo-demucs-' + Date.now()), errText = '';
+        function cleanup() { try { fs.rmSync(outDir, { recursive: true, force: true }); } catch (e) {} }
+        var proc;
         try {
-            if (!basicPitch) basicPitch = nodeRequire(bpDir + '/basicpitch.js');
-            var samples = ACSAnalyzer.readMonoResampled(fs, musicWav, range, 22050);
-            basicPitch.transcribe(samples, { baseDir: bpDir }).then(function (events) {
-                events.forEach(function (e) { e.t += range[0]; });
-                var mel = ACSAnalyzer.melodyFromNoteEvents(events);
-                mel.source = 'Basic Pitch (' + basicPitch.backend() + ', ' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)';
-                cb(null, mel);
-            }, fallback);
-        } catch (e) { fallback(e); }
+            // --shifts 0: rastgele kaydırma yok, aynı müzik hep aynı notaları verir (varsayılan 1 rastgeleydi)
+            proc = nodeRequire('child_process').spawn(py, ['-I', '-m', 'demucs', '-n', 'htdemucs_6s', '--shifts', '0', '-o', outDir, musicWav], { windowsHide: true });
+        } catch (e) { cb(e); return; }
+        $('btnAnalyze').textContent = '⏳ Müzik ayrıştırılıyor (Demucs)…';
+        proc.stderr.on('data', function (d) {
+            errText = (errText + d).slice(-2000);
+            var m = /(\d+)%\|/.exec(String(d));
+            if (m) $('btnAnalyze').textContent = '⏳ Müzik ayrıştırılıyor (Demucs) %' + m[1];
+        });
+        proc.on('error', function (e) { cleanup(); cb(e); });
+        proc.on('close', function (code) {
+            var dir = path.join(outDir, 'htdemucs_6s', path.basename(musicWav).replace(/\.wav$/i, ''));
+            var files = (mode === 'piano' ? ['piano'] : ['piano', 'other', 'guitar']).map(function (s) { return path.join(dir, s + '.wav'); });
+            if (code !== 0 || !files.every(function (f) { return fs.existsSync(f); })) {
+                cleanup();
+                cb(new Error('demucs çıkış ' + code + ': ' + errText.replace(/\s+/g, ' ').slice(-300)));
+                return;
+            }
+            cb(null, files, cleanup);
+        });
     }
 
     /* Melodi hedefi: yalnız müzik track'inin sesi ayrı WAV'a aktarılır (diğerleri geçici mute). */
@@ -683,6 +740,7 @@
 
     function finishTickAnalysis(onsets, plan, opts) {
         state.tickPlan = plan.gaps.length ? plan : null;
+        plan.allClicks = onsets; // tık sesi dilimi kaynaktaki bir sonraki (eşleşmemiş de olsa) tıktan önce biter
         // Silinecek parçalar (hız 0) ve donan kareler hız aralığına girmez.
         var speeds = plan.gaps.filter(function (g) { return g.speed > 0 && !g.freeze; }).map(function (g) { return g.speed; });
         if (!speeds.length) speeds = [1];
@@ -763,22 +821,53 @@
                 if (p[0] !== 'OK') { fail(p.slice(1).join('|')); return; }
                 evalJsx('ACS_clearTickMarkers()', function () {});
                 var capped = parseInt(p[4], 10) || 0, deleted = parseInt(p[5], 10) || 0;
-                finish(true, 'Ritme oturtuldu: ' + plan.gaps.length + ' ara, ' + p[1] + ' hız değişimi, ' + p[2] +
+                var msg = 'Ritme oturtuldu: ' + plan.gaps.length + ' ara, ' + p[1] + ' hız değişimi, ' + p[2] +
                     ' taşıma' + (deleted ? ', ' + deleted + ' parça silindi' : '') +
-                    ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)' +
-                    (capped ? '. ' + capped + ' arada Premiere hızı sınırladı; tıklar yine hedef anlarında, aranın sonu biraz kısaldı.' : ''));
+                    (capped ? '. ' + capped + ' arada Premiere hızı sınırladı; tıklar yine hedef anlarında, aranın sonu biraz kısaldı' : '');
+                if (!slices) { finish(true, msg + ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)'); return; }
+                placeSlices(msg);
+            });
+        }
+        // Tık sesleri ayrı: eşleşen her tıkın sesi %100 hızda, sesi notaya düşecek şekilde yeni bir ses
+        // track'ine. Dilim (en çok 0.35 sn, blok sesi kadar) bir sonraki notadan 20 ms önce (taşıma ±yarım
+        // kare çakışmasın) ve kaynaktaki bir sonraki tıktan 20 ms önce biter (canlı: 0.35 sn sabit dilim
+        // yakın tıklarda eşleşmemiş tıkın sesini de taşıyıp nota dışı tık duyuruyordu).
+        function placeSlices(msg) {
+            btn.textContent = '⏳ Tık sesleri yerleştiriliyor…';
+            // hedef notanın kendisi (plan.targets videonun kareye oturan iniş anı; canlı: o kullanılınca ses-nota farkı 4.5 ms kaldı)
+            var T = plan.noteTimes, S = plan.clickTimes, all = plan.allClicks || [], data = [];
+            for (var k = 0; k < T.length; k++) {
+                var len = k + 1 < T.length ? Math.min(0.35, T[k + 1] - T[k] - 0.02) : 0.35;
+                for (var q = 0; q < all.length; q++) if (all[q] > S[k] + 0.001) { len = Math.min(len, all[q] - S[k] - 0.02); break; }
+                data.push(T[k].toFixed(6) + ',' + Math.max(0.03, len).toFixed(4));
+            }
+            var lastEnd = T[T.length - 1] + 0.35;
+            evalJsx('ACS_placeClickSlices("' + data.join(';') + '", "' + plan.regionStart + '", "' + lastEnd + '")', function (r) {
+                var q = r.split('|');
+                if (q[0] !== 'OK') log('Tık sesleri ayrı konamadı: ' + q.slice(1).join('|'));
+                else msg += '. ' + q[1] + ' tık sesi ' + q[4] + '\'e notaya hizalı kondu (en büyük sapma ' + q[3] + ' ms), bölgedeki asıl ses silindi (' + q[2] + ' parça)';
+                finish(true, msg + ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)');
+            });
+        }
+        var slices = !!(plan.clickTimes && plan.clickTimes.length && $('tickSlices') && $('tickSlices').checked);
+        function start() {
+            if (!slices) { razorStep(0); return; }
+            // kaynak medya zamanları düzenlemeden önce alınır
+            evalJsx('ACS_prepClickSlices("' + getAudioSelection() + '", "' + plan.clickTimes.map(function (t) { return t.toFixed(6); }).join(';') + '")', function (r) {
+                if (r.split('|')[0] !== 'OK') { log('Tık sesleri ayrı konmayacak: ' + r.split('|').slice(1).join('|')); slices = false; }
+                razorStep(0);
             });
         }
         log('Tık ritmi başladı: ' + plan.gaps.length + ' ara, ' + plan.boundaries.length + ' razor sınırı');
         evalJsx('ACS_beginEdit("' + jsxEscape(state.planContext) + '", "tick")', function (res) {
             if (res.split('|')[0] !== 'OK') { fail(res.split('|').slice(1).join('|')); return; }
-            if (!$('makeBackup').checked) { razorStep(0); return; }
+            if (!$('makeBackup').checked) { start(); return; }
             btn.textContent = '⏳ Yedek oluşturuluyor…';
             evalJsx('ACS_backupSequence()', function (r2) {
                 var p2 = r2.split('|');
                 if (p2[0] !== 'OK') { fail('yedek: ' + p2.slice(1).join('|')); return; }
                 log('Yedek sequence oluşturuldu: "' + p2[1] + '" kopyası Project panelinde.');
-                razorStep(0);
+                start();
             });
         });
     }

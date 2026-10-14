@@ -60,6 +60,31 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 > [[reports/2026-10-14-acik-kaynak-arastirma|açık kaynak araştırması]],
 > [[reports/2026-10-14-basic-pitch-entegrasyon|Basic Pitch entegrasyonu]].
 
+**0.9.9.2 farkları** (kullanıcı: "hepsini yap")
+
+- **Tık sesleri ayrı** (panel: "Tık sesleri → Ayrı yerleştir", varsayılan açık).
+  - Eşleşen her tıkın sesi kaynak medyadan %100 hızda yeni ses track'lerine konur: `ACS_prepClickSlices` düzenlemeden önce, `ACS_placeClickSlices` sonra.
+  - `overwriteClip` kareye oturtuyor, `move()` ile kare arasına taşınır. Ses, tıkın kendisi değil **notanın kendisi** (`plan.noteTimes`) olacak şekilde yerleşir.
+  - Çok akışlı medyada akışlar ardışık track'lere dağılıyor (A1 sessiz akış, A2 oyun sesi). Oyun sesi akışı tutulur, diğerleri silinir.
+  - Bölgedeki asıl oyun sesi silinir.
+  - Dilim en çok 0.35 sn; bir sonraki notadan ve kaynaktaki bir sonraki tıktan 20 ms önce biter. 0.35 sn sabit dilim yakın tıklarda eşleşmemiş tıkın sesini de taşıyordu.
+  - Ağır çekimde perde düşmesi ve kesimlerde tık kuyruğu yok.
+- **Vuruşa hızlanarak gir:** eşleşen tıktan önceki son 0.1 sn (`ENTRY`) normal hızda; yavaşlama öncesine düşer (visbeat).
+- **Demucs seçeneği** ("Melodi kaynağı: Piyano kanalı / Davulsuz").
+  - Yerel Python (`tools/setup-ml.ps1` → `%LOCALAPPDATA%\HooDooCut\ml\venv`); `htdemucs_6s --shifts 0` (rastgele kaydırma yok, aynı müzik → aynı notalar).
+  - Piyano kanalında Basic Pitch eşiği 0.4.
+  - In the End'in tam bant bölümlerinde riff notaları karışımdan 2–3 kat fazla (518–524 nota / 277).
+- Tık atak zamanı 1 ms çözünürlükle (`refineAttacks`); 5 ms pencereler ±2.5 ms belirsizlik bırakıyordu.
+- **Canlı, piyano:** tık sesleri panelin notalarına **medyan 0.0 ms** (119 dilimin 118'i 5 ms içinde).
+  - Kong referansına göre medyan 6.4 → 5.1 ms, 10 ms içinde %71 → %82.
+  - Kalan fark yalnız Basic Pitch'in nota zamanı.
+  - Donma 1.7 sn.
+- **Canlı, In the End (Demucs piyano, `--shifts 0`):** 524 nota → 136 tık notada (karışımla 84), donma 1.0 sn.
+  Tık sesleri notalara **medyan 0.0 ms, en kötü 1.0 ms** (136/136 ≤ 5 ms). Demucs sonucu tekrarlanabilir: panel ve çevrimdışı referans
+  aynı 524 notayı buldu.
+- **Süre:** tık sesi yerleştirme uygulamayı ~2–3 dk uzatıyor (119–147 dilim).
+  - Uzun oturumda Premiere ağırlaştı (8.4 GB, çok sayıda test sequence'i); panel bir kez yanıt vermeyi bıraktı.
+
 **0.9.9.1 farkları**
 
 - Tıkın karesi, *sesinin* notaya düşeceği kareye konur (`hedef = round((nota − kare içi kayma) · fps)`).

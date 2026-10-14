@@ -1318,6 +1318,125 @@ function ACS_tickRetime(gapsStr) {
     }
 }
 
+/* Tik sesleri ayri (0.9.9.2): eslesen her tikin sesi kaynak medyadan %100 hizda yeni bir ses track'ine,
+ * sesi notaya dusecek sekilde ornek hassasiyetiyle konur; bolgedeki asil ses silinir. Boylece agir
+ * cekimde ses perdesi dusmez, kesimlerde tik kuyrugu duyulmaz, kare yuvarlamasi (60 fps'te +-8 ms) kalkar.
+ * Canli yoklama (Premiere 26): overwriteClip kareye oturtuyor ama sonradan move() kare arasina tasiyabiliyor;
+ * cok akisli medyada akislar ardisik track'lere dagiliyor (A1 sessiz akis, A2 oyun sesi).
+ * Hazirlik duzenlemeden ONCE (kaynak medya zamanlari), yerlestirme yeniden zamanlamadan SONRA. */
+var ACS_SLICE_PREP = null;
+
+function ACS_prepClickSlices(trackSel, timesStr) {
+    try {
+        ACS_SLICE_PREP = null;
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        var tIdx = -1, i, k;
+        if (trackSel === 'all') {
+            var ct = ACS_getContentTrackIndices(seq).a;
+            for (i = 0; i < ct.length && tIdx < 0; i++) if (!ACS_trackLocked(seq.audioTracks[ct[i]], 1, ct[i])) tIdx = ct[i];
+        } else tIdx = parseInt(('' + trackSel).split(',')[0], 10);
+        var tr = seq.audioTracks[tIdx];
+        if (!tr) return 'ERR|Analiz ses track\'i bulunamadi';
+        var times = ('' + timesStr).split(';'), media = [], item = null, stream = 0;
+        for (i = 0; i < times.length; i++) {
+            if (!times[i]) continue;
+            var t = parseFloat(times[i]), clip = null;
+            for (k = 0; k < tr.clips.numItems; k++) {
+                var c = tr.clips[k];
+                if (c.start.seconds <= t + 1e-6 && c.end.seconds > t) { clip = c; break; }
+            }
+            if (!clip || !clip.projectItem) return 'ERR|Tik ' + t.toFixed(3) + ' sn\'de ses klibi yok';
+            if (!item) {
+                item = clip.projectItem;
+                // akis sirasi: ayni medyanin bu andaki klibini tasiyan, daha ustteki ses track'leri
+                for (k = 0; k < tIdx; k++) {
+                    var ot = seq.audioTracks[k];
+                    for (var q = 0; q < ot.clips.numItems; q++) {
+                        var oc = ot.clips[q];
+                        if (oc.projectItem && oc.projectItem.nodeId === item.nodeId && oc.start.seconds <= t + 1e-6 && oc.end.seconds > t) { stream++; break; }
+                    }
+                }
+            } else if (clip.projectItem.nodeId !== item.nodeId) return 'ERR|Tiklar tek bir medyadan olmali';
+            var sp = clip.getSpeed();
+            // DOM in noktasi hizli kliplerde hiza bolunmus raporlanir (gercek = deger x hiz)
+            media.push(clip.inPoint.seconds * sp + (t - clip.start.seconds) * sp);
+        }
+        if (!media.length) return 'ERR|Tik yok';
+        ACS_SLICE_PREP = { item: item, stream: stream, media: media, track: tIdx };
+        return 'OK|' + media.length + '|' + stream;
+    } catch (e) {
+        return 'ERR|' + e.toString();
+    }
+}
+
+function ACS_placeClickSlices(dataStr, regionStart, regionEnd) {
+    var P = ACS_SLICE_PREP;
+    try {
+        ACS_checkEditSequence();
+        var seq = app.project.activeSequence;
+        if (!seq || !P) return 'ERR|Tik sesi hazirligi yok';
+        var parts = ('' + dataStr).split(';'), dst = [], len = [], i, k;
+        for (i = 0; i < parts.length; i++) {
+            if (!parts[i]) continue;
+            var f = parts[i].split(',');
+            dst.push(parseFloat(f[0])); len.push(parseFloat(f[1]));
+        }
+        if (dst.length !== P.media.length) return 'ERR|Tik sayisi uyusmuyor (' + dst.length + '/' + P.media.length + ')';
+        var frameTicks = parseFloat(seq.timebase), fps = ACS_TICKS_PER_SECOND / frameTicks, half = 0.5 / fps;
+        var rs = parseFloat(regionStart), re = parseFloat(regionEnd);
+        app.enableQE();
+        var qs = qe.project.getActiveSequence(), cm = null;
+        try { cm = P.item.getAudioChannelMapping(); } catch (e0) {}
+        var streams = Math.max(P.stream + 1, cm && cm.audioClipsNumber ? cm.audioClipsNumber : 1);
+        var base = seq.audioTracks.numTracks;
+        qs.addTracks(0, 0, streams, 1, base, 0, 0);
+        if (seq.audioTracks.numTracks < base + streams) return 'ERR|Ses track eklenemedi';
+        var keep = seq.audioTracks[base + P.stream], PRE = 0.01, placed = 0, maxErr = 0;
+        for (i = 0; i < dst.length; i++) {
+            var inSec = P.media[i] - PRE;
+            P.item.clearInPoint(); P.item.clearOutPoint();
+            P.item.setInPoint(inSec, 4); P.item.setOutPoint(inSec + PRE + len[i], 4);
+            var tm = new Time();
+            tm.ticks = String(Math.round((dst[i] - PRE) * fps) * frameTicks);
+            seq.audioTracks[base].overwriteClip(P.item, tm);
+            var cl = null;
+            for (k = 0; k < keep.clips.numItems; k++) if (Math.abs(keep.clips[k].start.seconds - tm.seconds) <= half) { cl = keep.clips[k]; break; }
+            if (!cl) throw new Error('Tik sesi konamadi (' + dst[i].toFixed(3) + ')');
+            // klip kaynagi kareye oturtulmus olabilir: tik sesi klip basindan (medya - in) sonra
+            var onset = cl.start.seconds + (P.media[i] - cl.inPoint.seconds * cl.getSpeed());
+            var mv = new Time();
+            mv.ticks = String(Math.round((dst[i] - onset) * ACS_TICKS_PER_SECOND));
+            cl.move(mv);
+            var err = Math.abs(cl.start.seconds + (P.media[i] - cl.inPoint.seconds * cl.getSpeed()) - dst[i]);
+            if (err > maxErr) maxErr = err;
+            placed++;
+        }
+        P.item.clearInPoint(); P.item.clearOutPoint();
+        // diger akislarin (sessiz) parcalari
+        for (k = base; k < base + streams; k++) {
+            if (k === base + P.stream) continue;
+            var st = seq.audioTracks[k];
+            for (i = st.clips.numItems - 1; i >= 0; i--) st.clips[i].remove(false, false);
+        }
+        // bolgedeki asil ses (kilitli muzik ve yeni track'ler haric)
+        var removed = 0;
+        for (k = 0; k < base; k++) {
+            var at = seq.audioTracks[k];
+            if (ACS_trackLocked(at, 1, k)) continue;
+            for (i = at.clips.numItems - 1; i >= 0; i--) {
+                var ac = at.clips[i];
+                if (ac.start.seconds >= rs - half && ac.end.seconds <= re + half) { ac.remove(false, false); removed++; }
+            }
+        }
+        ACS_SLICE_PREP = null;
+        return 'OK|' + placed + '|' + removed + '|' + (maxErr * 1000).toFixed(2) + '|A' + (base + P.stream + 1);
+    } catch (e) {
+        try { if (P) { P.item.clearInPoint(); P.item.clearOutPoint(); } } catch (e2) {}
+        return 'ERR|' + e.toString();
+    }
+}
+
 /* Tik onizlemesi: bulunan tiklar sequence marker'i olarak isaretlenir.
  * Yalniz bu adla konan marker'lar silinir; kullanicinin marker'lari kalir. */
 var ACS_TICK_MARKER = 'HooDoo tik';

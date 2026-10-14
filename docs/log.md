@@ -11,6 +11,23 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Tık sesleri ayrı, vuruşa giriş, Demucs (CEP 0.9.9.2)
+
+- Kullanıcı: önerilen üç adımın "hepsini yap".
+- `alignToNotes`: tıktan önceki son 0.1 sn normal hız ("vuruşa hızlanarak gir"); planda donma piyano 1.6 sn,
+  In the End 4.1 → 1.6 sn.
+- Demucs: `tools/setup-ml.ps1` (venv `%LOCALAPPDATA%\HooDooCut\ml`), panelde "Melodi kaynağı". `htdemucs_6s
+  --shifts 0` (varsayılan rastgele kaydırma notaları her çalıştırmada değiştiriyordu). In the End: 277 → 524 nota,
+  84 → 136 tık notada.
+- Tık sesleri ayrı: `ACS_prepClickSlices` / `ACS_placeClickSlices`. Canlı yoklama: overwriteClip kareye,
+  `move()` kare arasına; çok akışlı medyada akışlar ardışık track'lere. Hatalar ve düzeltmeler: dilim önce
+  videonun iniş anına konmuştu → notanın kendisine; 0.35 sn sabit dilim yakın tıkları taşıyordu → kaynaktaki
+  sonraki tıktan önce biter.
+- Tık atağı 1 ms çözünürlükle (`refineAttacks`).
+- Canlı: tık sesleri notalara piyanoda medyan 0.0 ms (118/119 ≤ 5 ms), In the End medyan 0.0 / en kötü 1.0 ms;
+  piyano Kong'a göre 10 ms içinde %82. Premiere uzun oturumda ağırlaştı, kullanıcı yeniden başlattı.
+- Testler 127 PASS. Paket 0.9.9.2. Release yok.
+
 ## 2026-10-14 — Tık sesi notaya hizalanıyor (CEP 0.9.9.1)
 
 - Kullanıcı: videonun kısalması (tıksız anların kesilmesi) uygun, devam.

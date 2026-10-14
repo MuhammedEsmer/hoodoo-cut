@@ -130,6 +130,54 @@ Basic Pitch'in +1.7 ms gecikmesini düzeltmek denendi, kazanç yok → eklenmedi
 **Analiz süresi:** Bölge uzaması payı müzik dosyasının sonunu aşınca sessizlik de modele veriliyordu.
 `readMonoResampled` artık dosya sonunda duruyor; piyanoda analiz 25.5 → 10.2 sn, notalar aynı.
 
+## 6. 0.9.9.2: tık sesleri ayrı, vuruşa giriş, Demucs
+
+Kullanıcı: "hepsini yap" (önerilen 3 adım).
+
+**Vuruşa hızlanarak gir:** tıktan önceki son 0.1 sn normal hızda. Planda:
+- piyano donma 1.6 sn, In the End 4.1 → 1.6 sn;
+- girişi yavaş kalan tık yalnız 2 ve 1.
+
+**Demucs ölçümü** (In the End 25–95 sn, Basic Pitch notaları, 2 ölçü sonra tekrar eden oran):
+
+| Kaynak | Nota/sn | Tekrar |
+|---|---|---|
+| Karışım (0.45) | 0.86 | %33 |
+| Piyano kanalı (0.45) | 1.9 | %57 |
+| Piyano kanalı (0.4) | 2.7 | %64 |
+| Davulsuz (0.45) | 3.5 | %75, gitar karışıyor |
+
+Panelde: `--shifts 0`, çünkü varsayılan 1 rastgele kaydırma yapıyor ve her çalıştırmada nota sayısı 515 / 518 / 527 arasında değişiyordu.
+
+**Tık sesleri ayrı — canlı yoklama (Premiere 26):**
+- `ProjectItem.setInPoint/OutPoint(…, 4)` ve `overwriteClip` kareye oturtuyor.
+- `TrackItem.move()` kare arasına taşıyor (+3.1 ms denendi).
+- QE `addTracks` ses track'i ekliyor.
+- Çok akışlı medyada ilk akış hedef track'e, ikincisi bir alttakine gidiyor. Test videosunda A1 sessiz, oyun sesi ikinci akışta.
+
+**Ölçüm yöntemi:** dışa aktarılan dilim sesinden tık algılamak ±4 ms gürültülü (kısa dilim, sessizlik). Kesin ölçüm A5
+kliplerinin konumundan: çıktıdaki tık = klip başı + (kaynak tık − medya in).
+
+İlk turda dilimler videonun kareye oturan iniş anına (`plan.targets`) konmuştu (ses-nota farkı 4.5 ms).
+Notanın kendisine (`plan.noteTimes`) konunca:
+
+| Piyano | Panel notalarına | Kong referansına |
+|---|---|---|
+| 0.9.9.1 (görüntüyle birlikte ses) | — | medyan 5.7 ms, 10 ms içinde %76 |
+| 0.9.9.2 (ayrı tık sesi) | **medyan 0.0 ms**, 118/119 ≤ 5 ms | medyan 5.1 ms, 10 ms içinde **%82** |
+
+Dilimlerde sessizliğe bitişik kuyruk tümsekleri ayrı tık sanılıyor. Bunlar asıl tık değil; dilim içindeki
+blok sesinin doğal kuyruğu.
+
+**In the End (Demucs piyano, `--shifts 0`):**
+- 524 nota; panelle çevrimdışı referans aynı notaları verdi.
+- 136 tık notada, 22 düştü, 6 nota tıksız, donma 1.0 sn.
+- Tık sesleri notalara **medyan 0.0 ms, en kötü 1.0 ms** (136/136 ≤ 5 ms).
+- 212 sn sürdü.
+
+**Sorun:** uzun test oturumunda Premiere 8.4 GB'a çıktı, ağırlaştı. Bir In the End uygulaması sırasında panel yanıt
+vermeyi bıraktı. Kullanıcı Premiere'i yeniden başlattı (proje kaydedildi); deneme yeniden yapıldı.
+
 ## Sınırlar
 
 - Karışımda piyano maskelendiği bölümlerde Basic Pitch az nota buluyor (In the End: 216 sn'de 277 nota).

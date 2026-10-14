@@ -83,6 +83,7 @@
         var fps = opts.fps, hold = opts.holdFrames, minS = Math.max(opts.minSpeed, 0.7), rs = Math.round(opts.regionStart * fps);
         var SKIP = 0.4, DROP = 0.02, CUT = 0.1, JUMP = 0.05, VISIBLE = 0.5, REWARD = 1, MAXDROP = 12, MAXSKIP = 4;
         var FZ = 2, FREEZE = 0.3, FREEZE_SEC = 2.5, MINSEG = Math.max(FZ + 1, Math.round(0.1 * fps));
+        var ENTRY = Math.max(FZ, Math.round(0.1 * fps)); // vuruşa giriş: tıktan önceki son 0.1 sn normal hız
         // Fazla tıktan sonraki temiz görüntü 175 ms sonra başlar: blok sesi ~0.3 sn sürüyor, ilk 60 ms'de
         // ve 130-160 ms'de tepeye yakın; daha erken kesilince kuyruk yeni bir tık gibi duyuluyordu
         // (canlı: tık parçasından sonra 11 yerde, 150 ms'de 1 yerde). 200 ms temiz görüntüyü o kadar
@@ -102,7 +103,7 @@
         var O = [], NS = [], C = frames(clicks, O), M = frames(notes, NS), n = C.length, m = M.length, i, j, i2, j2;
         for (j = 0; j < m; j++) NS[j] += M[j] / fps; // notanın kendisi (sn)
         function tgt(ci, nj) { return Math.round((NS[nj] - O[ci]) * fps); }
-        var empty = { clicks: [], targets: [], gaps: [], boundaries: [], merged: 0, limited: 0, skipped: 0, deltaSec: 0, cutSec: 0, visible: 0, freezes: 0, frozenSec: 0 };
+        var empty = { clicks: [], targets: [], clickTimes: [], gaps: [], boundaries: [], merged: 0, limited: 0, skipped: 0, deltaSec: 0, cutSec: 0, visible: 0, freezes: 0, frozenSec: 0 };
         if (n < 2 || m < 2) return empty;
         // Bir geçişin kararı: startF'den endF'deki tıka, D karelik hedef; dropped = aradaki fazla tıklar.
         // Dönüş: tutulan parçalar [{ s, e, t }] (kaynak kareleri [s, e), hedef t kare), görünür fazla
@@ -117,7 +118,14 @@
             var lead = dropped.length ? Math.max(0, endF - (dropped[dropped.length - 1] + tail)) : avail, q;
             if (lead >= D) offer([{ s: endF - D, e: endF, t: D }], cut, 0, 0);
             else {
-                if (lead >= 1 && lead / D >= minS) offer([{ s: endF - lead, e: endF, t: D }], Math.abs(Math.log(lead / D)) + cut, 0, 0);
+                // "Vuruşa hızlanarak gir" (visbeat, Davis & Agrawala 2018): b'den önceki son ENTRY kare normal
+                // hızda kalır, yavaşlama öncesine düşer; vuruşun hemen öncesi ağır çekimde olunca darbe zayıflıyor.
+                if (lead > ENTRY && (lead - ENTRY) / (D - ENTRY) >= minS) {
+                    offer([{ s: endF - lead, e: endF - ENTRY, t: D - ENTRY }, { s: endF - ENTRY, e: endF, t: ENTRY }],
+                        Math.abs(Math.log((lead - ENTRY) / (D - ENTRY))) + cut, 0, 0);
+                } else if (lead >= 1 && lead <= ENTRY && lead / D >= minS) {
+                    offer([{ s: endF - lead, e: endF, t: D }], Math.abs(Math.log(lead / D)) + cut, 0, 0);
+                }
                 var segs = [], S = 0;
                 var seg = function (s, e, kind) { if (e - s >= MINSEG) { segs.push({ s: s, e: e, kind: kind }); S += e - s; } };
                 // Fazla tıktan önceki bölüm 1 kare erken biter: tık zamanı kareye yuvarlanınca atağın ilk
@@ -143,23 +151,35 @@
                     });
                     offer(pcs, cut + JUMP * (use.length - 1), 0, 0);
                 } else if (segs.length) {
-                    // hafif ağır çekim; yetmezse ilk bölümde donma
-                    var sp = Math.max(minS, S / D), slowCost = Math.abs(Math.log(sp)), sum = 0;
-                    var sl = segs.map(function (x) { var t = Math.floor((x.e - x.s) / sp); sum += t; return { s: x.s, e: x.e, t: t }; });
-                    if (S / D >= minS) {
+                    // hafif ağır çekim; yetmezse ilk bölümde donma. Yaklaşmanın son ENTRY karesi (vuruşa giriş)
+                    // normal hızda kalır; geri kalan bölümler yavaşlar.
+                    var fast = null, slow = segs.slice(), last = segs[segs.length - 1];
+                    if (last.kind === 'lead') {
+                        var keep = Math.min(ENTRY, last.e - last.s);
+                        if (last.e - last.s - keep < MINSEG) keep = last.e - last.s;
+                        fast = { s: last.e - keep, e: last.e, t: keep };
+                        slow.pop();
+                        if (keep < last.e - last.s) slow.push({ s: last.s, e: last.e - keep, kind: 'lead' });
+                        if (!slow.length) { slow = [last]; fast = null; } // yavaşlatacak başka görüntü yok
+                    }
+                    var Ds = D - (fast ? fast.t : 0), Ss = S - (fast ? fast.t : 0);
+                    var sp = Math.max(minS, Ss / Ds), slowCost = Math.abs(Math.log(sp)), sum = 0;
+                    var sl = slow.map(function (x) { var t = Math.floor((x.e - x.s) / sp); sum += t; return { s: x.s, e: x.e, t: t }; });
+                    var withFast = function (list) { return fast ? list.concat([fast]) : list; };
+                    if (Ss / Ds >= minS) {
                         // yuvarlama artığı (bölüm sayısından az kare) en uzun bölümlerden başlayarak dağıtılır
                         var order = sl.slice().sort(function (x, y) { return (y.e - y.s) - (x.e - x.s); });
-                        for (q = 0; sum < D; q = (q + 1) % order.length) { order[q].t++; sum++; }
-                        offer(sl, slowCost + cut + jumps, 0, 0);
+                        for (q = 0; sum < Ds; q = (q + 1) % order.length) { order[q].t++; sum++; }
+                        offer(withFast(sl), slowCost + cut + jumps, 0, 0);
                     } else {
                         // Baş/ara: sonunda (sıradaki fazla bloktan hemen önce). Yalnız yaklaşma varsa başında;
                         // fazla tık yoksa a'nın sesi bittikten sonra (donan karenin sesi silinir, ses tıkın
                         // kuyruğunun ortasından başlarsa yeni bir tık gibi duyuluyordu).
-                        var P = sl[0], fp = segs[0].kind !== 'lead' ? P.e - FZ
+                        var P = sl[0], fp = slow[0].kind !== 'lead' ? P.e - FZ
                             : P.s + (dropped.length ? 0 : Math.min(Math.max(0, tail - hold), P.e - P.s - FZ));
                         var frz = { s: fp, e: fp + FZ, t: 0, freeze: true };
-                        var all = [{ s: P.s, e: fp, t: Math.floor((fp - P.s) / sp) }, frz, { s: fp + FZ, e: P.e, t: Math.floor((P.e - fp - FZ) / sp) }]
-                            .filter(function (x) { return x.e > x.s; }).concat(sl.slice(1)), others = 0;
+                        var all = withFast([{ s: P.s, e: fp, t: Math.floor((fp - P.s) / sp) }, frz, { s: fp + FZ, e: P.e, t: Math.floor((P.e - fp - FZ) / sp) }]
+                            .filter(function (x) { return x.e > x.s; }).concat(sl.slice(1))), others = 0;
                         all.forEach(function (x) { if (x !== frz) others += x.t; });
                         frz.t = D - others;
                         if (frz.t > FZ) offer(all, slowCost + FREEZE + FREEZE_SEC * (frz.t - FZ) / fps + cut + jumps, 0, frz.t - FZ);
@@ -234,6 +254,9 @@
         return {
             clicks: pairs.map(function (q) { return C[q[0]] / fps; }),
             targets: pairs.map(function (q) { return tgt(q[0], q[1]) / fps + O[q[0]]; }), // tık sesinin düşeceği an
+            clickTimes: pairs.map(function (q) { return C[q[0]] / fps + O[q[0]]; }), // tık sesinin kaynaktaki anı
+            noteTimes: pairs.map(function (q) { return NS[q[1]]; }), // eşleşen notanın kendisi (ayrı tık sesi buraya)
+            regionStart: rs / fps,
             gaps: gaps, boundaries: boundaries, merged: n - pairs.length, limited: 0, skipped: skipped,
             deltaSec: delta / fps, cutSec: cutF / fps, visible: visible, freezes: freezes, frozenSec: frozenF / fps
         };

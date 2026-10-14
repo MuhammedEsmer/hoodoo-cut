@@ -110,6 +110,14 @@ test('a freeze gap slows the video piece and removes its audio (no stretched sou
         assert.deepStrictEqual(layout(track), [[0, 1.1, 1], [1.1, 1.8, 1], [2.3, 2.6, 1], [2.6, 3.4, 1]]));
     assert(f.host.ACS_tickRetime('1.8,1.9,0.5,0.2,x').startsWith('ERR|'));
 });
+test('click slices are prepared from the analysis track: media times and audio stream index', () => {
+    const { f } = setup();
+    // A2 (indeks 1) analiz track'i; A1 aynı medyayı taşıyor -> ikinci ses akışı (1)
+    assert.strictEqual(f.host.ACS_prepClickSlices('1', '0.5;1.85'), 'OK|2|1');
+    assert.strictEqual(JSON.stringify(f.host.ACS_SLICE_PREP.media.map(x => +x.toFixed(4))), '[0.5,1.85]');
+    assert.strictEqual(f.host.ACS_prepClickSlices('0', '0.5'), 'OK|1|0');
+    assert(f.host.ACS_prepClickSlices('1', '9.5').startsWith('ERR|'), 'klipsiz an reddedilmeli');
+});
 test('invalid gap data is rejected', () => {
     const { f } = setup();
     assert(f.host.ACS_tickRetime('1.8,1.1,0.4,1').startsWith('ERR|'));

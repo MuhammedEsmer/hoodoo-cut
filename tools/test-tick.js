@@ -248,6 +248,9 @@ const gapRows = p => p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), +x
 // Planın çıktısı: kaynak zamanı x'in timeline'daki yeri (x hiçbir aranın içinde değilken)
 const outAt = (p, x) => p.gaps.filter(g => g.end <= x + 1e-9).reduce((s, g) => s - (g.end - g.start - g.target), x);
 // Eşleşen ilk ve son tık arasındaki fazla tıkların hepsi silinen bir parçada olmalı (görünür fazla blok yok)
+// Vuruşa giriş: eşleşen her tıktan önceki son 0.1 sn hiçbir yavaşlatılan/donan parçada olmamalı
+const entryNormal = (p) => p.clicks.slice(1).forEach(c => assert(!p.gaps.some(g => g.target > 0 && g.end > c - 0.1 + 1e-9 && g.start < c - 1e-9),
+    'vurusa giris yavas: ' + c + ' ' + JSON.stringify(gapRows(p))));
 const hiddenExtras = (p, clicks) => clicks.filter(c => p.clicks.indexOf(c) < 0 && c > p.clicks[0] && c < p.clicks[p.clicks.length - 1])
     .forEach(c => assert(p.gaps.some(g => g.target === 0 && g.start <= c + 1e-9 && c < g.end), 'fazla tik gorunuyor: ' + c));
 test('option (b): every melody note gets a click, extra clicks are cut, kept footage plays at most normal speed', () => {
@@ -272,8 +275,10 @@ test('option (b): a dropped click inside the kept window is cut out; footage aft
 });
 test('option (b): when only a short clean approach exists it is slowed down (no freeze for a small stretch)', () => {
     const p = plan.alignToNotes([1.0, 1.1, 2.0], [1.0, 2.0], cutOpts);
+    // yavaşlama tıktan 0.1 sn önce biter (vuruşa giriş normal hızda)
     const last = p.gaps[p.gaps.length - 1];
-    assert(near(last.end, 2.0, 1e-9) && last.speed >= 0.5 && last.speed < 1, JSON.stringify(p.gaps));
+    assert(near(last.end, 1.9, 1e-9) && last.speed >= 0.5 && last.speed < 1, JSON.stringify(p.gaps));
+    entryNormal(p);
     assert.strictEqual(p.freezes, 0);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
@@ -287,6 +292,7 @@ test('option (c): a long note gap uses the clean stretches between extra blocks 
     assert.strictEqual(p.gaps.filter(g => g.target === 0).length, 4, JSON.stringify(gapRows(p)));
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
     hiddenExtras(p, clicks);
+    entryNormal(p);
     // %70 sınırı; kare yuvarlaması bir kare kadar altına indirebilir
     p.gaps.filter(g => g.target > 0).forEach(g => assert(g.speed >= 0.65 && g.speed < 1, 'agir cekim: ' + JSON.stringify(g)));
 });
@@ -294,8 +300,10 @@ test('option (c): when the clean stretches are not enough, a short freeze sits j
     const clicks = [1.0, 1.4, 1.8, 2.2, 2.6];
     const p = plan.alignToNotes(clicks, [1.0, 1.8333, 2.2333, 2.6333], cutOpts);
     assert.deepStrictEqual(p.clicks, [1.0, 1.8, 2.2, 2.6]);
-    // baş %75, son 2 karesi (fazla tıktan 1 kare önce biter) donar, fazla tık kesilir, yaklaşma %70
-    assert.deepStrictEqual(gapRows(p), [[1.1, 1.3, 0.2667, 0.75], [1.3, 1.3667, 0.1333, 0.5], [1.3667, 1.5667, 0, 0], [1.5667, 1.8, 0.3333, 0.7]]);
+    // baş %75, son 2 karesi (fazla tıktan 1 kare önce biter) donar, fazla tık kesilir, yaklaşma %80,
+    // tıktan önceki son 0.1 sn (1.7–1.8) normal hız
+    assert.deepStrictEqual(gapRows(p), [[1.1, 1.3, 0.2667, 0.75], [1.3, 1.3667, 0.2, 0.3333], [1.3667, 1.5667, 0, 0], [1.5667, 1.7, 0.1667, 0.8]]);
+    entryNormal(p);
     assert(p.gaps[1].freeze && p.freezes === 1);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
     hiddenExtras(p, clicks);
@@ -314,8 +322,9 @@ test('option (c): a note gap longer than all remaining footage is slowed lightly
     const clicks = [1.0, 1.5, 2.0, 2.4, 2.8];
     const p = plan.alignToNotes(clicks, [1.0, 2.5, 3.0, 3.4, 3.8], cutOpts);
     assert.deepStrictEqual(p.clicks, clicks);
-    assert.deepStrictEqual(gapRows(p), [[1.1667, 1.2333, 0.9667, +(2 / 29).toFixed(4)], [1.2333, 1.5, 0.3667, +(8 / 11).toFixed(4)]]);
+    assert.deepStrictEqual(gapRows(p), [[1.1667, 1.2333, 1.0, +(2 / 30).toFixed(4)], [1.2333, 1.4, 0.2333, +(5 / 7).toFixed(4)]]);
     assert(p.gaps[0].freeze);
+    entryNormal(p);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
 test('the click sound (not its frame) is placed on the note: one rounding instead of two', () => {
@@ -326,6 +335,8 @@ test('the click sound (not its frame) is placed on the note: one rounding instea
     const landed = outAt(p, 1.4) - 0.015;
     assert(Math.abs(landed - 1.407) <= 1 / 60 + 1e-9, 'ses ' + landed.toFixed(4));
     assert(near(p.targets[1], landed, 1e-9), 'hedef ' + p.targets[1] + ' / ' + landed);
+    // ayrı tık sesi için: notanın kendisi ve tık sesinin kaynaktaki anı
+    assert(near(p.noteTimes[1], 1.407, 1e-9) && near(p.clickTimes[1], 1.385, 1e-9), JSON.stringify([p.noteTimes, p.clickTimes]));
 });
 test('option (c): a long freeze is avoided by dropping one more click and cutting', () => {
     // Tıklar 0.4, notalar 0.6 sn arayla: ardışık tıkları eşlemek her arada donma isterdi.
