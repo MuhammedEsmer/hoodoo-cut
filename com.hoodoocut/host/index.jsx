@@ -1194,13 +1194,20 @@ function ACS_speedProbe(applyValue) {
         var clip = groups[g][t].clips[parts[0].idx], start = clip.start.seconds;
         app.enableQE();
         var qs = qe.project.getActiveSequence();
-        var qt = g === 0 ? qs.getVideoTrackAt(t) : qs.getAudioTrackAt(t);
-        var q = null;
-        for (var k = 0; k < qt.numItems; k++) {
-            var it = qt.getItemAt(k);
-            if (it && it.type !== 'Empty' && Math.abs(ACS_qeItemSec(it.start) - start) < 0.001) { q = it; break; }
+        // Her parcanin QE karsiligi, hicbir degisiklik yapilmadan once bulunur.
+        var qItems = [];
+        for (var qp = 0; qp < parts.length; qp++) {
+            var pc = groups[parts[qp].g][parts[qp].t].clips[parts[qp].idx];
+            var qt = parts[qp].g === 0 ? qs.getVideoTrackAt(parts[qp].t) : qs.getAudioTrackAt(parts[qp].t);
+            var found = null;
+            for (var k = 0; k < qt.numItems; k++) {
+                var it = qt.getItemAt(k);
+                if (it && it.type !== 'Empty' && Math.abs(ACS_qeItemSec(it.start) - pc.start.seconds) < 0.001) { found = it; break; }
+            }
+            if (!found) return 'ERR|QE klibi eslesmedi: parca ' + (qp + 1);
+            qItems.push(found);
         }
-        if (!q) return 'ERR|QE klibi eslesmedi';
+        var q = qItems[0];
         var out = ['secili ' + parts.length + ' parca; setSpeed: ' + (g === 0 ? 'V' : 'A') + (t + 1) + ' @' + start + 's'];
         var ms = q.reflect.methods, names = [], sig = null;
         for (var m = 0; m < ms.length; m++) {
@@ -1229,6 +1236,8 @@ function ACS_speedProbe(applyValue) {
         }
         out.push(state('once'));
         if (applyValue !== '') {
+            // "0.5 r": son boolean (ripple adayi) true gonderilir.
+            var rippleFlag = /\sr$/i.test(applyValue);
             var v = parseFloat(applyValue);
             if (isNaN(v)) return 'ERR|Gecersiz hiz degeri';
             if (!sig) return 'ERR|setSpeed yok\n' + out.join('\n');
@@ -1243,15 +1252,21 @@ function ACS_speedProbe(applyValue) {
                 else if (/bool/.test(ty)) args.push(false);
                 else args.push(/num|float|double|int/.test(ty) ? 0 : '');
             }
-            var r;
-            switch (args.length) {
-                case 1: r = q.setSpeed(args[0]); break;
-                case 2: r = q.setSpeed(args[0], args[1]); break;
-                case 3: r = q.setSpeed(args[0], args[1], args[2]); break;
-                case 4: r = q.setSpeed(args[0], args[1], args[2], args[3]); break;
-                default: r = q.setSpeed(args[0], args[1], args[2], args[3], args[4]);
+            if (rippleFlag && typeof args[args.length - 1] === 'boolean') args[args.length - 1] = true;
+            // setSpeed linkli partnerlere yayilmiyor (canli: yalniz V degisti) — her parca ayri.
+            var results = [];
+            for (var qi = 0; qi < qItems.length; qi++) {
+                var qx = qItems[qi], r;
+                switch (args.length) {
+                    case 1: r = qx.setSpeed(args[0]); break;
+                    case 2: r = qx.setSpeed(args[0], args[1]); break;
+                    case 3: r = qx.setSpeed(args[0], args[1], args[2]); break;
+                    case 4: r = qx.setSpeed(args[0], args[1], args[2], args[3]); break;
+                    default: r = qx.setSpeed(args[0], args[1], args[2], args[3], args[4]);
+                }
+                results.push(r);
             }
-            out.push('cagri: setSpeed(' + args.join(', ') + ') -> ' + r);
+            out.push('cagri: setSpeed(' + args.join(', ') + ') x' + qItems.length + ' -> ' + results.join(','));
             out.push(state('sonra'));
         }
         return 'OK|' + out.join('\n');

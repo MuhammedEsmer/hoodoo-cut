@@ -11,6 +11,15 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — setSpeed ilk sonuç, ikinci tanı (CEP 0.9.4.4)
+
+- Canlı: `setSpeed(0.5, '', false, false, false)` çalıştı; hız oran, yalnız V1 değişti (A1/A2 1),
+  süre ve sonraki klip aynı kaldı. Ayrıntı: [[plans/2026-10-14-tik-ritmi|tık ritmi planı]].
+- 0.9.4.4: hız testi tüm seçili parçalara uygular; `0.5 r` son boolean'ı (ripple adayı) true yapar.
+  Test 5 senaryo, toplam **85 PASS**. CEP kurulu klasöre kopyalandı. Release yok.
+- Kullanıcının ep6 sequence'inde V1#77 (523.6 sn) şu an 0.5 hızda, sesleri 1'de → Ctrl+Z ile geri alınmalı.
+- Global kural eklendi: dosya düzenlemede Python/sed kaçış sorunları yerine Edit aracı.
+
 ## 2026-10-14 — Hız testi linkli seçim düzeltmesi (CEP 0.9.4.3)
 
 - Canlı ilk deneme: `ERR|Timeline'da tek klip secin` — linkli klip tıklanınca V + A1 + A2 birlikte seçiliyor.
