@@ -24,7 +24,7 @@ commit'te toplandı: `85002f9` (2026-10-11).
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
-| 2026-10-14 | 0.9.6.1 | 0.9.9 | (bu commit) | Melodi hedefi piyano riff'ine odaklı: sönüm ağırlığı + riff (tekrar) filtresi. Release yok |
+| 2026-10-14 | 0.9.6.1 | 0.9.9 | `28fb7b1` | Melodi hedefi piyano riff'ine odaklı: sönüm ağırlığı + riff (tekrar) filtresi. Release yok |
 | 2026-10-14 | 0.9.6.0 | 0.9.9 | `949eff0` | **Tık ritmi hedefi: Müzik melodisi** — HPSS nota tespiti (`detectNotes`) + DP tık→nota eşleşmesi (`alignToNotes`), bölge başı da ayarlanır. Release yok |
 | 2026-10-14 | 0.9.5.2 | 0.9.9 | `db59c4e` | Tık ritmi: kilitli track'ler (müzik) işlem dışı; Premiere'in yüksek hız tavanı kabul edilip raporlanıyor, track'ler arası hız farkı senkron hatası. Release yok |
 | 2026-10-14 | 0.9.5.1 | 0.9.9 | `dc3c08c` | Tık tespiti tepe tabanlı, tam bant: marker'lar tıkın atağında (eskiden 12–62 ms erken); doğal tık aralığı + uyarı; en kısa aralık ≥100 ms. Release yok |
