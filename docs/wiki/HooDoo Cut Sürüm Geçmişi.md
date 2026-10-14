@@ -24,6 +24,7 @@ commit'te toplandı: `85002f9` (2026-10-11).
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
+| 2026-10-14 | 0.9.5.0 | 0.9.9 | (bu commit) | **Tık ritmi modu** ([[HooDoo Cut Tık Ritmi]]); razor tam kare tick'iyle seek (tam sayı olmayan fps'te 1 kare erken kesme düzeldi); ES3 ayrılmış kelime regresyon testi; geçici hız testi kaldırıldı. Release yok |
 | 2026-10-14 | 0.9.4.7 | 0.9.9 | — | Hız testine `b` eki (önce end, sonra hız) + kaynak in/out raporu. Release yok |
 | 2026-10-14 | 0.9.4.6 | 0.9.9 | — | Hız testine `e` eki (DOM end ile süre ayarı). Release yok |
 | 2026-10-14 | 0.9.4.5 | 0.9.9 | — | Hız testine `d` eki (p1 = hedef süre timecode). Release yok |

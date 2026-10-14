@@ -33,6 +33,10 @@ içindeki Node.js ile yapılır.
   kompaksiyon idempotent taşımayla senkronu korur (ayrı relink adımı gerekmez).
 - **Yedek sequence:** işlemden önce otomatik kopya (kapatılabilir).
 - **Kesim haritası:** analiz sonrası yeşil/kırmızı önizleme şeridi.
+- **Tık ritmi (0.9.5.0):** Mod → Tık ritmi. Seçili bölgede oyun sesindeki blok
+  koyma/kırma tıklarını bulur (marker olarak gösterir), her tıktan sonraki arayı
+  hızlandırıp/yavaşlatarak tıkları sabit aralığa (sn ya da BPM) oturtur; tık anı
+  normal hızda kalır. Ayrıntı: [docs/wiki/HooDoo Cut Tık Ritmi.md](docs/wiki/HooDoo%20Cut%20Tık%20Ritmi.md).
 - **Kapsam seçimi:** tüm sequence ya da sadece timeline'da seçili clipler.
   Bölge bölge farklı şablon: bölgeyi seç → şablon → analiz → kes, tekrarla.
 - **Parçalı işleme:** uzun videolarda Premiere kilitlenmez; butonda canlı
@@ -85,6 +89,8 @@ com.hoodoocut/
 node tools\test-analyzer.js
 node tools\test-regressions.js
 node tools\test-panel.js
+node tools\test-tick.js
+node tools\test-tick-host.js
 ```
 
 ### v0.9.3.5

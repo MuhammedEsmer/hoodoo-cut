@@ -22,6 +22,7 @@ değişiklikler: [[log]].
 - [[HooDoo Cut Analiz Motoru]] — WAV export, RMS dB, otomatik eşik, sessizlik tespiti, şablonlar
 - [[HooDoo Cut Kesim Akışı]] — razor, silme/susturma modları, kompaksiyon, güvenlik kontrolleri
 - [[HooDoo Cut Toplu Motor]] — UXP yardımcı panel, 127.0.0.1 köprüsü, tek transaction silme
+- [[HooDoo Cut Tık Ritmi]] — blok tıklarını ızgaraya oturtma: tespit, hız değiştirme, canlı doğrulama
 - [[HooDoo Cut Kurulum ve Dağıtım]] — geliştirici kurulumu, Kur.bat paketi, sürüm yayınlama, otomatik güncelleme
 - [[HooDoo Cut Test ve Doğrulama]] — Premiere'siz test paketleri, benchmark'lar, canlı kontrol listesi
 - [[HooDoo Cut Sürüm Geçmişi]] — 0.9.0 → 0.9.4.0 / motor 0.9.8 kronolojisi

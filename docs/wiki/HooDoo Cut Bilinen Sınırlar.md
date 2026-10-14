@@ -25,6 +25,8 @@ updated: 2026-10-11
 - Uzun AME aktarımında tamamlanma sinyali dosya boyutunun sabitlenmesi; geçerli ama kısmi WAV bu korumayı aşabilir.
 - "Konuşma tespiti" gerçekte enerji sezgisidir (VAD değil).
 - Seçili kısa bölge de tüm sequence'i export ettirir; analiz panelin ana iş parçacığında senkron.
+- Tık ritmi sınırları: [[HooDoo Cut Tık Ritmi#Sınırlar]] (çok undo adımı, uzun kuyrukta yavaş taşıma).
+- ✅ Düzeldi (0.9.5.0): tam sayı olmayan fps'li sequence'lerde (ör. 60.00024, 30 fps timecode gösterimi) razor "seek" moduna düşüp 1 kare erken kesiyordu.
 
 ## Doğrulanmamış (canlı Premiere)
 

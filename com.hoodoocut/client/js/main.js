@@ -29,12 +29,12 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.4.7'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.5.0'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
     var state = { lastCuts: null, cutArmed: false, mutesApplied: false,
-                  busy: false, planContext: null, fps: null, wavPath: null };
+                  busy: false, planContext: null, fps: null, wavPath: null, tickPlan: null };
 
     /* ---- yardımcılar ---- */
 
@@ -315,7 +315,7 @@
             state.wavPath = null;
         }
         btn.disabled = false;
-        btn.textContent = '🔍 Analiz Et';
+        btn.textContent = getWorkMode() === 'tick' ? '🎵 Tıkları Bul' : '🔍 Analiz Et';
     }
 
     function exportFailed(msg) {
@@ -334,6 +334,11 @@
             log('HATA: Node.js erişimi yok. Manifest CEFCommandLine ayarlarını kontrol edin.');
             return;
         }
+        if (getWorkMode() === 'tick' && getScope() !== 'selection') {
+            showResult(false, 'Tık ritmi yalnız seçili cliplerde çalışır: kapsamı "Seçili clipler" yapın ' +
+                've timeline\'da inşaat bölümünü seçin.');
+            return;
+        }
         var btn = $('btnAnalyze');
         state.busy = true;
         state.planContext = null;
@@ -342,7 +347,9 @@
         $('analysisResult').style.display = 'none';
         $('btnCut').style.display = 'none';
         $('manageRow').style.display = 'none';
+        $('backupRow').style.display = 'none';
         state.lastCuts = null;
+        state.tickPlan = null;
 
         var audioSel = getAudioSelection();
         if (audioSel === 'none') {
@@ -487,6 +494,7 @@
     }
 
     function runAnalysis(wavPath, selRanges) {
+        if (getWorkMode() === 'tick') { runTickAnalysis(wavPath, selRanges); return; }
         var btn = $('btnAnalyze');
         btn.textContent = '⏳ Analiz ediliyor…';
 
@@ -539,6 +547,7 @@
                         fmtSec(r.durationSec - totalCut) + '<br>' + thrInfo);
                     $('btnCut').style.display = 'block';
                     $('manageRow').style.display = 'block';
+                    $('backupRow').style.display = 'block';
                     resetCutButton();
                 }
             } catch (e) {
@@ -551,12 +560,141 @@
         }, 50);
     }
 
+    /* ---- tık ritmi ---- */
+
+    function getWorkMode() {
+        var radios = document.getElementsByName('workMode');
+        for (var i = 0; i < radios.length; i++) if (radios[i].checked) return radios[i].value;
+        return 'silence';
+    }
+
+    function numField(id, fallback, min) {
+        var v = parseFloat($(id).value);
+        return isNaN(v) || v < min ? fallback : v;
+    }
+
+    /* BPM girildiyse aralık BPM ve vuruş bölümünden hesaplanır. */
+    function getTickOpts() {
+        var interval = numField('tickInterval', 0.5, 0.02);
+        var bpm = numField('tickBpm', 0, 0);
+        if (bpm > 0) interval = ACSTickPlan.intervalFromBpm(bpm, parseFloat($('tickBeats').value) || 1);
+        return { fps: state.fps, interval: interval, holdFrames: Math.round(numField('tickHold', 3, 0)),
+            relDb: numField('tickRel', 12, 1), minGap: numField('tickMinGap', 200, 0) / 1000,
+            minSpeed: numField('tickMinSpeed', 50, 1) / 100, maxSpeed: numField('tickMaxSpeed', 400, 100) / 100 };
+    }
+
+    function applyWorkMode() {
+        var tick = getWorkMode() === 'tick';
+        $('tickSettings').style.display = tick ? 'block' : 'none';
+        $('thresholdCard').style.display = tick ? 'none' : '';
+        $('templateCard').style.display = tick ? 'none' : '';
+        if (!state.busy) $('btnAnalyze').textContent = tick ? '🎵 Tıkları Bul' : '🔍 Analiz Et';
+    }
+
+    function runTickAnalysis(wavPath, selRanges) {
+        $('btnAnalyze').textContent = '⏳ Tıklar aranıyor…';
+        setTimeout(function () {
+            try {
+                var opts = getTickOpts();
+                var onsets = ACSAnalyzer.detectOnsets(fs, wavPath, selRanges, { relDb: opts.relDb, minGap: opts.minGap });
+                var plan = ACSTickPlan.planTicks(onsets, opts);
+                state.tickPlan = plan.gaps.length ? plan : null;
+                var speeds = plan.gaps.map(function (g) { return g.speed; });
+                log('Tık analizi: ' + onsets.length + ' tık, ' + plan.merged + ' birleşti, ' + plan.gaps.length +
+                    ' ara, aralık ' + opts.interval.toFixed(3) + ' sn' + (plan.limited ? ', ' + plan.limited + ' ara hız sınırında' : ''));
+                evalJsx('ACS_setTickMarkers("' + plan.clicks.join(';') + '")', function (res) {
+                    if (res.split('|')[0] !== 'OK') log('Tık marker\'ları konamadı: ' + res);
+                });
+                if (!state.tickPlan) {
+                    showResult(true, 'Ritme oturtulacak en az iki tık bulunamadı (' + onsets.length + ' tık). ' +
+                        'Hassasiyeti artırın ya da bölgeyi genişletin.');
+                } else {
+                    showResult(true, '<b>' + plan.clicks.length + ' tık</b> — ' + plan.gaps.length + ' ara yeniden zamanlanacak<br>' +
+                        'Hız: %' + Math.round(Math.min.apply(null, speeds) * 100) + ' – %' +
+                        Math.round(Math.max.apply(null, speeds) * 100) + ' · süre değişimi ' +
+                        (plan.deltaSec >= 0 ? '+' : '') + plan.deltaSec.toFixed(2) + ' sn<br>' +
+                        (plan.merged ? plan.merged + ' yakın tık öncekine katıldı. ' : '') +
+                        (plan.limited ? plan.limited + ' arada hız sınırı aşıldı, fazlası kesilecek. ' : '') +
+                        'Tıklar timeline\'da marker olarak işaretli.');
+                    $('btnCut').style.display = 'block';
+                    $('backupRow').style.display = 'block';
+                    resetCutButton();
+                }
+            } catch (e) {
+                state.tickPlan = null;
+                state.planContext = null;
+                log('Tık analizi HATASI: ' + (e && e.message ? e.message : e));
+                showResult(false, 'Tık analizi başarısız. Günlüğe bakın.');
+            }
+            resetAnalyzeButton();
+        }, 50);
+    }
+
+    function tickApply() {
+        var plan = state.tickPlan, btn = $('btnCut'), t0 = Date.now();
+        state.busy = true;
+        $('btnAnalyze').disabled = true;
+        btn.disabled = true;
+        var mutationStarted = false;
+        function finish(ok, msg) {
+            evalJsx('ACS_endEdit()', function () {});
+            state.busy = false;
+            state.tickPlan = null;
+            state.planContext = null;
+            $('btnAnalyze').disabled = false;
+            btn.disabled = false;
+            btn.style.display = 'none';
+            $('backupRow').style.display = 'none';
+            log(msg);
+            showResult(ok, ok ? msg : 'İşlem durduruldu. Günlüğe bakın.' + (mutationStarted
+                ? '<br>Timeline\'da değişiklik yapılmış olabilir; gerekirse Ctrl+Z ya da yedek sequence.'
+                : '<br>Değişiklik yapılmadı. Yeniden analiz edin.'));
+            resetCutButton();
+        }
+        function fail(msg) { finish(false, 'Tık ritmi HATASI: ' + msg); }
+        function razorStep(idx) {
+            if (idx >= plan.boundaries.length) { retime(); return; }
+            var chunk = plan.boundaries.slice(idx, idx + CHUNK_RAZOR);
+            btn.textContent = '⏳ Razor: ' + Math.min(idx + chunk.length, plan.boundaries.length) + '/' + plan.boundaries.length;
+            mutationStarted = true;
+            evalJsx('ACS_razorBatch("' + chunk.join(';') + '", "all")', function (res) {
+                var p = res.split('|');
+                if (p[0] !== 'OK' || (parseInt(p[3], 10) || 0) > 0) { fail('razor: ' + p.slice(1).join('|')); return; }
+                setTimeout(function () { razorStep(idx + CHUNK_RAZOR); }, 30);
+            });
+        }
+        function retime() {
+            btn.textContent = '⏳ Ritme oturtuluyor…';
+            var gaps = plan.gaps.map(function (g) { return [g.start, g.end, g.target, g.speed].join(','); }).join(';');
+            evalJsx('ACS_tickRetime("' + gaps + '")', function (res) {
+                var p = res.split('|');
+                if (p[0] !== 'OK') { fail(p.slice(1).join('|')); return; }
+                evalJsx('ACS_clearTickMarkers()', function () {});
+                finish(true, 'Ritme oturtuldu: ' + plan.gaps.length + ' ara, ' + p[1] + ' hız değişimi, ' + p[2] +
+                    ' taşıma (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)');
+            });
+        }
+        log('Tık ritmi başladı: ' + plan.gaps.length + ' ara, ' + plan.boundaries.length + ' razor sınırı');
+        evalJsx('ACS_beginEdit("' + jsxEscape(state.planContext) + '", "remove_close")', function (res) {
+            if (res.split('|')[0] !== 'OK') { fail(res.split('|').slice(1).join('|')); return; }
+            if (!$('makeBackup').checked) { razorStep(0); return; }
+            btn.textContent = '⏳ Yedek oluşturuluyor…';
+            evalJsx('ACS_backupSequence()', function (r2) {
+                var p2 = r2.split('|');
+                if (p2[0] !== 'OK') { fail('yedek: ' + p2.slice(1).join('|')); return; }
+                log('Yedek sequence oluşturuldu: "' + p2[1] + '" kopyası Project panelinde.');
+                razorStep(0);
+            });
+        });
+    }
+
     /* ---- kesme ---- */
 
     function resetCutButton() {
         state.cutArmed = false;
-        $('btnCut').textContent = '✂️ Sessizlikleri Kes (' +
-            (state.lastCuts ? state.lastCuts.length : 0) + ')';
+        $('btnCut').textContent = state.tickPlan
+            ? '🎯 Ritme Oturt (' + state.tickPlan.gaps.length + ' ara)'
+            : '✂️ Sessizlikleri Kes (' + (state.lastCuts ? state.lastCuts.length : 0) + ')';
     }
 
     // Parti boyutları: her evalScript çağrısı kısa kalsın, Premiere donmasın.
@@ -574,7 +712,7 @@
 
     function cut() {
         if (state.busy) return;
-        if (!state.lastCuts || state.lastCuts.length === 0) return;
+        if (!state.tickPlan && (!state.lastCuts || state.lastCuts.length === 0)) return;
         if (!state.cutArmed) {
             state.cutArmed = true;
             $('btnCut').textContent = '⚠️ Emin misiniz? Tekrar tıklayın';
@@ -582,6 +720,7 @@
             return;
         }
         state.cutArmed = false;
+        if (state.tickPlan) { tickApply(); return; }
 
         // v0.7: faz sırası bağımsız (razor multi-track + ripple'sız silme +
         // mutlak-hedefli kompaksiyon). Unlink/relink YOK — native razor linkleri
@@ -628,6 +767,7 @@
             btn.disabled = false;
             btn.style.display = 'none';
             $('manageRow').style.display = 'none';
+            $('backupRow').style.display = 'none';
             log('Kesim HATASI: ' + msg);
             showResult(false, 'İşlem durduruldu. Günlüğe bakın.' + (mutationStarted
                 ? '<br>Timeline\'da değişiklik yapılmış olabilir. Gerekirse Ctrl+Z ile geri alın ' +
@@ -846,6 +986,7 @@
                 '<br><i>Timeline\'ı kontrol edin. Sorun varsa Ctrl+Z (her parti ayrı adım olabilir).</i>');
             btn.style.display = 'none';
             $('manageRow').style.display = 'none';
+            $('backupRow').style.display = 'none';
         }
 
         function beginEdit() {
@@ -906,14 +1047,10 @@
         document.body.removeChild(ta);
         log('Günlük panoya kopyalandı.');
     });
-    // Geçici tanı (0.9.4.2): seçili tek klipte QE setSpeed imzası/davranışı
-    $('btnSpeedProbe').addEventListener('click', function () {
-        var value = $('speedProbeValue').value.trim();
-        log('Hız testi başladı' + (value ? ' (uygula: ' + value + ')' : ' (sadece incele)') + '…');
-        evalJsx('ACS_speedProbe("' + jsxEscape(value) + '")', function (res) {
-            log('Hız testi: ' + res.replace(/^OK\|/, ''));
-        });
-    });
+    // Çalışma modu: sessizlik kesme / tık ritmi
+    var workModes = document.getElementsByName('workMode');
+    for (var w = 0; w < workModes.length; w++) workModes[w].addEventListener('change', applyWorkMode);
+    applyWorkMode();
 
     // Şablon chipleri
     var chips = document.querySelectorAll('.chip');

@@ -11,6 +11,21 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-14 — Tık ritmi modu çalışıyor (CEP 0.9.5.0)
+
+- Kullanıcı izniyle canlı testler Claude tarafından yapıldı: CEP debug portu (`.debug` kurulu panele
+  kopyalandı, `localhost:8088`) + scratchpad sürücüleri. Kullanıcı ayrı test projesi açtı (`123tets.prproj`).
+- Bulgular: önce `end`, sonra `setSpeed` doğru sonucu veriyor; DOM in/out hıza bölünmüş raporlanıyor.
+  Razor "seek" modunda 1 kare erken kesiyordu (fps 60.00024) → tam kare tick'iyle seek (düzeldi).
+  ES3'te `final` ayrılmış kelime, host'u tamamen bozdu → regresyon testi eklendi.
+  Bölge başında yavaş kabaran ses tık sanılıyordu → yükseliş 15 ms'de, taban bölge içinde.
+- Yeni: [[HooDoo Cut Tık Ritmi]] (`tickplan.js`, `detectOnsets`, `ACS_tickRetime`, marker'lar, panel modu).
+  Geçici hız testi (UI + `ACS_speedProbe` + test) kaldırıldı; yedek kutusu `backupRow`'a taşındı (iki modda ortak).
+- Canlı sonuç (kullanıcının seçtiği 15:54:32–16:01:29 bölümü, A2, T 0.3): 16 tık tam 0.3 sn arayla, 3 track aynı.
+- Testler **100 PASS**. Paket `dist/HooDooCut-Kurulum-v0.9.5.0.zip`; panel kurulu klasöre kopyalandı
+  (`.debug` dahil, port açık). Release yok.
+- Açık: yedek sekmesinin bir kez öne geçmesi tekrar üretilemedi; gerçek projede tespit ayarı kullanıcıda.
+
 ## 2026-10-14 — DOM end çalışıyor ama hızı bozuyor; ters sıra denemesi (CEP 0.9.4.7)
 
 - `2 e` canlı: süre yarıya indi, hız 1.769'a kaydı, A2 farklı → senkron işaretleri. Başlangıç kirliydi (hız 0.5).

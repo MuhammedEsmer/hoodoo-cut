@@ -9,21 +9,22 @@ function test(name, fn) {
     try { fn(); console.log('PASS ' + name); }
     catch (e) { failed++; console.error('FAIL ' + name + ': ' + e.message); }
 }
-function panel(responses = {}, manage = 'remove_keep') {
+function panel(responses = {}, manage = 'remove_keep', workMode = 'silence') {
     const { host } = fixture([[1, 2]]);
     const signature = host.ACS_getAnalysisContext ? host.ACS_getAnalysisContext().split('|')[1] : 'context';
-    const elements = {}, calls = [], timers = [];
+    const elements = {}, calls = [], scripts = [], timers = [];
     function element(id) {
         return elements[id] || (elements[id] = { style: {}, textContent: '', innerHTML: '', value: '300',
             checked: false, disabled: false, addEventListener() {}, querySelectorAll: () => [] });
     }
     const document = { getElementById: element, querySelectorAll: () => [],
-        getElementsByName: name => name === 'manage' ? [{ checked: true, value: manage }] : [] };
+        getElementsByName: name => name === 'manage' ? [{ checked: true, value: manage }] :
+            name === 'workMode' ? [{ checked: true, value: workMode, addEventListener() {} }] : [] };
     element('makeBackup');
     function CSInterface() {}
     CSInterface.prototype.getSystemPath = () => path.resolve(__dirname, '../com.hoodoocut');
     CSInterface.prototype.evalScript = (script, cb) => {
-        const name = script.slice(0, script.indexOf('(')); calls.push(name);
+        const name = script.slice(0, script.indexOf('(')); calls.push(name); scripts.push(script);
         if (Object.prototype.hasOwnProperty.call(responses, name)) {
             cb(typeof responses[name] === 'function' ? responses[name](script, host) : responses[name]);
         }
@@ -33,7 +34,8 @@ function panel(responses = {}, manage = 'remove_keep') {
     };
     const context = vm.createContext({ CSInterface, SystemPath: { EXTENSION: 'extension' }, require,
         document, setTimeout: (fn, ms) => { timers.push({ fn, ms }); }, clearTimeout() {},
-        Date, console, ACSAnalyzer: require('../com.hoodoocut/client/js/analyzer') });
+        Date, console, ACSAnalyzer: require('../com.hoodoocut/client/js/analyzer'),
+        ACSTickPlan: require('../com.hoodoocut/client/js/tickplan') });
     // Expose the closure only in the test VM; skip startup network/connection effects.
     const source = fs.readFileSync(path.join(__dirname, '../com.hoodoocut/client/js/main.js'), 'utf8')
         .replace('    /* ---- başlangıç ---- */',
@@ -50,8 +52,45 @@ function panel(responses = {}, manage = 'remove_keep') {
         }
         assert(guard > 0, 'panel job must terminate');
     }
-    return { api: context.panelTest, elements, calls, start, drain, element };
+    return { api: context.panelTest, elements, calls, scripts, start, drain, element };
 }
+function tickPanel(responses) {
+    const p = panel(responses, 'remove_keep', 'tick');
+    p.api.state.lastCuts = null;
+    p.api.state.tickPlan = { clicks: [1, 1.5], boundaries: [1.1, 1.4],
+        gaps: [{ start: 1.1, end: 1.4, target: 0.4, speed: 0.75 }], merged: 0, limited: 0, deltaSec: 0.1 };
+    return p;
+}
+test('tick mode refuses to analyze without a clip selection scope', () => {
+    const p = panel({}, 'remove_keep', 'tick');
+    p.api.analyze(); p.drain();
+    assert(!p.calls.includes('ACS_getAnalysisContext'));
+    assert(/seçili/i.test(p.elements.analysisResult.innerHTML), p.elements.analysisResult.innerHTML);
+});
+test('tick apply razors the plan boundaries, retimes once and reports completion', () => {
+    const p = tickPanel({ ACS_tickRetime: 'OK|6|10|20' });
+    p.start(); p.drain();
+    const razor = p.scripts.filter(s => s.startsWith('ACS_razorBatch'));
+    assert.deepStrictEqual(razor, ['ACS_razorBatch("1.1;1.4", "all")']);
+    const retime = p.scripts.filter(s => s.startsWith('ACS_tickRetime'));
+    assert.deepStrictEqual(retime, ['ACS_tickRetime("1.1,1.4,0.4,0.75")']);
+    assert(p.calls.indexOf('ACS_beginEdit') < p.calls.indexOf('ACS_razorBatch'));
+    assert(p.calls.includes('ACS_endEdit'));
+    assert(p.elements.log.textContent.includes('Ritme oturtuldu'), p.elements.log.textContent);
+    assert.strictEqual(p.api.state.tickPlan, null);
+});
+test('tick retime failure never reports completion', () => {
+    const p = tickPanel({ ACS_tickRetime: 'ERR|Sonuc dogrulanamadi' });
+    p.start(); p.drain();
+    assert(!p.elements.log.textContent.includes('Ritme oturtuldu'));
+    assert(p.elements.log.textContent.includes('HATASI'));
+});
+test('tick apply stops before razor when the timeline changed after analysis', () => {
+    const p = tickPanel({ ACS_beginEdit: 'ERR|Timeline degisti' });
+    p.start(); p.drain();
+    assert(!p.calls.includes('ACS_razorBatch'));
+    assert(!p.calls.includes('ACS_tickRetime'));
+});
 test('missing bulk engine stops before razor', () => {
     const p = panel(); p.element('deleteEngine').value = 'bulk'; p.start(); p.drain();
     assert(!p.calls.includes('ACS_razorBatch'));

@@ -338,8 +338,42 @@
         return aligned;
     }
 
+    /* Tık ritmi: ranges ([[bas, son], ...] sn) icindeki ani ses yukselislerinin
+     * baslangic zamanlari. 5 ms pencere, yuksek geciren filtre (tik/darbe sesleri).
+     * opts: riseDb (15 ms icindeki yukselis; yavas kabaran ses tik sayilmaz), relDb
+     * (bolgedeki en guclu tikin kac dB altina kadar sayilir), minGap (sn; daha yakin
+     * ikinci tik elenir), hpHz. Yukselisin tabani bolge icinde olmali: bolge sinirina
+     * denk gelen devam eden ses tik sanilmaz. */
+    function detectOnsets(fs, filePath, ranges, opts) {
+        opts = opts || {};
+        var rise = opts.riseDb || 10, rel = opts.relDb || 12, minGap = opts.minGap || 0.2;
+        var analysis = computeWindowDb(fs, filePath, 5, { hpHz: opts.hpHz || 1000, lpHz: 12000 });
+        var db = analysis.db, win = analysis.windowMs / 1000, RISE = 3, LOOK = 10;
+        var cand = [], strongest = -Infinity;
+        for (var r = 0; r < ranges.length; r++) {
+            var from = Math.ceil(ranges[r][0] / win) + RISE;
+            var to = Math.min(db.length - 1, Math.floor(ranges[r][1] / win));
+            for (var i = from; i <= to; i++) {
+                var low = Infinity, peak = -Infinity, k;
+                for (k = i - RISE; k < i; k++) if (db[k] < low) low = db[k];
+                if (db[i] - low < rise) continue;
+                for (k = i; k <= Math.min(db.length - 1, i + LOOK); k++) if (db[k] > peak) peak = db[k];
+                cand.push({ t: i * win, peak: peak });
+                if (peak > strongest) strongest = peak;
+            }
+        }
+        var out = [];
+        for (var c = 0; c < cand.length; c++) {
+            if (cand[c].peak < strongest - rel) continue;
+            if (out.length && cand[c].t - out[out.length - 1] < minGap) continue;
+            out.push(cand[c].t);
+        }
+        return out;
+    }
+
     return {
         MODES: MODES,
+        detectOnsets: detectOnsets,
         alignCuts: alignCuts,
         computeWindowDb: computeWindowDb,
         autoThresholdDb: autoThresholdDb,

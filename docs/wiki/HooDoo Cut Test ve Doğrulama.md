@@ -32,7 +32,21 @@ node tools/test-analyzer.js
 | `tools/test-bulk-bridge.js` | Yerel köprü: origin/token, tek seferlik iş, idempotent onay (3) |
 | `tools/test-bulk-network.js` | UXP `network.js`: sabit loopback adresi, redirect/dış URL reddi (2) |
 | `tools/test-bulk-companion.js` | Yardımcı panel bağlantı/onay kurtarma (2) |
-| `tools/test-speed-probe.js` | Geçici QE `setSpeed` tanısı (8) |
+| `tools/test-tick.js` | Tık ritmi planı + tık tespiti (9) |
+| `tools/test-tick-host.js` | `ACS_tickRetime` çakışmasız yeniden zamanlama + marker'lar (5) |
+
+**2026-10-14 koşusu: 100 PASS, 0 FAIL** (CEP 0.9.5.0, motor 0.9.9). Geçici
+`test-speed-probe.js` tanı bitince kaldırıldı.
+
+## Canlı test düzeneği (2026-10-14)
+
+Kurulu panele `.debug` kopyalanınca CEP hata ayıklama portu (`localhost:8088`)
+açılır. Scratchpad'deki sürücülerle Claude Premiere'i kendisi sınar:
+`pp.cjs` (ExtendScript'i panelde `evalScript` ile çalıştırır), `pj.cjs` (panel
+sayfasında JS — buton tıklama, alan doldurma). Deneyler test projesinde
+`ep6`'nın taze kopyası (`HDtest`) üzerinde yapılır. Host değişince
+`$.evalFile` **üst seviyede** çağrılmalı (fonksiyon içinde yüklenen tanımlar
+global olmaz). Ayrıntı: [[HooDoo Cut Tık Ritmi]].
 
 **2026-10-11 koşusu: 74 geçti, 0 başarısız** (sistem Node'u, UXP 0.9.8 / CEP 0.9.4.0
 çalışma ağacı). Sayılar zamanla değişir; güncel sayı için testleri çalıştır.

@@ -23,6 +23,45 @@
   </section>
 
   <section class="card">
+    <h2>Mod</h2>
+    <div class="row">
+      <label class="row"><input type="radio" name="workMode" value="silence" checked><span>Sessizlik kesme</span></label>
+      <label class="row"><input type="radio" name="workMode" value="tick"><span>Tık ritmi</span></label>
+    </div>
+    <div id="tickSettings" style="display:none">
+      <div class="grid2">
+        <div class="field">
+          <span>Tık aralığı</span>
+          <div class="unit"><input type="number" id="tickInterval" min="0.05" max="5" step="0.01" value="0.5"><i>sn</i></div>
+        </div>
+        <div class="field">
+          <span>veya BPM</span>
+          <div class="row"><input type="number" id="tickBpm" min="0" max="400" step="1" placeholder="—">
+            <select id="tickBeats"><option value="1">1 vuruş</option><option value="0.5" selected>1/2</option><option value="0.25">1/4</option><option value="2">2 vuruş</option></select></div>
+        </div>
+        <div class="field">
+          <span>Tık parçası (normal hız)</span>
+          <div class="unit"><input type="number" id="tickHold" min="0" max="30" step="1" value="3"><i>kare</i></div>
+        </div>
+        <div class="field">
+          <span>Hassasiyet</span>
+          <div class="unit"><input type="number" id="tickRel" min="1" max="60" step="1" value="12"><i>dB</i></div>
+        </div>
+        <div class="field">
+          <span>En kısa tık aralığı</span>
+          <div class="unit"><input type="number" id="tickMinGap" min="0" max="2000" step="10" value="200"><i>ms</i></div>
+        </div>
+        <div class="field">
+          <span>Hız sınırı</span>
+          <div class="row"><input type="number" id="tickMinSpeed" min="1" max="100" step="5" value="50"><i>–</i>
+            <input type="number" id="tickMaxSpeed" min="100" max="2000" step="25" value="400"><i>%</i></div>
+        </div>
+      </div>
+      <p class="hint">Yalnız <b>seçili cliplerde</b> çalışır. Analiz sesinde oyun sesi track'ini işaretleyin. Tıklar timeline'a marker olarak konur; her tıktan sonraki ara hızlanır/yavaşlar ve bir sonraki tık tam bir aralık sonra gelir. BPM girilirse aralık BPM'den hesaplanır. Hassasiyet: en güçlü tıkın kaç dB altına kadar sayılacağı.</p>
+    </div>
+  </section>
+
+  <section class="card" id="thresholdCard">
     <h2>Ses Eşiği</h2>
     <div class="row">
       <input type="range" id="thresholdSlider" min="-65" max="-15" value="-40" step="1">
@@ -35,7 +74,7 @@
     <p class="hint" id="thresholdInfo">Analizde hesaplanan eşik kaydırıcıya yansır. Kaydırıcıyı elle oynatırsanız otomatik kapanır, sizin değeriniz kullanılır.</p>
   </section>
 
-  <section class="card">
+  <section class="card" id="templateCard">
     <h2>Kesme Şablonu</h2>
     <div class="modes" id="modes">
       <button class="chip" data-mode="sakin">Sakin</button>
@@ -89,6 +128,8 @@
       <label class="row"><input type="radio" name="manage" value="remove_keep"><span>Sil, boşluklar kalsın (süre değişmez)</span></label>
       <label class="row"><input type="radio" name="manage" value="mute"><span>Sustur (ses kliplerini devre dışı bırak)</span></label>
       <label class="row"><input type="radio" name="manage" value="cutonly"><span>Sadece kes (hiçbir şey silme)</span></label>
+    </div>
+    <div id="backupRow" style="display:none">
       <label class="row" style="margin-top:8px"><input type="checkbox" id="makeBackup"><span>İşlemden önce yedek sequence oluştur</span></label>
     </div>
     <button id="btnCut" class="danger" style="display:none">✂️ Sessizlikleri Kes</button>
@@ -101,15 +142,11 @@
       <button id="btnCopyLog" class="ghost">Kopyala</button>
     </div>
     <pre id="log"></pre>
-    <!-- Gecici tani (0.9.4.2): QE setSpeed denemesi -->
-    <div class="row">
-      <input id="speedProbeValue" type="text" placeholder="Hız testi: boş = incele, 2 = uygula, ekler: b = önce sonu çek, e = sonra">
-      <button id="btnSpeedProbe" class="ghost">🧪 Hız testi</button>
-    </div>
   </section>
 
   <script src="js/CSInterface.js"></script>
   <script src="js/analyzer.js"></script>
+  <script src="js/tickplan.js"></script>
   <script src="js/update.js"></script>
   <script src="js/main.js"></script>
 </body>

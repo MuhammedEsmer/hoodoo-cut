@@ -318,11 +318,12 @@ function ACS_razorBatch(boundariesStr, tracksMode) {
         }
         if (bs.length === 0) return 'OK|0|' + skipped + '|0||seek';
 
-        // Kalibrasyon: ilk sinira seek yap, CTI'yi hesabimizla karsilastir
+        // Kalibrasyon: ilk sinira seek yap, CTI'yi hesabimizla karsilastir.
+        // Seek tam kare tick'iyle yapilir: tam sayi olmayan fps'te (60.00024 gibi)
+        // saniye->tick donusumu kare sinirinin altina dusup bir kare erken kesiyordu.
         var fps = ACS_TICKS_PER_SECOND / parseFloat(seq.timebase);
-        var t = new Time();
-        t.seconds = bs[0];
-        seq.setPlayerPosition(t.ticks);
+        function frameTicks(sec) { return String(Math.round(sec * fps) * parseFloat(seq.timebase)); }
+        seq.setPlayerPosition(frameTicks(bs[0]));
         var cti = qeSeq.CTI.timecode;
         var dropFrame = cti.indexOf(';') >= 0;
         var mode = 'seek';
@@ -350,9 +351,7 @@ function ACS_razorBatch(boundariesStr, tracksMode) {
             try {
                 var tc2;
                 if (mode === 'seek') {
-                    var tk = new Time();
-                    tk.seconds = bs[k];
-                    seq.setPlayerPosition(tk.ticks);
+                    seq.setPlayerPosition(frameTicks(bs[k]));
                     tc2 = qeSeq.CTI.timecode;
                 } else {
                     var frame = (mode === 'floor')
@@ -1164,147 +1163,158 @@ function ACS_findAndRemoveGap(track, iv, eps) {
     return 'yok';
 }
 
-/* ---- Gecici tani (0.9.4.2): QE setSpeed imzasi ve davranisi ----
- * Secili klip (linkli secimde video parcasi). applyValue bos: yalniz incele.
- * Dolu: yansitilan imzaya gore setSpeed cagrilir; secili tum parcalarin once/sonra
- * hiz, sure ve sonraki klip baslangici raporlanir (ripple ve link davranisi). */
-function ACS_speedProbe(applyValue) {
+/* ---- Tik ritmi: ara parcalari yeniden zamanla ----
+ * gapsStr: "bas,son,hedef,hiz;..." (sn, kare izgarasinda; razor sinirlari atilmis).
+ * Canli tanidan: QE setSpeed sureyi KORUR, yalniz hizi degistirir; once end
+ * yazilip sonra hiz verilirse kaynak araligi = hedef * hiz olur. Linkli parcalara
+ * yayilmaz, DOM move da yalniz o klibi tasir -> her track'teki her parca ayri islenir.
+ * Cakisma olmasin diye sira: 1) kisalacak parcalarin sonu kisaltilir + hiz;
+ * 2) sola kayanlar soldan, saga kayanlar sagdan tasinir (mevcut boylariyla);
+ * 3) uzayacak parcalarin sonu uzatilir + hiz. Sonunda butun yerlesim dogrulanir. */
+function ACS_tickRetime(gapsStr) {
     try {
+        ACS_checkEditSequence();
         var seq = app.project.activeSequence;
         if (!seq) return 'ERR|Aktif sequence yok';
-        var sel = seq.getSelection();
-        if (!sel || sel.length < 1) return 'ERR|Timeline\'da bir klip secin';
-        // Linkli secim (V + A parcalari) normal; setSpeed video parcasina uygulanir.
-        var groups = [seq.videoTracks, seq.audioTracks], parts = [];
-        for (var s0 = 0; s0 < sel.length; s0++) {
-            var hit = false;
-            for (var gi = 0; gi < 2 && !hit; gi++) {
-                for (var ti = 0; ti < groups[gi].numTracks && !hit; ti++) {
-                    for (var ci = 0; ci < groups[gi][ti].clips.numItems; ci++) {
-                        if (groups[gi][ti].clips[ci].nodeId === sel[s0].nodeId) {
-                            parts.push({ g: gi, t: ti, idx: ci }); hit = true; break;
-                        }
-                    }
-                }
+        var frameTicks = parseFloat(seq.timebase), fps = ACS_TICKS_PER_SECOND / frameTicks, half = 0.5 / fps;
+        var gaps = [], parts = ('' + gapsStr).split(';'), i, k;
+        for (i = 0; i < parts.length; i++) {
+            if (!parts[i]) continue;
+            var f = parts[i].split(','), gp = { start: parseFloat(f[0]), end: parseFloat(f[1]),
+                target: parseFloat(f[2]), speed: parseFloat(f[3]) };
+            if (f.length !== 4 || !(gp.end > gp.start) || !(gp.target > 0) || !(gp.speed > 0)) {
+                return 'ERR|Gecersiz tik plani';
             }
+            gaps.push(gp);
         }
-        if (!parts.length) return 'ERR|Secili klip track\'te bulunamadi';
-        parts.sort(function (a, b) { return a.g - b.g || a.t - b.t || a.idx - b.idx; });
-        var g = parts[0].g, t = parts[0].t;
-        var clip = groups[g][t].clips[parts[0].idx], start = clip.start.seconds;
+        if (!gaps.length) return 'ERR|Tik plani bos';
+        gaps.sort(function (a, b) { return a.start - b.start; });
+        function shiftAt(sec) {
+            var d = 0;
+            for (var gi = 0; gi < gaps.length; gi++) {
+                if (gaps[gi].end <= sec + half) d += gaps[gi].target - (gaps[gi].end - gaps[gi].start);
+            }
+            return d;
+        }
+        function setEnd(ref, sec) {
+            var t = new Time();
+            t.ticks = String(Math.round(sec * fps) * frameTicks);
+            ref.end = t;
+        }
         app.enableQE();
         var qs = qe.project.getActiveSequence();
-        // Her parcanin QE karsiligi, hicbir degisiklik yapilmadan once bulunur.
-        var qItems = [];
-        for (var qp = 0; qp < parts.length; qp++) {
-            var pc = groups[parts[qp].g][parts[qp].t].clips[parts[qp].idx];
-            var qt = parts[qp].g === 0 ? qs.getVideoTrackAt(parts[qp].t) : qs.getAudioTrackAt(parts[qp].t);
-            var found = null;
-            for (var k = 0; k < qt.numItems; k++) {
-                var it = qt.getItemAt(k);
-                if (it && it.type !== 'Empty' && Math.abs(ACS_qeItemSec(it.start) - pc.start.seconds) < 0.001) { found = it; break; }
-            }
-            if (!found) return 'ERR|QE klibi eslesmedi: parca ' + (qp + 1);
-            qItems.push(found);
-        }
-        var q = qItems[0];
-        var out = ['secili ' + parts.length + ' parca; setSpeed: ' + (g === 0 ? 'V' : 'A') + (t + 1) + ' @' + start + 's'];
-        var ms = q.reflect.methods, names = [], sig = null;
-        for (var m = 0; m < ms.length; m++) {
-            names.push(ms[m].name);
-            if (ms[m].name === 'setSpeed') {
-                sig = [];
-                var a = ms[m].arguments || [];
-                for (var ai = 0; ai < a.length; ai++) sig.push({ name: a[ai].name, type: a[ai].dataType });
-            }
-        }
-        out.push('QE metodlari: ' + names.join(','));
-        var sigText = [];
-        if (sig) for (var si = 0; si < sig.length; si++) sigText.push(sig[si].name + ':' + sig[si].type);
-        out.push('setSpeed imzasi: ' + (sig ? '(' + sigText.join(', ') + ')' : 'YOK'));
-        function state(label) {
-            var lines = [];
-            for (var pi = 0; pi < parts.length; pi++) {
-                var tr = groups[parts[pi].g][parts[pi].t], c = tr.clips[parts[pi].idx];
-                var n = parts[pi].idx + 1 < tr.clips.numItems ? tr.clips[parts[pi].idx + 1] : null;
-                lines.push((parts[pi].g === 0 ? 'V' : 'A') + (parts[pi].t + 1) + '#' + (parts[pi].idx + 1) +
-                    ' hiz=' + (typeof c.getSpeed === 'function' ? c.getSpeed() : '?') +
-                    ' sure=' + (c.duration ? c.duration.seconds : c.end.seconds - c.start.seconds) +
-                    ' bas=' + c.start.seconds + ' in=' + (c.inPoint ? c.inPoint.seconds : '?') +
-                    ' out=' + (c.outPoint ? c.outPoint.seconds : '?') + ' sonraki=' + (n ? n.start.seconds : '-'));
-            }
-            return label + ': ' + lines.join(' | ');
-        }
-        out.push(state('once'));
-        if (applyValue !== '') {
-            // "0.5 r": son boolean (ripple adayi) true. "0.5 d": metin parametresine
-            // hedef sure (sure / hiz) timecode olarak verilir (Speed/Duration "sure" adayi).
-            // "2 e": setSpeed sureyi korudugu icin her parcanin end'i DOM'dan
-            // baslangic + (onceki sure / hiz) noktasina yazilir.
-            var flags = ' ' + applyValue.toLowerCase().split(/\s+/).slice(1).join(' ') + ' ';
-            var rippleFlag = flags.indexOf(' r ') >= 0, durationFlag = flags.indexOf(' d ') >= 0;
-            // "2 b": once end kisaltilir, sonra setSpeed (sure korunur, kaynak araligi geri uzar).
-            var endFlag = flags.indexOf(' e ') >= 0, endFirstFlag = flags.indexOf(' b ') >= 0;
-            var v = parseFloat(applyValue);
-            if (isNaN(v)) return 'ERR|Gecersiz hiz degeri';
-            if (!sig) return 'ERR|setSpeed yok\n' + out.join('\n');
-            // Imza bilgisi yoksa toplulukta gecen 5 parametreli bicim denenir.
-            var types = sig.length ? sig : [{ type: 'number' }, { type: 'string' }, { type: 'boolean' },
-                { type: 'boolean' }, { type: 'boolean' }];
-            var args = [], usedNumber = false;
-            for (var ki = 0; ki < types.length; ki++) {
-                var ty = String(types[ki].type).toLowerCase();
-                if (!usedNumber && /num|float|double|int/.test(ty)) { args.push(v); usedNumber = true; }
-                else if (/str/.test(ty)) args.push('');
-                else if (/bool/.test(ty)) args.push(false);
-                else args.push(/num|float|double|int/.test(ty) ? 0 : '');
-            }
-            if (rippleFlag && typeof args[args.length - 1] === 'boolean') args[args.length - 1] = true;
-            if (durationFlag) {
-                var fps = ACS_TICKS_PER_SECOND / parseFloat(seq.timebase);
-                var cti = qs.CTI && qs.CTI.timecode ? String(qs.CTI.timecode) : '';
-                var dur = clip.duration ? clip.duration.seconds : clip.end.seconds - clip.start.seconds;
-                var tc = ACS_frameToTimecode(Math.round(dur / v * fps), fps, cti.indexOf(';') >= 0);
-                for (var di = 0; di < args.length; di++) if (typeof args[di] === 'string') { args[di] = tc; break; }
-            }
-            var before = [];
-            for (var bi = 0; bi < parts.length; bi++) {
-                var bc = groups[parts[bi].g][parts[bi].t].clips[parts[bi].idx];
-                before.push({ start: bc.start.seconds,
-                    dur: bc.duration ? bc.duration.seconds : bc.end.seconds - bc.start.seconds });
-            }
-            function writeEnds() {
-                var endErrors = [];
-                for (var ei = 0; ei < parts.length; ei++) {
-                    try {
-                        var et = new Time();
-                        et.seconds = before[ei].start + before[ei].dur / v;
-                        groups[parts[ei].g][parts[ei].t].clips[parts[ei].idx].end = et;
-                    } catch (eE) { endErrors.push((ei + 1) + ': ' + eE.toString()); }
+        function setSpeed(item, startSec, speed) {
+            var qt = item.g === 0 ? qs.getVideoTrackAt(item.t) : qs.getAudioTrackAt(item.t);
+            for (var q = 0; q < qt.numItems; q++) {
+                var it = qt.getItemAt(q);
+                if (it && it.type !== 'Empty' && Math.abs(ACS_qeItemSec(it.start) - startSec) <= half) {
+                    if (!it.setSpeed(speed, '', false, false, false)) throw new Error('Hiz verilemedi');
+                    return;
                 }
-                out.push('end yazildi x' + (parts.length - endErrors.length) +
-                    (endErrors.length ? ' | hata: ' + endErrors.join('; ') : ''));
             }
-            if (endFirstFlag) { writeEnds(); out.push(state('end sonrasi')); }
-            // setSpeed linkli partnerlere yayilmiyor (canli: yalniz V degisti) — her parca ayri.
-            var results = [];
-            for (var qi = 0; qi < qItems.length; qi++) {
-                var qx = qItems[qi], r;
-                switch (args.length) {
-                    case 1: r = qx.setSpeed(args[0]); break;
-                    case 2: r = qx.setSpeed(args[0], args[1]); break;
-                    case 3: r = qx.setSpeed(args[0], args[1], args[2]); break;
-                    case 4: r = qx.setSpeed(args[0], args[1], args[2], args[3]); break;
-                    default: r = qx.setSpeed(args[0], args[1], args[2], args[3], args[4]);
-                }
-                results.push(r);
-            }
-            out.push('cagri: setSpeed(' + args.join(', ') + ') x' + qItems.length + ' -> ' + results.join(','));
-            if (endFlag && !endFirstFlag) writeEnds();
-            out.push(state('sonra'));
+            throw new Error('Hiz icin QE klibi bulunamadi');
         }
-        return 'OK|' + out.join('\n');
+
+        // Plan: once hicbir sey degistirmeden butun parcalar eslestirilir.
+        var tracks = ACS_getContentTrackIndices(seq), lists = [], items = [];
+        for (i = 0; i < tracks.v.length; i++) lists.push({ g: 0, t: tracks.v[i], track: seq.videoTracks[tracks.v[i]] });
+        for (i = 0; i < tracks.a.length; i++) lists.push({ g: 1, t: tracks.a[i], track: seq.audioTracks[tracks.a[i]] });
+        for (var l = 0; l < lists.length; l++) {
+            var tr = lists[l].track;
+            if (ACS_trackLocked(tr, lists[l].g, lists[l].t)) throw new Error('Ilgili track kilitli');
+            for (var c = 0; c < tr.clips.numItems; c++) {
+                var ref = tr.clips[c], s = ref.start.seconds, e = ref.end.seconds, gap = null;
+                for (k = 0; k < gaps.length; k++) {
+                    if (s < gaps[k].end - half && e > gaps[k].start + half) {
+                        if (Math.abs(s - gaps[k].start) > half || Math.abs(e - gaps[k].end) > half) {
+                            throw new Error('Tik parcasi razor sinirina oturmuyor (' + s.toFixed(3) + ')');
+                        }
+                        gap = gaps[k];
+                    }
+                }
+                items.push({ ref: ref, g: lists[l].g, t: lists[l].t, s: s, len: e - s, gap: gap,
+                    dest: s + shiftAt(s), destLen: gap ? gap.target : e - s });
+            }
+        }
+
+        var speeded = 0, moved = 0;
+        // 1) Kisalacak parcalar
+        for (i = 0; i < items.length; i++) {
+            var it1 = items[i];
+            if (it1.gap && it1.gap.target < it1.len - half) {
+                setEnd(it1.ref, it1.s + it1.gap.target);
+                setSpeed(it1, it1.s, it1.gap.speed); speeded++;
+                it1.len = it1.gap.target;
+            }
+        }
+        // 2) Tasima: sola kayanlar artan, saga kayanlar azalan mevcut konuma gore
+        var left = [], right = [];
+        for (i = 0; i < items.length; i++) {
+            if (items[i].dest < items[i].s - half) left.push(items[i]);
+            else if (items[i].dest > items[i].s + half) right.push(items[i]);
+        }
+        left.sort(function (a, b) { return a.s - b.s; });
+        right.sort(function (a, b) { return b.s - a.s; });
+        var order = left.concat(right);
+        for (i = 0; i < order.length; i++) {
+            var mv = order[i];
+            mv.ref.move(mv.dest - mv.ref.start.seconds);
+            if (Math.abs(mv.ref.start.seconds - mv.dest) > half) throw new Error('Klip hedef konuma tasinamadi');
+            moved++;
+        }
+        // 3) Uzayacak parcalar
+        for (i = 0; i < items.length; i++) {
+            var it3 = items[i];
+            if (it3.gap && it3.gap.target > it3.len + half) {
+                setEnd(it3.ref, it3.dest + it3.gap.target);
+                setSpeed(it3, it3.dest, it3.gap.speed); speeded++;
+            }
+        }
+        // Dogrulama
+        for (i = 0; i < items.length; i++) {
+            var v = items[i];
+            if (Math.abs(v.ref.start.seconds - v.dest) > half ||
+                Math.abs(v.ref.end.seconds - (v.dest + v.destLen)) > half ||
+                (v.gap && Math.abs(v.ref.getSpeed() - v.gap.speed) > 0.001)) {
+                throw new Error('Sonuc dogrulanamadi (' + v.dest.toFixed(3) + '); timeline\'i kontrol edin');
+            }
+        }
+        return 'OK|' + speeded + '|' + moved + '|' + items.length;
     } catch (e) {
         return 'ERR|' + e.toString();
     }
+}
+
+/* Tik onizlemesi: bulunan tiklar sequence marker'i olarak isaretlenir.
+ * Yalniz bu adla konan marker'lar silinir; kullanicinin marker'lari kalir. */
+var ACS_TICK_MARKER = 'HooDoo tik';
+
+function ACS_clearTickMarkers() {
+    try {
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        var ms = seq.markers, doomed = [], m = ms.getFirstMarker();
+        while (m) {
+            if (m.name === ACS_TICK_MARKER) doomed.push(m);
+            m = ms.getNextMarker(m);
+        }
+        for (var i = 0; i < doomed.length; i++) ms.deleteMarker(doomed[i]);
+        return 'OK|' + doomed.length;
+    } catch (e) { return 'ERR|' + e.toString(); }
+}
+
+function ACS_setTickMarkers(clicksStr) {
+    try {
+        var cleared = ACS_clearTickMarkers();
+        if (cleared.split('|')[0] !== 'OK') return cleared;
+        var seq = app.project.activeSequence, parts = ('' + clicksStr).split(';'), n = 0;
+        for (var i = 0; i < parts.length; i++) {
+            var s = parseFloat(parts[i]);
+            if (isNaN(s)) continue;
+            var marker = seq.markers.createMarker(s);
+            marker.name = ACS_TICK_MARKER;
+            n++;
+        }
+        return 'OK|' + n;
+    } catch (e) { return 'ERR|' + e.toString(); }
 }

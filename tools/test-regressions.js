@@ -181,6 +181,28 @@ test('per-track razor errors stop the host batch immediately', () => {
     assert(host.ACS_razorBatch('1;2', 'audio').startsWith('ERR|'));
     assert.strictEqual(calls, 1);
 });
+test('host avoids ES3 reserved words as property names (ExtendScript rejects the whole file)', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../com.hoodoocut/host/index.jsx'), 'utf8');
+    const words = 'abstract|boolean|byte|char|class|const|debugger|double|enum|export|extends|final|float|goto|' +
+        'implements|import|int|interface|long|native|package|private|protected|public|short|static|super|' +
+        'synchronized|throws|transient|volatile';
+    const hits = src.split('\n').map((line, i) => [i + 1, line])
+        .filter(([, line]) => new RegExp('\\.(' + words + ')\\b|(^|[{,])\\s*(' + words + ')\\s*:').test(line));
+    assert.deepStrictEqual(hits, []);
+});
+test('razor seeks to exact frame ticks so non-integer fps cannot land one frame early', () => {
+    const { host, seq } = fixture([[0, 3]], 1, 1);
+    const positions = [];
+    host.app.enableQE = () => {};
+    // Float seconds -> ticks conversion that rounds just below the frame boundary.
+    host.Time = function () { this.seconds = 0; Object.defineProperty(this, 'ticks',
+        { get: () => String(Math.floor(this.seconds * 254016000000) - 1) }); };
+    seq.setPlayerPosition = ticks => positions.push(ticks);
+    host.qe = { project: { getActiveSequence: () => ({ CTI: { timecode: 'display-mismatch' }, razor() {} }) } };
+    assert(host.ACS_razorBatch('1;2', 'all').startsWith('OK|'));
+    const frameTicks = parseFloat(seq.timebase);
+    assert.deepStrictEqual(positions, [String(30 * frameTicks), String(30 * frameTicks), String(60 * frameTicks)]);
+});
 test('compaction preparation reports unreadable clip timing', () => {
     const { host, seq } = fixture([[2, 3]], 0, 1);
     seq.audioTracks[0].items[0] = { get start() { throw new Error('timing unavailable'); } };
