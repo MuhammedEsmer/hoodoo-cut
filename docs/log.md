@@ -24,7 +24,7 @@ updated: 2026-10-11
   - Kong notasına %74 (HDend %49), ızgarada %100.
   - Pencere: tıktan önce medyan 55 ms, sonra 236 ms.
   - Ayrıntı: [[reports/2026-10-16-elle-edit-analizi|rapor]].
-- Paket 0.9.9.4. Release yok.
+- Paket 0.9.9.4. Release yok. Commit `ebcc6cc`.
 
 ## 2026-10-16 — Kullanıcının elle editi analizi (kod değişikliği yok)
 
