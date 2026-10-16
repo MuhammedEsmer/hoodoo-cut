@@ -24,7 +24,7 @@ updated: 2026-10-11
   - Canlı HDflow (In the End): 158/158 tık sekizlikte; Beat This'e medyan 3.9 ms; 156/157 aralık tam sekizlik.
 - Kurulu panel junction değil, kopya: canlı test için değişen dosyalar `%APPDATA%\Adobe\CEP\extensions\com.hoodoocut`'a kopyalandı.
   Premiere kapalıydı; Claude test projesiyle başlattı.
-- Testler 131 PASS. Paket 0.9.9.3. Release yok.
+- Testler 131 PASS. Paket 0.9.9.3. Release yok. Commit `fbc16d8`.
 
 ## 2026-10-16 — Referans edit analizi (kod değişikliği yok)
 
