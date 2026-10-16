@@ -11,6 +11,34 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-16 — Elle edit kuralları uygulandı (CEP 0.9.9.4)
+
+- Kullanıcı: "evet üçünü de uygula ve dene".
+- **Ritimdeki melodi notaları** (`tickplan.notesOnGrid`, melodi hedefinde `detectBeatGrid` ile).
+- **İlk tık ilk notaya:** DP başlangıcında atlanan nota cezası.
+  - Yan etki: akışta ilk tık sessiz girişe gidiyordu. Izgara ilk belirgin atakta başlıyor.
+- **Klip penceresi:** tıktan önce 45 ms / sonra 200 ms normal; kesimde tıktan sonrası tutulur, bölge başında yaklaşma.
+- 7 kesim testi yeni kurala göre güncellendi, 3 yeni test; 134 PASS.
+- Canlı HDmel (ham videodan; temel sequence'e kullanıcının editi girdiği için dokunulmadı):
+  - İlk 6 sn kullanıcının seçimiyle birebir.
+  - Kong notasına %74 (HDend %49), ızgarada %100.
+  - Pencere: tıktan önce medyan 55 ms, sonra 236 ms.
+  - Ayrıntı: [[reports/2026-10-16-elle-edit-analizi|rapor]].
+- Paket 0.9.9.4. Release yok.
+
+## 2026-10-16 — Kullanıcının elle editi analizi (kod değişikliği yok)
+
+- Kullanıcı HDflow'u izledi ("ilerleme çok güzel"). Temel sequence `2026-10-14 15-11-41` üzerinde 10 klipten
+  elle bir edit yaptı; "nasıl ve neden yerleştirdiğimi anla" dedi.
+- Bulgu: [[reports/2026-10-16-elle-edit-analizi|rapor]].
+  - Her tık In the End giriş riff'inin bir piyano notasında (D# A# A# F# F F F F F# D#); marker'lar notalarda.
+  - Kaynaktaki hiçbir tık atlanmamış; klip tıktan ~45 ms önce başlayıp ~200 ms sonra bitiyor.
+- Panelle farkı:
+  - Akış notasız sekizliklere de tık koyuyor.
+  - Melodi (0.9.9.2) ilk üç notayı atlıyor ve ızgara dışı Basic Pitch notalarına tık koyuyor.
+  - "Izgaradaki melodi notaları" kuralı 0–6.2 sn'de kullanıcının seçimini birebir veriyor.
+- Temel sequence artık kullanıcının editini içeriyor: test kopyaları doğrudan videodan kurulacak.
+
 ## 2026-10-16 — Müzik ritmi (akış) hedefi (CEP 0.9.9.3)
 
 - Kullanıcı: referans elle yapıldı, kusursuz değil. Blok koymayla ilerle; yönü Claude seçsin.

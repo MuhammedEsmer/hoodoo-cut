@@ -716,7 +716,12 @@
             near.sort(function (x, y) { return x - y; });
             return t + near[near.length >> 1];
         });
-        return { eighths: eighths, beatParity: vote >= 0 ? 0 : 1, bpm: 30 / P8 };
+        // Izgara müziğin ilk belirgin atağında başlar: takip sessizliğe/hafif girişe de nokta koyuyor ve ilk
+        // tık oraya gidiyordu (In the End: 0.07 sn, piyano 0.94'te). Çıkan noktalar vuruş fazını korur.
+        var first = 0;
+        while (first < shift.length && shift[first] === null) first++;
+        if (first >= shift.length) first = 0;
+        return { eighths: eighths.slice(first), beatParity: ((vote >= 0 ? 0 : 1) - first % 2 + 2) % 2, bpm: 30 / P8 };
     }
 
     /* Dosyanın [bas, son] (sn) aralığını mono'ya indirip srOut Hz'e yeniden örnekler: Blackman pencereli

@@ -325,8 +325,10 @@ const gapRows = p => p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), +x
 // Planın çıktısı: kaynak zamanı x'in timeline'daki yeri (x hiçbir aranın içinde değilken)
 const outAt = (p, x) => p.gaps.filter(g => g.end <= x + 1e-9).reduce((s, g) => s - (g.end - g.start - g.target), x);
 // Eşleşen ilk ve son tık arasındaki fazla tıkların hepsi silinen bir parçada olmalı (görünür fazla blok yok)
-// Vuruşa giriş: eşleşen her tıktan önceki son 0.1 sn hiçbir yavaşlatılan/donan parçada olmamalı
-const entryNormal = (p) => p.clicks.slice(1).forEach(c => assert(!p.gaps.some(g => g.target > 0 && g.end > c - 0.1 + 1e-9 && g.start < c - 1e-9),
+// Vuruşa giriş: eşleşen her tıktan önceki son 45 ms (30 fps'te 1 kare; kullanıcının elle editi) hiçbir
+// yavaşlatılan/donan parçada olmamalı
+const ENTRY_S = Math.max(1, Math.round(0.045 * 30)) / 30;
+const entryNormal = (p) => p.clicks.slice(1).forEach(c => assert(!p.gaps.some(g => g.target > 0 && g.end > c - ENTRY_S + 1e-9 && g.start < c - 1e-9),
     'vurusa giris yavas: ' + c + ' ' + JSON.stringify(gapRows(p))));
 const hiddenExtras = (p, clicks) => clicks.filter(c => p.clicks.indexOf(c) < 0 && c > p.clicks[0] && c < p.clicks[p.clicks.length - 1])
     .forEach(c => assert(p.gaps.some(g => g.target === 0 && g.start <= c + 1e-9 && c < g.end), 'fazla tik gorunuyor: ' + c));
@@ -343,18 +345,38 @@ test('option (b): every melody note gets a click, extra clicks are cut, kept foo
     hiddenExtras(p, clicks);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
 });
-test('option (b): a dropped click inside the kept window is cut out; footage after the click and before the next stay natural', () => {
-    // a=1.0 → b=2.0, nota arası 0.8: tık parçasından sonra doğal, fazla tık (1.3) ve 150 ms'lik sesi
-    // (30 fps'te 5 kare) kesilir, b'ye kadar doğal.
+test('option (b): a dropped click inside the kept window is cut out; 200 ms after the click stay natural', () => {
+    // a=1.0 → b=2.0, nota arası 0.8: tıktan sonra 200 ms doğal; fazla tık (1.3) ve 175 ms'lik sesi kesilir;
+    // yaklaşma hafifçe yavaşlar (200 ms ile 1.3 arası 1 karelik pay hariç temiz görüntü kalmıyor).
     const p = plan.alignToNotes([1.0, 1.3, 2.0], [1.0, 1.8], cutOpts);
-    assert.deepStrictEqual(gapRows(p), [[1.2667, 1.4667, 0, 0]]);
+    assert.deepStrictEqual(gapRows(p), [[1.2, 1.4667, 0, 0], [1.4667, 1.9667, 0.5667, 0.8824]]);
     assert(near(outAt(p, 2.0), 1.8, 1e-9));
+});
+test('cuts keep the footage after the click and jump to just before the next click (user edit)', () => {
+    // Kullanıcının elle editi: klip tıktan ~45 ms önce başlar, ~200 ms sonra biter. a=1.0 → b=2.0, nota arası
+    // 0.6 sn: 1.0–1.2 tık sonrası, 1.2–1.5667 devamı (D − giriş), 1.9667–2.0 giriş; arası kesilir.
+    const p = plan.alignToNotes([1.0, 2.0], [1.0, 1.6], cutOpts);
+    assert.deepStrictEqual(gapRows(p), [[1.5667, 1.9667, 0, 0]]);
+    assert(near(outAt(p, 2.0), 1.6, 1e-9));
+});
+test('the first click goes to the first note after the region start (skipping notes there costs too)', () => {
+    // HDend: ilk üç riff notası atlanıp ilk tık 2.65'e konmuştu (eski: bölge başında atlanan nota cezasız).
+    const p = plan.alignToNotes([2.0, 2.6, 3.2], [0.9, 1.5, 2.1, 2.7, 3.3], cutOpts);
+    assert.deepStrictEqual(p.noteTimes.map(t => +t.toFixed(4)), [0.9, 1.5, 2.1]);
+    assert.strictEqual(p.skipped, 0);
+});
+test('melody notes on the rhythm grid: off-grid notes are dropped (user edit, In the End intro)', () => {
+    // Panel ızgarası ve Basic Pitch piyano kanalı notaları (0–4.4 sn); 1.277 ve 3.925 riff'te yok (Kong).
+    const eighths = [0.355, 0.645, 0.935, 1.21, 1.486, 1.785, 2.085, 2.37, 2.652, 2.94, 3.231, 3.51, 3.796, 4.07, 4.348];
+    const notes = [0.94, 1.277, 1.498, 2.079, 2.648, 3.229, 3.798, 3.925, 4.356];
+    assert.deepStrictEqual(plan.notesOnGrid(notes, eighths, 0.035), [0.94, 1.498, 2.079, 2.648, 3.229, 3.798, 4.356]);
+    assert.deepStrictEqual(plan.notesOnGrid(notes, [], 0.035), notes);
 });
 test('option (b): when only a short clean approach exists it is slowed down (no freeze for a small stretch)', () => {
     const p = plan.alignToNotes([1.0, 1.1, 2.0], [1.0, 2.0], cutOpts);
-    // yavaşlama tıktan 0.1 sn önce biter (vuruşa giriş normal hızda)
+    // yavaşlama tıktan 1 kare (45 ms) önce biter (vuruşa giriş normal hızda)
     const last = p.gaps[p.gaps.length - 1];
-    assert(near(last.end, 1.9, 1e-9) && last.speed >= 0.5 && last.speed < 1, JSON.stringify(p.gaps));
+    assert(near(last.end, 2.0 - ENTRY_S, 1e-9) && last.speed >= 0.5 && last.speed < 1, JSON.stringify(p.gaps));
     entryNormal(p);
     assert.strictEqual(p.freezes, 0);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
@@ -377,29 +399,29 @@ test('option (c): when the clean stretches are not enough, a short freeze sits j
     const clicks = [1.0, 1.4, 1.8, 2.2, 2.6];
     const p = plan.alignToNotes(clicks, [1.0, 1.8333, 2.2333, 2.6333], cutOpts);
     assert.deepStrictEqual(p.clicks, [1.0, 1.8, 2.2, 2.6]);
-    // baş %75, son 2 karesi (fazla tıktan 1 kare önce biter) donar, fazla tık kesilir, yaklaşma %80,
-    // tıktan önceki son 0.1 sn (1.7–1.8) normal hız
-    assert.deepStrictEqual(gapRows(p), [[1.1, 1.3, 0.2667, 0.75], [1.3, 1.3667, 0.2, 0.3333], [1.3667, 1.5667, 0, 0], [1.5667, 1.7, 0.1667, 0.8]]);
+    // tıktan sonra 200 ms doğal, baş %75, son 2 karesi (fazla tıktan 1 kare önce biter) donar, fazla tık
+    // kesilir, yaklaşma %75, tıktan önceki son kare (1.7667–1.8) normal hız
+    assert.deepStrictEqual(gapRows(p), [[1.2, 1.3, 0.1333, 0.75], [1.3, 1.3667, 0.2, 0.3333], [1.3667, 1.5667, 0, 0], [1.5667, 1.7667, 0.2667, 0.75]]);
     entryNormal(p);
     assert(p.gaps[1].freeze && p.freezes === 1);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));
     hiddenExtras(p, clicks);
 });
 test('option (c): clean stretches between extra blocks are used (jump cuts) before slowing', () => {
-    // a=1.0 → b=2.2, nota arası 0.8333: baş + ara + yaklaşma; eksik 1 kare en uzun bölüme (baş, %89),
-    // iki fazla tık ve sesleri kesilir.
+    // a=1.0 → b=2.2, nota arası 0.8333: tıktan sonra 200 ms + baş + ara + yaklaşma; eksik 1 kare en uzun
+    // bölüme (ara, %86), iki fazla tık ve sesleri kesilir.
     const p = plan.alignToNotes([1.0, 1.4, 1.8, 2.2], [1.0, 1.8333], cutOpts);
     assert.deepStrictEqual(p.clicks, [1.0, 2.2]);
-    assert.deepStrictEqual(gapRows(p), [[1.1, 1.3667, 0.3, 0.8889], [1.3667, 1.5667, 0, 0], [1.7667, 1.9667, 0, 0]]);
+    assert.deepStrictEqual(gapRows(p), [[1.3667, 1.5667, 0, 0], [1.5667, 1.7667, 0.2333, 0.8571], [1.7667, 1.9667, 0, 0]]);
     assert(near(outAt(p, 2.2), 1.8333, 0.02));
 });
 test('option (c): a note gap longer than all remaining footage is slowed lightly, then frozen once the click sound is over', () => {
-    // a=1.0 → b=1.5 arası fazla tık yok, kaynak hedefin yarısından kısa: tıkın sesi bitince (150 ms = 5 kare)
-    // 2 kare donar, kalan %70'te oynar.
+    // a=1.0 → b=1.5 arası fazla tık yok, kaynak hedefin yarısından kısa: tıktan sonraki 200 ms'de ses zaten
+    // bitmiş (175 ms), hemen ardından 2 kare donar, kalan %75'te oynar, son kare normal.
     const clicks = [1.0, 1.5, 2.0, 2.4, 2.8];
     const p = plan.alignToNotes(clicks, [1.0, 2.5, 3.0, 3.4, 3.8], cutOpts);
     assert.deepStrictEqual(p.clicks, clicks);
-    assert.deepStrictEqual(gapRows(p), [[1.1667, 1.2333, 1.0, +(2 / 30).toFixed(4)], [1.2333, 1.4, 0.2333, +(5 / 7).toFixed(4)]]);
+    assert.deepStrictEqual(gapRows(p), [[1.2, 1.2667, 1.0, +(2 / 30).toFixed(4)], [1.2667, 1.4667, 0.2667, 0.75]]);
     assert(p.gaps[0].freeze);
     entryNormal(p);
     p.clicks.forEach((c, k) => assert(near(outAt(p, c), p.targets[k], 1e-9), c + ' -> ' + outAt(p, c)));

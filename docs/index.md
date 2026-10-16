@@ -44,6 +44,7 @@ değişiklikler: [[log]].
 - [[reports/2026-10-14-basic-pitch-entegrasyon|2026-10-14 CEP 0.9.9.0 Basic Pitch ile melodi notaları: Kong referanslı ölçüm, panel entegrasyonu, canlı test]]
 - [[reports/2026-10-16-referans-edit-analizi|2026-10-16 Referans edit analizi: Rust maden bölümünde vuruşlar sabit aralıklı, notaya/ızgaraya kilitli değil]]
 - [[reports/2026-10-16-muzik-ritmi-akis|2026-10-16 CEP 0.9.9.3 Müzik ritmi (akış) hedefi: panelde ritim takibi, Beat This'e göre ölçüm, canlı HDflow]]
+- [[reports/2026-10-16-elle-edit-analizi|2026-10-16 Kullanıcının elle editi ve CEP 0.9.9.4: ızgaradaki melodi notaları, ilk tık ilk notaya, klip penceresi; canlı HDmel]]
 
 ## 🗂️ Planlar (`plans/`)
 

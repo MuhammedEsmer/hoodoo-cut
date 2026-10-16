@@ -50,6 +50,32 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
+## 0.9.9.4: kullanıcının elle editinden üç kural (melodi ve akış)
+
+Kullanıcı 10 klipten elle bir edit yaptı (In the End girişi): her tık riff'in bir piyano notasında, kaynaktaki hiçbir
+tık atlanmamış, klip tıktan ~45 ms önce başlayıp ~200 ms sonra bitiyor. Analiz ve canlı sonuç:
+[[reports/2026-10-16-elle-edit-analizi|elle edit raporu]]. Kullanıcı: "üçünü de uygula ve dene".
+
+1. **Ritimdeki melodi notaları** (melodi hedefi): Basic Pitch notalarından sekizlik ızgarasına ±35 ms içinde oturanlar
+   kalır (`tickplan.notesOnGrid`, ızgara `detectBeatGrid`). Izgara dışı notaların çoğu süs ya da kanal sızıntısı
+   (In the End'de yalnız %18'i gerçek piyano notası).
+2. **İlk tık ilk notaya:**
+   - Bölge başından sonra atlanan nota da cezalı (DP başlangıcı `SKIP·j`).
+   - Izgara müziğin ilk belirgin atağında başlar. Akışta sessiz girişe tık gitmesin diye (In the End 0.07 → 0.355 sn).
+3. **Klip penceresi:**
+   - Tıktan önce 45 ms (`ENTRY`, önce 0.1 sn), tıktan sonra 200 ms (`POST` / `holdFor`, önce 3 kare) normal hız.
+   - Kaynak fazlaysa tıktan **sonrası** devam eder, kesim sonraki tıkın girişine atlar (önce yaklaşma tutuluyordu).
+   - Bölge başında yaklaşma tutulur.
+
+**Canlı HDmel** (ham videodan; In the End, Demucs piyano):
+- 80 tık; ilk 6 sn kullanıcının seçtiği riff notalarıyla birebir (D# A# A# F# F F F F F# D#), ilk tık 0.94.
+- Kong notasına 35 ms içinde %74 (HDend %49), ızgarada %100 (HDend %49).
+- Tıktan önce medyan 55 ms, sonra 236 ms normal hız.
+
+> [!warning] Temel sequence
+> `2026-10-14 15-11-41` artık kullanıcının elle editini içeriyor (2026-10-16). Test kopyaları ham videodan
+> (`createNewSequenceFromClips`) kurulur; o sequence'e dokunulmaz.
+
 ## Hedef: Müzik ritmi (akış) — 0.9.9.3
 
 Kullanıcının referans editi (Rust maden bölümü): vuruşlar hızlı ve sabit aralıkla geliyor. Elle yapıldığı

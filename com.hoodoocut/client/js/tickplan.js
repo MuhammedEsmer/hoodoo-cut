@@ -77,13 +77,21 @@
      * donma yerine bir tıkı daha düşürüp kesmeyi seçer (kullanıcı: "donmayı azalt"; canlı piyanoda
      * eski maliyetle 54 donma / 27.5 sn). Maliyet: yavaşlama |ln hız| + kesme 0.1·ln(kaynak/D) + ek
      * kesme 0.05 + donma + görünür fazla tık 0.5 + atlanan nota 0.4 + düşen tık 0.02 − eşleşme ödülü 1.
-     * Bölge başı da aynı kuralla ilk notaya oturtulur. Dönüş planTicks biçiminde; silinecek parça =
-     * { target: 0, speed: 0 }; normal hızda tutulan parça plana yazılmaz (yalnız kayar). */
+     * Bölge başı da aynı kuralla ilk notaya oturtulur; bölge başından sonraki notaları atlamak da
+     * atlanan nota sayılır. Dönüş planTicks biçiminde; silinecek parça = { target: 0, speed: 0 };
+     * normal hızda tutulan parça plana yazılmaz (yalnız kayar).
+     * Kullanıcının elle editi (2026-10-16): klip tıktan ~45 ms önce başlayıp ~200 ms sonra bitiyor.
+     * Tıktan sonra en çok 200 ms (POST; tık parçasından az değil, sonraki tıkın girişine yer kalacak
+     * kadar) ve tıktan önce 45 ms (ENTRY) normal hızda kalır. Kaynak fazlaysa tıktan SONRASI devam
+     * eder, kesim sonraki tıkın girişine atlar (önceden sonraki tıka yaklaşma tutuluyordu). */
     function alignToNotes(clicks, notes, opts) {
         var fps = opts.fps, hold = opts.holdFrames, minS = Math.max(opts.minSpeed, 0.7), rs = Math.round(opts.regionStart * fps);
         var SKIP = 0.4, DROP = 0.02, CUT = 0.1, JUMP = 0.05, VISIBLE = 0.5, REWARD = 1, MAXDROP = 12, MAXSKIP = 4;
         var FZ = 2, FREEZE = 0.3, FREEZE_SEC = 2.5, MINSEG = Math.max(FZ + 1, Math.round(0.1 * fps));
-        var ENTRY = Math.max(FZ, Math.round(0.1 * fps)); // vuruşa giriş: tıktan önceki son 0.1 sn normal hız
+        var ENTRY = Math.max(1, Math.round(0.045 * fps)), POST = Math.round(0.2 * fps);
+        // Bir geçişte tıktan sonra normal hızda kalan kare: POST, ama hedef aralıkta sonraki tıkın girişine
+        // ve kaynakta sonraki tıka yer kalsın; tık parçasından (hold) az değil.
+        function holdFor(gapF, srcGap) { return Math.max(hold, Math.min(POST, gapF - ENTRY - 1, srcGap - 1)); }
         // Fazla tıktan sonraki temiz görüntü 175 ms sonra başlar: blok sesi ~0.3 sn sürüyor, ilk 60 ms'de
         // ve 130-160 ms'de tepeye yakın; daha erken kesilince kuyruk yeni bir tık gibi duyuluyordu
         // (canlı: tık parçasından sonra 11 yerde, 150 ms'de 1 yerde). 200 ms temiz görüntüyü o kadar
@@ -108,7 +116,7 @@
         // Bir geçişin kararı: startF'den endF'deki tıka, D karelik hedef; dropped = aradaki fazla tıklar.
         // Dönüş: tutulan parçalar [{ s, e, t }] (kaynak kareleri [s, e), hedef t kare), görünür fazla
         // tık sayısı, donma kareleri ve maliyet; parça dışı kaynak silinir.
-        function decide(startF, endF, D, dropped) {
+        function decide(startF, endF, D, dropped, h, afterClick) {
             var avail = endF - startF;
             if (D < 1 || avail <= 0) return null;
             var cut = CUT * Math.log(Math.max(avail, D) / D), best = null;
@@ -116,8 +124,16 @@
                 if (!best || cost < best.cost) best = { pieces: pieces, cost: cost, visible: visible, frozen: frozen };
             }
             var lead = dropped.length ? Math.max(0, endF - (dropped[dropped.length - 1] + tail)) : avail, q;
-            if (lead >= D) offer([{ s: endF - D, e: endF, t: D }], cut, 0, 0);
-            else {
+            if (lead >= D) {
+                // Tıktan sonrası devam eder (temiz olduğu kadar, en çok D − ENTRY), kalan hedef b'den hemen
+                // öncesinden; iki kareden kısa bir "sonrası" parçası tek başına sıçrama gibi duruyor, alınmaz.
+                // Bölge başında önceki tık yok: ilk tıka yaklaşma tutulur.
+                var aft = afterClick ? Math.min(dropped.length ? Math.max(0, dropped[0] - 1 - startF) : avail, D - ENTRY) : 0;
+                if (aft < 2) aft = 0;
+                var pcs0 = [{ s: endF - (D - aft), e: endF, t: D - aft }];
+                if (aft) pcs0.unshift({ s: startF, e: startF + aft, t: aft });
+                offer(pcs0, cut + (aft && startF + aft < endF - (D - aft) ? JUMP : 0), 0, 0);
+            } else {
                 // "Vuruşa hızlanarak gir" (visbeat, Davis & Agrawala 2018): b'den önceki son ENTRY kare normal
                 // hızda kalır, yavaşlama öncesine düşer; vuruşun hemen öncesi ağır çekimde olunca darbe zayıflıyor.
                 if (lead > ENTRY && (lead - ENTRY) / (D - ENTRY) >= minS) {
@@ -176,7 +192,7 @@
                         // fazla tık yoksa a'nın sesi bittikten sonra (donan karenin sesi silinir, ses tıkın
                         // kuyruğunun ortasından başlarsa yeni bir tık gibi duyuluyordu).
                         var P = sl[0], fp = slow[0].kind !== 'lead' ? P.e - FZ
-                            : P.s + (dropped.length ? 0 : Math.min(Math.max(0, tail - hold), P.e - P.s - FZ));
+                            : P.s + (dropped.length ? 0 : Math.min(Math.max(0, tail - h), P.e - P.s - FZ));
                         var frz = { s: fp, e: fp + FZ, t: 0, freeze: true };
                         var all = withFast([{ s: P.s, e: fp, t: Math.floor((fp - P.s) / sp) }, frz, { s: fp + FZ, e: P.e, t: Math.floor((P.e - fp - FZ) / sp) }]
                             .filter(function (x) { return x.e > x.s; }).concat(sl.slice(1))), others = 0;
@@ -197,8 +213,9 @@
         for (i = 0; i < n; i++) { cost.push(new Float64Array(m).fill(INF)); prev.push(new Int32Array(m).fill(-1)); }
         for (i = 0; i < n; i++) {
             for (j = 0; j < m; j++) {
-                var d0 = decide(rs, C[i], tgt(i, j) - rs, C.slice(0, i));
-                if (d0) cost[i][j] = d0.cost + DROP * i - REWARD;
+                var d0 = decide(rs, C[i], tgt(i, j) - rs, C.slice(0, i), hold);
+                // bölge başından sonraki notaları atlamak da ceza (HDend ilk üç riff notasını atlıyordu)
+                if (d0) cost[i][j] = d0.cost + DROP * i + SKIP * j - REWARD;
             }
         }
         for (i = 0; i < n; i++) {
@@ -207,7 +224,8 @@
                 for (i2 = i + 1; i2 <= Math.min(n - 1, i + 1 + MAXDROP); i2++) {
                     var dropped = C.slice(i + 1, i2);
                     for (j2 = j + 1; j2 <= Math.min(m - 1, j + 1 + MAXSKIP); j2++) {
-                        var dd = decide(C[i] + hold, C[i2], tgt(i2, j2) - tgt(i, j) - hold, dropped);
+                        var gF = tgt(i2, j2) - tgt(i, j), h = holdFor(gF, C[i + 1] - C[i]);
+                        var dd = decide(C[i] + h, C[i2], gF - h, dropped, h, true);
                         if (!dd) continue;
                         var c = cost[i][j] + dd.cost + SKIP * (j2 - j - 1) + DROP * (i2 - i - 1) - REWARD;
                         if (c < cost[i2][j2]) { cost[i2][j2] = c; prev[i2][j2] = i * m + j; }
@@ -227,8 +245,8 @@
         }
         if (pairs.length < 2) return empty;
         var gaps = [], delta = 0, cutF = 0, skipped = 0, visible = 0, freezes = 0, frozenF = 0;
-        function emit(startF, endF, D, dropped) {
-            var d = decide(startF, endF, D, dropped), pos = startF;
+        function emit(startF, endF, D, dropped, h, afterClick) {
+            var d = decide(startF, endF, D, dropped, h, afterClick), pos = startF;
             d.pieces.forEach(function (pc) {
                 if (pc.s > pos) { gaps.push({ start: pos / fps, end: pc.s / fps, target: 0, speed: 0 }); cutF += pc.s - pos; }
                 if (pc.e > pc.s && pc.t !== pc.e - pc.s) {
@@ -243,10 +261,11 @@
             if (d.frozen) { freezes++; frozenF += d.frozen; }
             delta += D - (endF - startF);
         }
-        emit(rs, C[pairs[0][0]], tgt(pairs[0][0], pairs[0][1]) - rs, C.slice(0, pairs[0][0]));
+        emit(rs, C[pairs[0][0]], tgt(pairs[0][0], pairs[0][1]) - rs, C.slice(0, pairs[0][0]), hold);
+        skipped += pairs[0][1];
         for (var k = 1; k < pairs.length; k++) {
-            var a = pairs[k - 1], b = pairs[k];
-            emit(C[a[0]] + hold, C[b[0]], tgt(b[0], b[1]) - tgt(a[0], a[1]) - hold, C.slice(a[0] + 1, b[0]));
+            var a = pairs[k - 1], b = pairs[k], gk = tgt(b[0], b[1]) - tgt(a[0], a[1]), hk = holdFor(gk, C[a[0] + 1] - C[a[0]]);
+            emit(C[a[0]] + hk, C[b[0]], gk - hk, C.slice(a[0] + 1, b[0]), hk, true);
             skipped += b[1] - a[1] - 1;
         }
         var boundaries = [];
@@ -289,6 +308,19 @@
         return pick;
     }
 
+    /* Ritimdeki melodi notaları: sekizlik ızgarasına tol (sn) içinde oturan notalar kalır.
+     * Kullanıcının elle editi (In the End girişi) her tıkı riff'in bir notasına koydu; Basic Pitch'in
+     * ızgara dışı notaları (süs, kanal sızıntısı) seçilmedi. Bu süzgeç 0–6.2 sn'de o seçimi birebir
+     * veriyor; bütün şarkıda ızgara dışı notaların yalnız %18'i gerçek piyano notası (Kong). */
+    function notesOnGrid(notes, eighths, tol) {
+        if (!eighths.length) return notes.slice();
+        return notes.filter(function (t) {
+            var lo = 0, hi = eighths.length - 1;
+            while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (eighths[mid] < t) lo = mid; else hi = mid; }
+            return Math.min(Math.abs(eighths[lo] - t), Math.abs(eighths[hi] - t)) <= tol;
+        });
+    }
+
     return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval,
-        alignToNotes: alignToNotes, flowTargets: flowTargets };
+        alignToNotes: alignToNotes, flowTargets: flowTargets, notesOnGrid: notesOnGrid };
 });

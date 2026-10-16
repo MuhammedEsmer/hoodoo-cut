@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.9.3'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.9.4'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -649,12 +649,18 @@
                 }
                 $('btnAnalyze').textContent = '⏳ Melodi notaları çıkarılıyor…';
                 melodyNotes(musicWav, range, opts.separate, function (e1, mel) {
+                    // Yalnız ritme oturan notalar (sekizlik ızgarasına ±35 ms): kullanıcının elle editindeki seçim.
+                    var grid = null;
+                    if (!e1) { try { grid = ACSAnalyzer.detectBeatGrid(fs, musicWav, range); } catch (e7) { log('Ritim ızgarası çıkarılamadı (' + e7.message + '); tüm notalar kullanılıyor.'); } }
                     try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e4) {}
                     if (e1) { tickAnalysisFailed(e1); return; }
                     try {
-                        log('Müzik melodisi: ' + mel.notes.length + ' nota, ' + mel.source + ' (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
+                        var notes = grid ? ACSTickPlan.notesOnGrid(mel.notes, grid.eighths, 0.035) : mel.notes;
+                        if (notes.length < 2) notes = mel.notes;
+                        log('Müzik melodisi: ' + mel.notes.length + ' nota, ritme oturan ' + notes.length +
+                            (grid && grid.bpm ? ' (' + grid.bpm.toFixed(1) + ' BPM)' : '') + ', ' + mel.source + ' (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
                             (mel.names.length ? ', ilk notalar ' + mel.names.slice(0, 6).join(' ') : ''));
-                        finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, mel.notes, alignOpts), opts);
+                        finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, notes, alignOpts), opts);
                     } catch (e3) { tickAnalysisFailed(e3); }
                 });
             });
