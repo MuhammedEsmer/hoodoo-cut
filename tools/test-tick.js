@@ -372,6 +372,15 @@ test('melody notes on the rhythm grid: off-grid notes are dropped (user edit, In
     assert.deepStrictEqual(plan.notesOnGrid(notes, eighths, 0.035), [0.94, 1.498, 2.079, 2.648, 3.229, 3.798, 4.356]);
     assert.deepStrictEqual(plan.notesOnGrid(notes, [], 0.035), notes);
 });
+test('a strong note found up to 100 ms after a grid point goes to that point; weak or early ones do not', () => {
+    // Sky High: kayan synth lead'in nota başı 40–100 ms geç bulunuyordu (riff'in ilk ölçüsü eleniyordu).
+    const eighths = [1.0, 1.25, 1.5, 1.75, 2.0];
+    const notes = [1.072, 1.32, 1.43, 1.76, 1.79, 1.95];
+    const amps = [0.62, 0.40, 0.70, 0.55, 0.60, 0.65];
+    // 1.072 güçlü/geç -> 1.0; 1.32 zayıf/geç -> yok; 1.43 güçlü ama 1.5'ten erken, 1.25'ten 180 ms geç -> yok;
+    // 1.76 kendisi; 1.79 aynı noktaya ikinci -> yok; 1.95 güçlü ama erken -> yok
+    assert.deepStrictEqual(plan.notesOnGrid(notes, eighths, 0.035, amps), [1.0, 1.76]);
+});
 test('option (b): when only a short clean approach exists it is slowed down (no freeze for a small stretch)', () => {
     const p = plan.alignToNotes([1.0, 1.1, 2.0], [1.0, 2.0], cutOpts);
     // yavaşlama tıktan 1 kare (45 ms) önce biter (vuruşa giriş normal hızda)

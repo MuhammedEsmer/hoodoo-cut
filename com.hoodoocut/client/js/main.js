@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.9.4'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.9.5'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -655,7 +655,7 @@
                     try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e4) {}
                     if (e1) { tickAnalysisFailed(e1); return; }
                     try {
-                        var notes = grid ? ACSTickPlan.notesOnGrid(mel.notes, grid.eighths, 0.035) : mel.notes;
+                        var notes = grid ? ACSTickPlan.notesOnGrid(mel.notes, grid.eighths, 0.035, mel.amps) : mel.notes;
                         if (notes.length < 2) notes = mel.notes;
                         log('Müzik melodisi: ' + mel.notes.length + ' nota, ritme oturan ' + notes.length +
                             (grid && grid.bpm ? ' (' + grid.bpm.toFixed(1) + ' BPM)' : '') + ', ' + mel.source + ' (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
@@ -696,8 +696,10 @@
                 basicPitch.transcribe(samples, { baseDir: bpDir }).then(function (events) {
                     if (cleanup) cleanup();
                     events.forEach(function (e) { e.t += range[0]; });
-                    // ayrık piyano kanalı karışımdan daha sessiz: eşik 0.4 (karışım/davulsuz 0.45)
-                    var mel = ACSAnalyzer.melodyFromNoteEvents(events, { minAmp: separate === 'piano' && label ? 0.4 : 0.45 });
+                    // ayrık piyano kanalı karışımdan daha sessiz: eşik 0.3 (karışım/davulsuz 0.45). Ritim süzgeci
+                    // fazlalığı ayıkladığı için 0.4'ten indirildi: In the End'de güçlü piyano notalarını yakalama
+                    // %75 → %84, isabet %68 → %63 (Kong referansı; kullanıcı: "bazı yerlerde nota kaçırıyorsun").
+                    var mel = ACSAnalyzer.melodyFromNoteEvents(events, { minAmp: separate === 'piano' && label ? 0.3 : 0.45 });
                     mel.source = 'Basic Pitch' + (label ? ' + ' + label : '') + ' (' + basicPitch.backend() + ', ' +
                         ((Date.now() - t0) / 1000).toFixed(1) + ' sn)';
                     cb(null, mel);

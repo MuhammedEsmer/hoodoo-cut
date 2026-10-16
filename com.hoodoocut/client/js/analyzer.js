@@ -793,7 +793,7 @@
                 }
                 notes.push(e.t); best.push(e.a); names.push(NAMES[e.p % 12]);
             });
-        return { notes: notes, names: names };
+        return { notes: notes, names: names, amps: best };
     }
 
     return {

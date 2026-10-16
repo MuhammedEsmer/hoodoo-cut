@@ -50,6 +50,20 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
 
+## 0.9.9.5: kayan synth lead ve kaçan notalar
+
+Rapor: [[reports/2026-10-16-sky-high-riff|Sky High riff raporu]]. Kullanıcı: "bazı yerlerde nota kaçırıyorsun";
+Sky High ile 46. saniyeden sonraki riff'te edit istedi.
+- **Güçlü geç nota ızgara noktasına:** genlik ≥ 0.52 ve bir sekizlikten en çok 100 ms sonra bulunan nota o sekizliğe alınır
+  (`notesOnGrid(..., amps)`; `melodyFromNoteEvents` `amps` döndürür).
+  - Sky High'ın kayan (portamento), sidechain'li lead'inde Basic Pitch nota başını 40–100 ms geç buluyordu; riff'in ilk ölçüsü eleniyordu.
+  - In the End'in ızgara dışı fazla notaları zayıf (≤ 0.50): girişteki seçim değişmedi.
+- **Piyano kanalı eşiği 0.4 → 0.3** (ritim süzgeci fazlalığı ayıklıyor): güçlü piyano notalarını yakalama %75 → %84.
+- **Canlı HDsky** (ham video + Sky High, müziğin 46. saniyesi timeline 0'da, davulsuz kanal):
+  - 149 tık; ilk tık riff başında (46.99 sn, G). Riff: G G D# C C A# G# …
+  - Beat This sekizliklerine (yanlılık düzeltilmiş) medyan 5.6 ms, %97 ≤ 20 ms.
+  - Donma 0.9 sn.
+
 ## 0.9.9.4: kullanıcının elle editinden üç kural (melodi ve akış)
 
 Kullanıcı 10 klipten elle bir edit yaptı (In the End girişi): her tık riff'in bir piyano notasında, kaynaktaki hiçbir

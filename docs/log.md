@@ -11,6 +11,19 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-16 — Sky High riff'i, kaçan notalar (CEP 0.9.9.5)
+
+- Kullanıcı: HDmel'de "bazı yerlerde nota kaçırıyorsun"; Sky High ile 46. saniyeden sonraki riff'te edit istedi.
+  "HooDoo Cut'a mı yaptırıyorsun" sorusuna: evet, panelin kodu yapıyor. Claude sequence kurup düğmelere basıyor ve ölçüyor.
+- HDmel'de kaçan güçlü notaların çoğunu Basic Pitch bulmamış → piyano kanalı eşiği 0.4 → 0.3.
+- Sky High ilk denemede riff'in ilk ölçüsü elendi (ilk tık 48.85). Sebep: kayan synth lead'de Basic Pitch nota başını
+  40–100 ms geç buluyordu. Güçlü (≥ 0.52) geç notalar artık ritim noktasına alınıyor; In the End girişi değişmedi.
+- Canlı HDsky:
+  - İlk tık 46.99 (riff başı), 149 tık.
+  - Beat This sekizliklerine medyan 5.6 ms (yanlılık düzeltilmiş). Donma 0.9 sn.
+  - Ayrıntı: [[reports/2026-10-16-sky-high-riff|rapor]].
+- Testler 135 PASS. Paket 0.9.9.5. Release yok.
+
 ## 2026-10-16 — Elle edit kuralları uygulandı (CEP 0.9.9.4)
 
 - Kullanıcı: "evet üçünü de uygula ve dene".

@@ -312,13 +312,25 @@
      * Kullanıcının elle editi (In the End girişi) her tıkı riff'in bir notasına koydu; Basic Pitch'in
      * ızgara dışı notaları (süs, kanal sızıntısı) seçilmedi. Bu süzgeç 0–6.2 sn'de o seçimi birebir
      * veriyor; bütün şarkıda ızgara dışı notaların yalnız %18'i gerçek piyano notası (Kong). */
-    function notesOnGrid(notes, eighths, tol) {
+    /* amps verilirse güçlü nota (≥ 0.52) bir ızgara noktasından en çok 100 ms SONRA bulunduysa o noktaya
+     * alınır: kayan (portamento) ve sidechain'li synth lead'de Basic Pitch nota başını 40–100 ms geç
+     * buluyordu (Sky High 46–49 sn: riff'in ilk ölçüsü elenip ilk tık 48.85'e kaymıştı). In the End'in
+     * ızgara dışı fazla notaları zayıf (0.36–0.50), gerçek riff notaları 0.60–0.71: giriş seçimi değişmiyor,
+     * güçlü piyano notalarını yakalama %84 → %87. Aynı noktaya düşen ikinci nota alınmaz. */
+    function notesOnGrid(notes, eighths, tol, amps) {
         if (!eighths.length) return notes.slice();
-        return notes.filter(function (t) {
-            var lo = 0, hi = eighths.length - 1;
+        var out = [];
+        notes.forEach(function (t, i) {
+            var lo = 0, hi = eighths.length - 1, v = null;
             while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (eighths[mid] < t) lo = mid; else hi = mid; }
-            return Math.min(Math.abs(eighths[lo] - t), Math.abs(eighths[hi] - t)) <= tol;
+            if (Math.min(Math.abs(eighths[lo] - t), Math.abs(eighths[hi] - t)) <= tol) v = t;
+            else if (amps && amps[i] >= 0.52) {
+                var before = eighths[hi] <= t ? eighths[hi] : eighths[lo];
+                if (before <= t && t - before <= 0.1) v = before;
+            }
+            if (v !== null && !(out.length && v - out[out.length - 1] <= 0.03)) out.push(v);
         });
+        return out;
     }
 
     return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval,
