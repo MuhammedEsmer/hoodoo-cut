@@ -22,7 +22,7 @@ updated: 2026-10-11
   - İlk tık 46.99 (riff başı), 149 tık.
   - Beat This sekizliklerine medyan 5.6 ms (yanlılık düzeltilmiş). Donma 0.9 sn.
   - Ayrıntı: [[reports/2026-10-16-sky-high-riff|rapor]].
-- Testler 135 PASS. Paket 0.9.9.5. Release yok.
+- Testler 135 PASS. Paket 0.9.9.5. Release yok. Commit `7ffe894`.
 
 ## 2026-10-16 — Elle edit kuralları uygulandı (CEP 0.9.9.4)
 
