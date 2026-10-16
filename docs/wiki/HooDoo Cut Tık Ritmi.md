@@ -12,7 +12,7 @@ sources:
   - tools/test-tick.js
   - tools/test-tick-host.js
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # HooDoo Cut Tık Ritmi
@@ -49,6 +49,32 @@ s = (gerçek aralık − tık parçası) / (T − tık parçası)
 | Plan | `ACSTickPlan.planTicks` | Kareye hizalar; alt hız sınırına inmeyi gerektiren yakın tık öncekine katılır (`merged`); üst sınırı aşan hız sınıra çekilir (`limited`, fazla kaynak düşer) |
 | Uygulama | `ACS_tickRetime` (host) | Tüm içerik track'lerinde: 1) kısalacak parçalar: `end` → `setSpeed`; 2) sola kayanlar soldan, sağa kayanlar sağdan `move`; 3) uzayacak parçalar: `end` → `setSpeed`; sonra yerleşim + hız doğrulaması |
 | Önizleme | `ACS_setTickMarkers` / `ACS_clearTickMarkers` | Yalnız `HooDoo tik` adlı marker'lar yönetilir |
+
+## Hedef: Müzik ritmi (akış) — 0.9.9.3
+
+Kullanıcının referans editi (Rust maden bölümü): vuruşlar hızlı ve sabit aralıkla geliyor. Elle yapıldığı
+için müziğe tam kilitli değil. Ayrıntı: [[reports/2026-10-16-referans-edit-analizi|referans analizi]].
+Bu hedef aynı akışı müziğin kendi ızgarasıyla kurar. Kullanıcı yönü Claude'a bıraktı; test blok koymayla.
+Rapor: [[reports/2026-10-16-muzik-ritmi-akis|akış raporu]].
+
+**Kullanım:** Hedef → **Müzik ritmi (akış)**.
+- Müzik track'i (kilitli) seçilir.
+- **Akış aralığı:** Otomatik / 1/16 / 1/8 / 1/4. Otomatik = doğal tık aralığının %55'inden kısa olmayan en kısa seçenek; görüntünün en çok ~%45'i kesilir.
+- Tık sesleri ayrı yerleştirme melodiyle aynı.
+
+**Yöntem:**
+- `ACSAnalyzer.detectBeatGrid`: üç bant (≤200 Hz, 200–2000 Hz, 2–12 kHz) onset gücü. Sekizlik periyodu (0.27 sn önceliği) ve takip melodi analiziyle ortak (`eighthPeriod`, `trackPulse`).
+  - Vuruş fazı bant oylamasıyla.
+  - Atağa göre kayma ±8 noktalık medyanla düzeltilir; nokta tek tek atağa oturtulmaz, aralık düzeni bozuluyordu.
+- `ACSTickPlan.flowTargets` → `alignToNotes` (nota yerine ritim noktaları). Kaynak uzunsa görüntü kesilir, tıklar ardışık noktalara oturur.
+
+**Doğruluk:**
+- Çevrimdışı, Beat This referansı: In the End sekizlik medyan 5.7 ms, faz %95. Sky High faz %99, atağa medyan 0 ms (Beat This atağın 14 ms gerisinde).
+- **Canlı HDflow** (blok koyma 87.7 sn + In the End):
+  - 158/158 tık sekizliklerde (0.285 sn).
+  - Tık sesleri Beat This sekizliklerine medyan 3.9 ms, %91'i 10 ms içinde. Panel ızgarasına en kötü 1.0 ms.
+  - 157 aralığın 156'sı tam bir sekizlik. Tıklar 87.7 sn yerine 45.1 sn'ye yayılıyor.
+  - Uygulama 204.6 sn.
 
 ## Hedef: Müzik melodisi — güncel yöntem (0.9.9.0)
 

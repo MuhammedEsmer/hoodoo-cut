@@ -443,6 +443,74 @@
         }
     }
 
+    /* Pencere başına onset gücü: dB'nin 2 pencere (10 ms) öncesine göre yükselişi, [i0, i1).
+     * dB tabanı medyanın 40 dB altı: dijital sessizlikten (-120 dB) ilk giriş tek başına dev bir
+     * onset olup tempo aramasını bozuyordu (sentetik solo piyano: 100 BPM -> 66.7). */
+    function bandFlux(db, i0, i1) {
+        var os = new Float64Array(Math.max(0, i1 - i0)), i;
+        var sdb = Array.prototype.slice.call(db, i0, i1).sort(function (x, y) { return x - y; });
+        var floorDb = (sdb[sdb.length >> 1] || 0) - 40;
+        for (i = i0; i < i1; i++) os[i - i0] = Math.max(0, Math.max(db[i], floorDb) - Math.max(db[i - 2], floorDb));
+        return os;
+    }
+
+    /* Sekizlik periyodu (sn) doğrudan aranır (0.15–0.5 sn): 1, 2 ve 4 katında da güçlü olmalı. Vuruş
+     * araması (0.33-1.0 sn) düzgün sekizlik akışta 3 sekizliği (noktalı dörtlük) seçip tempoyu 2/3
+     * küçük bulabiliyordu (sentetik 100.4 BPM -> 66.9). prior: 0.27 sn (~110 BPM vuruş) çevresine
+     * log-Gauss öncelik (σ yarım oktav); davul müziğinde onaltılık zil/sekizlik ikilemini çözer. */
+    function eighthPeriod(os, w, prior) {
+        function ac(lag) { var s = 0; for (var q = 0; q + lag < os.length; q++) s += os[q] * os[q + lag]; return s; }
+        function pulse(lag) {
+            var v = ac(lag) + ac(2 * lag) + ac(4 * lag);
+            if (prior) { var o = Math.log(lag * w / 0.27) / Math.LN2 / 0.5; v *= Math.exp(-0.5 * o * o); }
+            return v;
+        }
+        var best = -1, lag0 = 0;
+        for (var lag = Math.round(0.15 / w); lag <= Math.round(0.5 / w); lag++) {
+            var v = pulse(lag);
+            if (v > best) { best = v; lag0 = lag; }
+        }
+        if (!(best > 0)) return null;
+        var y0 = pulse(lag0 - 1), y1 = best, y2 = pulse(lag0 + 1), den = y0 - 2 * y1 + y2;
+        return (lag0 + (den !== 0 ? 0.5 * (y0 - y2) / den : 0)) * w;
+    }
+
+    /* Nabız takibi (Ellis tarzı dinamik programlama): her nokta yerel atağa oturur, ardışık aralık
+     * per'den (pencere) saptıkça ceza (sıkılık alpha). Sabit (tempo, faz) ızgarası küçük tempo hatasında
+     * 100 sn'de 50+ ms kayıyordu ve sonuç analiz aralığına göre değişiyordu (canlı: ortak bölgede 0/52
+     * eşleşme). Dönüş: { idx: nokta pencereleri, env: yumuşatılmış, sd ile ölçekli onset gücü }. */
+    function trackPulse(os, per, alpha) {
+        var L = os.length, env = new Float64Array(L), mean = 0, sd = 0, i, k;
+        for (i = 0; i < L; i++) {
+            var acc = 0, wsum = 0;
+            for (k = -3; k <= 3; k++) {
+                if (i + k < 0 || i + k >= L) continue;
+                var wt = Math.exp(-k * k / 4);
+                acc += os[i + k] * wt; wsum += wt;
+            }
+            env[i] = acc / wsum; mean += env[i];
+        }
+        mean /= Math.max(1, L);
+        for (i = 0; i < L; i++) sd += (env[i] - mean) * (env[i] - mean);
+        sd = Math.sqrt(sd / Math.max(1, L)) || 1;
+        for (i = 0; i < L; i++) env[i] /= sd;
+        var wLo = Math.max(1, Math.round(per * 0.5)), wHi = Math.round(per * 1.5);
+        var score = new Float64Array(L), back = new Int32Array(L);
+        for (i = 0; i < L; i++) {
+            var bestS = 0, bestJ = -1;
+            for (var j = i - wHi; j <= i - wLo; j++) {
+                if (j < 0) continue;
+                var rl = Math.log((i - j) / per), sc = score[j] - alpha * rl * rl;
+                if (sc > bestS) { bestS = sc; bestJ = j; }
+            }
+            score[i] = env[i] + bestS; back[i] = bestJ;
+        }
+        var endI = L - 1, idx = [];
+        for (i = Math.max(0, L - Math.round(per)); i < L; i++) if (score[i] > score[endI]) endI = i;
+        for (i = endI; i >= 0; i = back[i]) idx.unshift(i);
+        return { idx: idx, env: env };
+    }
+
     /* Muzik melodisi (riff): [bas, son] (sn) araligindaki melodi notalari.
      * 1) Tempo: orta bant (300-3000 Hz) onset gucunun otokorelasyonu (vurus 0.33-1.0 sn).
      *    Sekizlikler bu tempoyla dinamik programlamali takiple bulunur (yerel ataklara oturur).
@@ -459,57 +527,12 @@
         opts = opts || {};
         var a = computeWindowDb(fs, filePath, 5, { hpHz: 300, lpHz: 3000 }), db = a.db, w = a.windowMs / 1000;
         var i0 = Math.max(2, Math.floor(range[0] / w)), i1 = Math.min(db.length, Math.ceil(range[1] / w));
-        var os = new Float64Array(Math.max(0, i1 - i0)), i, k;
-        // dB tabani: medyanin 40 dB alti. Dijital sessizlikten (-120 dB) ilk giris tek basina dev bir
-        // onset olup tempo aramasini bozuyordu (sentetik solo piyano: 100 BPM -> 66.7).
-        var sdb = Array.prototype.slice.call(db, i0, i1).sort(function (x, y) { return x - y; });
-        var floorDb = (sdb[sdb.length >> 1] || 0) - 40;
-        for (i = i0; i < i1; i++) os[i - i0] = Math.max(0, Math.max(db[i], floorDb) - Math.max(db[i - 2], floorDb));
-        function ac(lag) { var s = 0; for (var q = 0; q + lag < os.length; q++) s += os[q] * os[q + lag]; return s; }
-        // Sekizlik periyodu dogrudan aranir: 1, 2 ve 4 katinda da guclu olmali. Vurus aramasi
-        // (0.33-1.0 sn) duzgun sekizlik akista 3 sekizligi (nokta dortluk) secip tempoyu 2/3
-        // kucuk bulabiliyordu (sentetik 100.4 BPM -> 66.9).
-        function pulse(lag) { return ac(lag) + ac(2 * lag) + ac(4 * lag); }
-        var best = -1, lag0 = 0;
-        for (var lag = Math.round(0.15 / w); lag <= Math.round(0.5 / w); lag++) {
-            var v = pulse(lag);
-            if (v > best) { best = v; lag0 = lag; }
-        }
-        if (!(best > 0)) return { notes: [], names: [], bpm: null };
-        var y0 = pulse(lag0 - 1), y1 = best, y2 = pulse(lag0 + 1), den = y0 - 2 * y1 + y2;
-        var P8 = (lag0 + (den !== 0 ? 0.5 * (y0 - y2) / den : 0)) * w, beat = 2 * P8;
-        // Sekizlik takibi (Ellis tarzi dinamik programlama): her nokta yerel ataga oturur, ardisik
-        // aralik sekizlikten saptikca ceza. Sabit (tempo, faz) izgarasi kucuk tempo hatasinda 100 sn'de
-        // 50+ ms kayiyordu ve sonuc analiz araligina gore degisiyordu (canli: ortak bolgede 0/52 eslesme).
-        var L = os.length, env = new Float64Array(L), mean = 0, sd = 0;
-        for (i = 0; i < L; i++) {
-            var acc = 0, wsum = 0;
-            for (k = -3; k <= 3; k++) {
-                if (i + k < 0 || i + k >= L) continue;
-                var wt = Math.exp(-k * k / 4);
-                acc += os[i + k] * wt; wsum += wt;
-            }
-            env[i] = acc / wsum; mean += env[i];
-        }
-        mean /= Math.max(1, L);
-        for (i = 0; i < L; i++) sd += (env[i] - mean) * (env[i] - mean);
-        sd = Math.sqrt(sd / Math.max(1, L)) || 1;
-        for (i = 0; i < L; i++) env[i] /= sd;
-        var per = P8 / w, wLo = Math.max(1, Math.round(per * 0.5)), wHi = Math.round(per * 1.5), ALPHA = opts.tightness || 100;
-        var score = new Float64Array(L), back = new Int32Array(L);
-        for (i = 0; i < L; i++) {
-            var bestS = 0, bestJ = -1;
-            for (var j = i - wHi; j <= i - wLo; j++) {
-                if (j < 0) continue;
-                var rl = Math.log((i - j) / per), sc = score[j] - ALPHA * rl * rl;
-                if (sc > bestS) { bestS = sc; bestJ = j; }
-            }
-            score[i] = env[i] + bestS; back[i] = bestJ;
-        }
-        var endI = L - 1;
-        for (i = Math.max(0, L - Math.round(per)); i < L; i++) if (score[i] > score[endI]) endI = i;
-        var grid = [];
-        for (i = endI; i >= 0; i = back[i]) grid.unshift((i0 + i) * w);
+        var os = bandFlux(db, i0, i1), i, k;
+        var P8 = eighthPeriod(os, w, false);
+        if (!P8) return { notes: [], names: [], bpm: null };
+        var beat = 2 * P8;
+        var tp = trackPulse(os, P8 / w, opts.tightness || 100), env = tp.env, L = os.length;
+        var grid = tp.idx.map(function (q) { return (i0 + q) * w; });
 
         var fd = fs.openSync(filePath, 'r'), out = [], names = [];
         try {
@@ -625,6 +648,77 @@
         return { notes: out, names: names, bpm: 60 / beat };
     }
 
+    /* Müzik ritmi (akış hedefi): [bas, son] (sn) aralığında sekizlik ızgarası ve vuruş fazı.
+     * Onset gücü üç bantta (≤200 Hz kick, 200–2000 Hz trampet/gövde, 2–12 kHz zil) 5 ms log-enerji
+     * yükselişi, bant başına sd ile ölçeklenip toplanır. Sekizlik periyodu ve takibi melodi analiziyle
+     * aynı (öncelikli periyot araması). Vuruş fazı: alçak + orta bantta çift/tek sekizliklerden güçlü olan.
+     * Dönüş: { eighths: [sn], beatParity: 0 | 1 (vuruş olan sekizliklerin eşliği), bpm } */
+    function detectBeatGrid(fs, filePath, range, opts) {
+        opts = opts || {};
+        var bands = [{ hpHz: 30, lpHz: 200 }, { hpHz: 200, lpHz: 2000 }, { hpHz: 2000, lpHz: 12000 }];
+        var flux = [], w = 0.005, i0 = 0, i1 = 0, b, i;
+        for (b = 0; b < bands.length; b++) {
+            var a = computeWindowDb(fs, filePath, 5, bands[b]);
+            w = a.windowMs / 1000;
+            i0 = Math.max(2, Math.floor(range[0] / w)); i1 = Math.min(a.db.length, Math.ceil(range[1] / w));
+            var f = bandFlux(a.db, i0, i1), sd = 0;
+            for (i = 0; i < f.length; i++) sd += f[i] * f[i];
+            sd = Math.sqrt(sd / Math.max(1, f.length)) || 1;
+            for (i = 0; i < f.length; i++) f[i] /= sd;
+            flux.push(f);
+        }
+        var L = i1 - i0, os = new Float64Array(Math.max(0, L));
+        for (i = 0; i < L; i++) os[i] = flux[0][i] + flux[1][i] + flux[2][i];
+        var P8 = eighthPeriod(os, w, true);
+        if (!P8) return { eighths: [], beatParity: 0, bpm: null };
+        // Vuruş fazı: her bant çift/tek sekizlik farkını (göreli) oylar. Tek bant yetmiyor: In the End'de
+        // vuruşu orta/tiz bant ayırıyor, Sky High'da (EDM, ara vuruşta bas/zil) yalnız alçak bant.
+        var tp = trackPulse(os, P8 / w, opts.tightness || 100), idx = tp.idx, vote = 0;
+        for (b = 0; b < bands.length; b++) {
+            var even = 0, odd = 0;
+            idx.forEach(function (q, n) {
+                var v = 0;
+                for (var z = Math.max(0, q - 2); z <= Math.min(L - 1, q + 2); z++) v = Math.max(v, flux[b][z]);
+                if (n % 2) odd += v; else even += v;
+            });
+            vote += (even - odd) / (even + odd || 1);
+        }
+        // Atağa göre kayma düzeltmesi: ±25 ms içindeki belirgin atağın (tam bant 1 ms, ≥ 12 dB yükseliş)
+        // başı (tepe − 10 dB) tıklarla aynı ölçüt (detectOnsets). Noktayı tek tek atağa oturtmak aralıkları
+        // düzensizleştiriyordu (In the End ardışık aralık farkı medyanı 5 → 16 ms; ±25 ms'de bazen sonraki
+        // çalgının atağı). Kayma ±8 noktalık medyanla yumuşatılır: sistematik kayma (Sky High'da takip
+        // atağın ~4 ms gerisinde) düzelir, düzen korunur.
+        var d1 = computeWindowDb(fs, filePath, 1, { hpHz: 30, lpHz: 15000 }).db;
+        // nokta zarf tepesindeyse pencere içi konum parabolle (5 ms yuvarlama düzensizliği)
+        var e = tp.env, times = idx.map(function (q) {
+            var dq = 0;
+            if (q > 0 && q < L - 1 && e[q] >= e[q - 1] && e[q] >= e[q + 1]) {
+                var den = e[q - 1] - 2 * e[q] + e[q + 1];
+                if (den < 0) dq = Math.max(-0.5, Math.min(0.5, 0.5 * (e[q - 1] - e[q + 1]) / den));
+            }
+            return (i0 + q + dq) * w;
+        });
+        var shift = times.map(function (t) {
+            var c = Math.round(t * 1000), pk = -Infinity, pi = -1, k;
+            if (c - 70 < 0 || c + 25 >= d1.length) return null;
+            for (k = c - 25; k <= c + 25; k++) if (d1[k] > pk) { pk = d1[k]; pi = k; }
+            var lo = Infinity;
+            for (k = pi - 40; k < pi; k++) if (d1[k] < lo) lo = d1[k];
+            if (pk - lo < 12) return null;
+            var s = pi;
+            while (s > pi - 40 && d1[s - 1] > pk - 10) s--;
+            return Math.abs(s - c) > 25 ? null : s / 1000 - t;
+        });
+        var eighths = times.map(function (t, n) {
+            var near = [];
+            for (var z = Math.max(0, n - 8); z <= Math.min(times.length - 1, n + 8); z++) if (shift[z] !== null) near.push(shift[z]);
+            if (near.length < 3) return t;
+            near.sort(function (x, y) { return x - y; });
+            return t + near[near.length >> 1];
+        });
+        return { eighths: eighths, beatParity: vote >= 0 ? 0 : 1, bpm: 30 / P8 };
+    }
+
     /* Dosyanın [bas, son] (sn) aralığını mono'ya indirip srOut Hz'e yeniden örnekler: Blackman pencereli
      * sinc (32 tap yarıçap), kesir konumu 512 adımlı tablodan. Basic Pitch 22050 Hz mono ister. */
     function readMonoResampled(fs, filePath, range, srOut) {
@@ -701,6 +795,7 @@
         MODES: MODES,
         detectOnsets: detectOnsets,
         detectRiffNotes: detectRiffNotes,
+        detectBeatGrid: detectBeatGrid,
         readMonoResampled: readMonoResampled,
         melodyFromNoteEvents: melodyFromNoteEvents,
         alignCuts: alignCuts,

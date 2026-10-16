@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.9.2'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.9.3'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -582,20 +582,23 @@
             // Tek blok sesinin iki tepesi ~60 ms arayla gelebiliyor; 100 ms alti ikisini ayri tik sayar.
             relDb: numField('tickRel', 12, 1), minGap: Math.max(100, numField('tickMinGap', 200, 0)) / 1000,
             minSpeed: numField('tickMinSpeed', 50, 1) / 100, maxSpeed: numField('tickMaxSpeed', 400, 100) / 100,
-            target: $('tickTarget').value === 'melody' ? 'melody' : 'grid', musicTrack: $('tickMusicTrack').value,
-            separate: $('tickSeparate') ? $('tickSeparate').value : 'none' };
+            target: /^(melody|flow)$/.test($('tickTarget').value) ? $('tickTarget').value : 'grid', musicTrack: $('tickMusicTrack').value,
+            separate: $('tickSeparate') ? $('tickSeparate').value : 'none',
+            flowStep: $('tickFlowStep') ? $('tickFlowStep').value : 'auto' };
     }
 
     function applyWorkMode() {
-        var tick = getWorkMode() === 'tick', melody = $('tickTarget').value === 'melody';
+        var tick = getWorkMode() === 'tick', target = $('tickTarget').value, melody = target === 'melody';
+        var music = melody || target === 'flow';
         $('tickSettings').style.display = tick ? 'block' : 'none';
         $('thresholdCard').style.display = tick ? 'none' : '';
         $('templateCard').style.display = tick ? 'none' : '';
-        $('tickMusicField').style.display = melody ? '' : 'none';
+        $('tickMusicField').style.display = music ? '' : 'none';
         if ($('tickSeparateField')) $('tickSeparateField').style.display = melody ? '' : 'none';
-        if ($('tickSlicesField')) $('tickSlicesField').style.display = melody ? '' : 'none';
+        if ($('tickSlicesField')) $('tickSlicesField').style.display = music ? '' : 'none';
+        if ($('tickFlowField')) $('tickFlowField').style.display = target === 'flow' ? '' : 'none';
         var gridFields = document.querySelectorAll('.tickGridField');
-        for (var i = 0; i < gridFields.length; i++) gridFields[i].style.display = melody ? 'none' : '';
+        for (var i = 0; i < gridFields.length; i++) gridFields[i].style.display = music ? 'none' : '';
         if (!state.busy) $('btnAnalyze').textContent = tick ? '🎵 Tıkları Bul' : '🔍 Analiz Et';
     }
 
@@ -615,26 +618,43 @@
                 opts = getTickOpts();
                 onsets = ACSAnalyzer.detectOnsets(fs, wavPath, selRanges, { relDb: opts.relDb, minGap: opts.minGap });
             } catch (e) { tickAnalysisFailed(e); return; }
-            if (opts.target !== 'melody') {
+            if (opts.target === 'grid') {
                 try { finishTickAnalysis(onsets, ACSTickPlan.planTicks(onsets, opts), opts); }
                 catch (e2) { tickAnalysisFailed(e2); }
                 return;
             }
             var rs = Infinity, re = -Infinity;
             selRanges.forEach(function (r) { rs = Math.min(rs, r[0]); re = Math.max(re, r[1]); });
+            // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
+            var range = [rs, re + (re - rs) / opts.minSpeed + 5];
+            var alignOpts = { fps: opts.fps, holdFrames: opts.holdFrames, minSpeed: opts.minSpeed, maxSpeed: opts.maxSpeed, regionStart: rs };
             exportMusic(opts.musicTrack, function (err, musicWav) {
                 if (err) { tickAnalysisFailed(err); return; }
+                if (opts.target === 'flow') {
+                    $('btnAnalyze').textContent = '⏳ Müziğin ritmi çıkarılıyor…';
+                    setTimeout(function () {
+                        try {
+                            var t0 = Date.now(), grid = ACSAnalyzer.detectBeatGrid(fs, musicWav, range);
+                            var ft = ACSTickPlan.flowTargets(grid, ACSTickPlan.medianInterval(onsets), opts.flowStep);
+                            log('Müzik ritmi: ' + (grid.bpm ? grid.bpm.toFixed(1) : '?') + ' BPM, ' + grid.eighths.length + ' sekizlik, hedef ' +
+                                ft.label + ' (' + (ft.interval ? ft.interval.toFixed(3) : '?') + ' sn), A' + (parseInt(opts.musicTrack, 10) + 1) +
+                                ', ' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn');
+                            var plan = ACSTickPlan.alignToNotes(onsets, ft.times, alignOpts);
+                            plan.flow = ft;
+                            finishTickAnalysis(onsets, plan, opts);
+                        } catch (e5) { tickAnalysisFailed(e5); }
+                        try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e6) {}
+                    }, 30);
+                    return;
+                }
                 $('btnAnalyze').textContent = '⏳ Melodi notaları çıkarılıyor…';
-                // Bölge en fazla 1/minSpeed kat uzayabilir; sonrasındaki notalar da gerekir.
-                melodyNotes(musicWav, [rs, re + (re - rs) / opts.minSpeed + 5], opts.separate, function (e1, mel) {
+                melodyNotes(musicWav, range, opts.separate, function (e1, mel) {
                     try { if (fs.existsSync(musicWav)) fs.unlinkSync(musicWav); } catch (e4) {}
                     if (e1) { tickAnalysisFailed(e1); return; }
                     try {
                         log('Müzik melodisi: ' + mel.notes.length + ' nota, ' + mel.source + ' (A' + (parseInt(opts.musicTrack, 10) + 1) + ')' +
                             (mel.names.length ? ', ilk notalar ' + mel.names.slice(0, 6).join(' ') : ''));
-                        finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, mel.notes, {
-                            fps: opts.fps, holdFrames: opts.holdFrames, minSpeed: opts.minSpeed,
-                            maxSpeed: opts.maxSpeed, regionStart: rs }), opts);
+                        finishTickAnalysis(onsets, ACSTickPlan.alignToNotes(onsets, mel.notes, alignOpts), opts);
                     } catch (e3) { tickAnalysisFailed(e3); }
                 });
             });
@@ -744,30 +764,32 @@
         // Silinecek parçalar (hız 0) ve donan kareler hız aralığına girmez.
         var speeds = plan.gaps.filter(function (g) { return g.speed > 0 && !g.freeze; }).map(function (g) { return g.speed; });
         if (!speeds.length) speeds = [1];
-        var melody = opts.target === 'melody';
+        var flow = opts.target === 'flow', music = flow || opts.target === 'melody', noun = flow ? 'ritim noktası' : 'nota';
         var natural = ACSTickPlan.medianInterval(onsets);
-        var naturalNote = !melody && natural ? 'Doğal tık aralığı ≈ ' + natural.toFixed(2) + ' sn' +
+        var naturalNote = !music && natural ? 'Doğal tık aralığı ≈ ' + natural.toFixed(2) + ' sn' +
             (natural / opts.interval > 2 || opts.interval / natural > 2
                 ? ' — girilen aralık (' + opts.interval.toFixed(2) + ' sn) bundan çok farklı, hızlar sınıra takılabilir.' : '') : '';
-        log('Tık analizi: ' + onsets.length + ' tık, ' + plan.merged + (melody ? ' tık düştü, ' + plan.skipped + ' nota atlandı, ' : ' birleşti, ') +
-            plan.gaps.length + ' ara' + (melody ? ', hedef müzik melodisi' : ', aralık ' + opts.interval.toFixed(3) + ' sn') +
+        var flowText = flow && plan.flow ? plan.flow.label + ', ' + plan.flow.interval.toFixed(3) + ' sn' : '';
+        log('Tık analizi: ' + onsets.length + ' tık, ' + plan.merged + (music ? ' tık düştü, ' + plan.skipped + ' ' + noun + ' atlandı, ' : ' birleşti, ') +
+            plan.gaps.length + ' ara' + (flow ? ', hedef müzik ritmi (' + flowText + ')' : music ? ', hedef müzik melodisi' : ', aralık ' + opts.interval.toFixed(3) + ' sn') +
             (plan.limited ? ', ' + plan.limited + ' ara hız sınırında' : '') + (natural ? ', doğal aralık ' + natural.toFixed(3) + ' sn' : ''));
         evalJsx('ACS_setTickMarkers("' + plan.clicks.join(';') + '")', function (res) {
             if (res.split('|')[0] !== 'OK') log('Tık marker\'ları konamadı: ' + res);
         });
         if (!state.tickPlan) {
             showResult(true, 'Ritme oturtulacak en az iki tık bulunamadı (' + onsets.length + ' tık' +
-                (melody ? ', notalara uyan eşleşme yok' : '') + '). Hassasiyeti artırın ya da bölgeyi genişletin.');
+                (music ? (flow ? ', ritme' : ', notalara') + ' uyan eşleşme yok' : '') + '). Hassasiyeti artırın ya da bölgeyi genişletin.');
         } else {
             showResult(true, '<b>' + plan.clicks.length + ' tık</b> — ' + plan.gaps.length + ' ara yeniden zamanlanacak' +
-                (melody ? ' (her tık bir müzik notasına)' : '') + '<br>' +
+                (flow ? ' (tıklar müziğin ritminde, ' + flowText + ' arayla)' : music ? ' (her tık bir müzik notasına)' : '') + '<br>' +
                 'Hız: %' + Math.round(Math.min.apply(null, speeds) * 100) + ' – %' +
                 Math.round(Math.max.apply(null, speeds) * 100) + ' · süre değişimi ' +
                 (plan.deltaSec >= 0 ? '+' : '') + plan.deltaSec.toFixed(2) + ' sn<br>' +
-                (melody ? (plan.merged ? plan.merged + ' fazla tık; aralarından ' + plan.cutSec.toFixed(1) + ' sn kesilecek. ' : '') +
-                    (plan.freezes ? 'Uzun nota aralarında ' + plan.freezes + ' yerde görüntü donacak (toplam ' + plan.frozenSec.toFixed(1) + ' sn). ' : '') +
+                (music ? (flow ? 'Tıklar arası görüntüden ' + plan.cutSec.toFixed(1) + ' sn kesilecek' + (plan.merged ? ', ' + plan.merged + ' fazla tık düştü' : '') + '. '
+                        : plan.merged ? plan.merged + ' fazla tık; aralarından ' + plan.cutSec.toFixed(1) + ' sn kesilecek. ' : '') +
+                    (plan.freezes ? (flow ? 'Tıksız aralarda ' : 'Uzun nota aralarında ') + plan.freezes + ' yerde görüntü donacak (toplam ' + plan.frozenSec.toFixed(1) + ' sn). ' : '') +
                     (plan.visible ? plan.visible + ' fazla tık görünür kalacak. ' : '') +
-                    plan.skipped + ' nota tıksız geçti. '
+                    plan.skipped + ' ' + noun + ' tıksız geçti. '
                     : (plan.merged ? plan.merged + ' yakın tık öncekine katıldı. ' : '')) +
                 (plan.limited ? plan.limited + ' arada hız sınırı aşıldı, fazlası kesilecek. ' : '') +
                 'Tıklar timeline\'da marker olarak işaretli.' + (naturalNote ? '<br>' + naturalNote : ''));

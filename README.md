@@ -40,7 +40,9 @@ içindeki Node.js ile yapılır.
   notalarına (davul değil, nota çalan sesler) oturtur. 0.9.9.0: notalar panel içinde
   **Spotify Basic Pitch** (TF.js WASM, Python gerekmez) ile bulunur. 0.9.9.2: tık sesleri
   ayrı bir ses track'ine tam hızda, notaya örnek hassasiyetiyle konur; isteğe bağlı
-  **Demucs** ile müzik kanallara ayrılır (yerel Python: `tools\setup-ml.ps1`). Ayrıntı: [docs/wiki/HooDoo Cut Tık Ritmi.md](docs/wiki/HooDoo%20Cut%20Tık%20Ritmi.md).
+  **Demucs** ile müzik kanallara ayrılır (yerel Python: `tools\setup-ml.ps1`). 0.9.9.3:
+  **Hedef = Müzik ritmi (akış)** — tıklar müziğin ritim ızgarasında sabit aralıkla gelir
+  (onaltılık / sekizlik / vuruş, otomatik seçim); aradaki görüntü kesilerek kısaltılır. Ayrıntı: [docs/wiki/HooDoo Cut Tık Ritmi.md](docs/wiki/HooDoo%20Cut%20Tık%20Ritmi.md).
 - **Kapsam seçimi:** tüm sequence ya da sadece timeline'da seçili clipler.
   Bölge bölge farklı şablon: bölgeyi seç → şablon → analiz → kes, tekrarla.
 - **Parçalı işleme:** uzun videolarda Premiere kilitlenmez; butonda canlı

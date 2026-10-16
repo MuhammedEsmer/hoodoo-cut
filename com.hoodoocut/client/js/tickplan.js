@@ -262,6 +262,33 @@
         };
     }
 
+    /* Müzik ritmi (akış) hedefi: tıklar müziğin ızgarasında sabit aralıkla gelir (alignToNotes'a nota
+     * yerine verilir; tıklar arası görüntü kesilerek kısaltılır). Referans edit (Rust maden bölümü, elle):
+     * vuruşlar ~0.32 sn sabit aralıkla, müziğin sekizliğine yakın ama kilitsiz; burada aralık müziğin
+     * kendisinden, faz kaymaz.
+     * grid: analyzer.detectBeatGrid sonucu. step: 'auto' | 0.5 (onaltılık) | 1 (sekizlik) | 2 (vuruş).
+     * auto: doğal tık aralığının %55'inden kısa olmayan en kısa seçenek (tıktan tıka görüntünün en çok
+     * ~%45'i kesilir); hiçbiri değilse vuruş. Dönüş: { times, step, interval, label } */
+    function flowTargets(grid, natural, step) {
+        var e = grid.eighths, cands = [], i;
+        if (e.length < 2) return { times: [], step: 1, interval: null, label: '' };
+        var sixteenths = [];
+        for (i = 0; i < e.length; i++) { sixteenths.push(e[i]); if (i + 1 < e.length) sixteenths.push((e[i] + e[i + 1]) / 2); }
+        cands.push({ step: 0.5, times: sixteenths, label: 'onaltılık' });
+        cands.push({ step: 1, times: e.slice(), label: 'sekizlik' });
+        cands.push({ step: 2, times: e.filter(function (t, n) { return n % 2 === grid.beatParity; }), label: 'vuruş' });
+        cands.forEach(function (o) { o.interval = medianInterval(o.times); });
+        var pick = null;
+        if (step === 'auto' || step === undefined) {
+            if (!natural) pick = cands[1];
+            else for (i = 0; i < cands.length && !pick; i++) if (cands[i].interval >= 0.55 * natural) pick = cands[i];
+            if (!pick) pick = cands[2];
+        } else {
+            pick = cands.filter(function (o) { return o.step === +step; })[0] || cands[1];
+        }
+        return pick;
+    }
+
     return { intervalFromBpm: intervalFromBpm, planTicks: planTicks, medianInterval: medianInterval,
-        alignToNotes: alignToNotes };
+        alignToNotes: alignToNotes, flowTargets: flowTargets };
 });

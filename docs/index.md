@@ -42,6 +42,8 @@ değişiklikler: [[log]].
 - [[reports/2026-10-14-donma-azaltma|2026-10-14 CEP 0.9.8.1 donma azaltma, In the End canlı]]
 - [[reports/2026-10-14-acik-kaynak-arastirma|2026-10-14 Açık kaynak araştırması: müzikle video eşleme, nota/vuruş/tık tespiti, lisanslar, yol haritası]]
 - [[reports/2026-10-14-basic-pitch-entegrasyon|2026-10-14 CEP 0.9.9.0 Basic Pitch ile melodi notaları: Kong referanslı ölçüm, panel entegrasyonu, canlı test]]
+- [[reports/2026-10-16-referans-edit-analizi|2026-10-16 Referans edit analizi: Rust maden bölümünde vuruşlar sabit aralıklı, notaya/ızgaraya kilitli değil]]
+- [[reports/2026-10-16-muzik-ritmi-akis|2026-10-16 CEP 0.9.9.3 Müzik ritmi (akış) hedefi: panelde ritim takibi, Beat This'e göre ölçüm, canlı HDflow]]
 
 ## 🗂️ Planlar (`plans/`)
 

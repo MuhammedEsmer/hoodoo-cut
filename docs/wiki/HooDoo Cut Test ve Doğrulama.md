@@ -7,7 +7,7 @@ proje: [hoodoo-cut]
 sources:
   - tools/
 created: 2026-10-11
-updated: 2026-10-14
+updated: 2026-10-16
 ---
 
 # HooDoo Cut Test ve Doğrulama
@@ -32,10 +32,10 @@ node tools/test-analyzer.js
 | `tools/test-bulk-bridge.js` | Yerel köprü: origin/token, tek seferlik iş, idempotent onay (3) |
 | `tools/test-bulk-network.js` | UXP `network.js`: sabit loopback adresi, redirect/dış URL reddi (2) |
 | `tools/test-bulk-companion.js` | Yardımcı panel bağlantı/onay kurtarma (2) |
-| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi notaları (perde değişimi, yeniden vuruş, tutulan nota/davul nota değil, ızgara dışı atak, sönüm), (b)/(c) eşleşmesi: fazla tıklar arası bölümler, hafif ağır çekim, kısa donma, uzun donma yerine tık düşürme; Basic Pitch nota seçimi, yeniden örnekleme ve **gerçek paketle** sentetik piyano transkripsiyonu, tık sesinin (karesinin değil) notaya hizalanması (29) |
+| `tools/test-tick.js` | Tık ritmi planı, tık tespiti, melodi notaları (perde değişimi, yeniden vuruş, tutulan nota/davul nota değil, ızgara dışı atak, sönüm), (b)/(c) eşleşmesi: fazla tıklar arası bölümler, hafif ağır çekim, kısa donma, uzun donma yerine tık düşürme; Basic Pitch nota seçimi, yeniden örnekleme ve **gerçek paketle** sentetik piyano transkripsiyonu, tık sesinin (karesinin değil) notaya hizalanması; akış hedefi: ritim ızgarası (rock / four-on-the-floor sentetik davul, tempo, vuruş fazı), otomatik adım, ardışık sekizliklere oturma (33) |
 | `tools/test-tick-host.js` | `ACS_tickRetime`: çakışmasız yeniden zamanlama, silme, donan karenin sesi, kilitli track, hız tavanı, marker'lar; tık sesi dilimi hazırlığı (medya zamanı, ses akışı) (12) |
 
-**2026-10-14 son koşu: 127 PASS, 0 FAIL** (CEP 0.9.9.2, motor 0.9.9).
+**2026-10-16 son koşu: 131 PASS, 0 FAIL** (CEP 0.9.9.3, motor 0.9.9).
 
 **Nota doğruluğu ölçümü (geliştirme):** Kong piyano transkripsiyonu (Python, `piano_transcription_inference`)
 referans olarak kullanılır; spektral akış referansı zayıf. Ayrıntı:

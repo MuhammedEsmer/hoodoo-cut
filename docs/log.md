@@ -11,6 +11,34 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-16 — Müzik ritmi (akış) hedefi (CEP 0.9.9.3)
+
+- Kullanıcı: referans elle yapıldı, kusursuz değil. Blok koymayla ilerle; yönü Claude seçsin.
+  Seçim: akış (sabit aralık, müziğin ızgarasından).
+- `analyzer.detectBeatGrid`: üç bant onset, sekizlik takibi.
+  - `detectRiffNotes`'tan `bandFlux` / `eighthPeriod` / `trackPulse` ayrıldı; riff testleri aynı.
+  - Vuruş fazı bant oylamasıyla. Önce alçak + orta bant: Sky High ve referans müzikte faz tersti.
+  - Atağa göre yumuşatılmış kayma düzeltmesi. Nokta nokta atağa oturtma aralıkları bozdu, bırakıldı.
+- `tickplan.flowTargets` + panelde "Müzik ritmi (akış)" ve "Akış aralığı".
+- Ölçüm ve canlı test: [[reports/2026-10-16-muzik-ritmi-akis|rapor]].
+  - Canlı HDflow (In the End): 158/158 tık sekizlikte; Beat This'e medyan 3.9 ms; 156/157 aralık tam sekizlik.
+- Kurulu panel junction değil, kopya: canlı test için değişen dosyalar `%APPDATA%\Adobe\CEP\extensions\com.hoodoocut`'a kopyalandı.
+  Premiere kapalıydı; Claude test projesiyle başlattı.
+- Testler 131 PASS. Paket 0.9.9.3. Release yok.
+
+## 2026-10-16 — Referans edit analizi (kod değişikliği yok)
+
+- Kullanıcı bir referans kaydı verdi (`Videos\2026-10-15 11-43-17.mp4`, Rust montajı, oyun sesi + müzik karışık):
+  "ilk 20 sn tam istediğim edit, özellikle maden kırarken vuruşlar".
+- Ölçüm: [[reports/2026-10-16-referans-edit-analizi|rapor]], zaman çizelgesi `reports/2026-10-16-referans-15-18.png`.
+  - Kullanıcı ayrıca "15-18 arasını analiz et" dedi: 9 klip, 10 vuruş.
+    - Her klip bir sallama, kalkık kazmayla başlıyor (kaldırma kesilmiş). Taş şekli değişiyor (madenin
+      tamamından seçilmiş sallamalar).
+  - 15.96'dan sonra vuruşlar 0.30–0.35 sn arayla (ortalama 0.317).
+  - Onaltılığa ve bas/gitar notalarına yakınlık tesadüf düzeyinde (kaydırma kontrolü). Bölüm başı vuruşta.
+  - Müzik 108.3 BPM (ilk tahmin 107.1 düzeltildi).
+- Sonraki adım için yön kullanıcıya soruldu: akış hedefi (sabit aralık, tempodan) ve/veya melodi ile karışık.
+
 ## 2026-10-14 — Tık sesleri ayrı, vuruşa giriş, Demucs (CEP 0.9.9.2)
 
 - Kullanıcı: önerilen üç adımın "hepsini yap".

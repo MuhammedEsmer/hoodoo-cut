@@ -9,7 +9,7 @@ sources:
   - com.hoodoocut.bulk/manifest.json
   - README.md
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-16
 ---
 
 # HooDoo Cut Sürüm Geçmişi
@@ -24,6 +24,7 @@ commit'te toplandı: `85002f9` (2026-10-11).
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
+| 2026-10-16 | 0.9.9.3 | 0.9.9 | (bkz. log) | **Hedef = Müzik ritmi (akış)**: tıklar müziğin ritim ızgarasında sabit aralıkla (1/16, 1/8, 1/4, otomatik). Panelde ritim takibi (`detectBeatGrid`), bant oylamalı vuruş fazı. Canlı HDflow: 158/158 tık sekizlikte, Beat This'e medyan 3.9 ms (%91 ≤10 ms). Paket `HooDooCut-Kurulum-v0.9.9.3.zip` (SHA-256 `53DCDC38…2D4BBC3A`). Release yok |
 | 2026-10-14 | 0.9.9.2 | 0.9.9 | `fcee826` | **Tık sesleri ayrı** (tam hız, notaya örnek hassasiyetiyle, yeni ses track'i; asıl oyun sesi silinir); **vuruşa hızlanarak gir** (tıktan önceki 0.1 sn normal); **Demucs** seçeneği (piyano/davulsuz kanal, `tools/setup-ml.ps1`); tık atağı 1 ms çözünürlük. Canlı piyano: tık sesi-nota medyan 0.0 ms, Kong'a göre 10 ms içinde %82. Paket `HooDooCut-Kurulum-v0.9.9.2.zip` (SHA-256 `D56AE15C…3EC18F30`). Release yok |
 | 2026-10-14 | 0.9.9.1 | 0.9.9 | `d11a769` | Tık **sesi** notaya hizalanır (kare içi kayma; tek yuvarlama): piyano medyan hata 8.8 → 5.7 ms, 10 ms içinde %62 → %76; In the End %99. Dosya sonrası sessizlik analiz edilmez (25.5 → 10.2 sn). Paket `HooDooCut-Kurulum-v0.9.9.1.zip` (SHA-256 `DAA327F5…9DBB7AB`). Canlı doğrulandı. Release yok |
 | 2026-10-14 | 0.9.9.0 | 0.9.9 | `9694c2b` | **Melodi notaları Spotify Basic Pitch ile** (panelde TF.js WASM, `client/lib/basicpitch`, 4.2 MB; eski DSP yedek). Kong referansıyla solo piyano F1 0.85 → 0.97, zaman hatası 9.9 → 4.4 ms. Canlı: piyano donma 1.1 sn, In the End 4.1 sn, görünür fazla blok yok. Paket `HooDooCut-Kurulum-v0.9.9.0.zip` (1.2 MB, SHA-256 `DE7F604C…466006`). Release yok |

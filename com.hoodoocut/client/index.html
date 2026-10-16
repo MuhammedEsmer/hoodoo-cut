@@ -32,7 +32,11 @@
       <div class="grid2">
         <div class="field">
           <span>Hedef</span>
-          <select id="tickTarget"><option value="grid" selected>Sabit aralık / BPM</option><option value="melody">Müzik melodisi</option></select>
+          <select id="tickTarget"><option value="grid" selected>Sabit aralık / BPM</option><option value="melody">Müzik melodisi</option><option value="flow">Müzik ritmi (akış)</option></select>
+        </div>
+        <div class="field" id="tickFlowField" style="display:none" title="Tıklar müziğin ritim ızgarasında sabit aralıkla gelir; aradaki görüntü kesilerek kısaltılır. Otomatik: tıkların doğal aralığına göre (görüntünün en çok ~%45'i kesilir).">
+          <span>Akış aralığı</span>
+          <select id="tickFlowStep"><option value="auto" selected>Otomatik</option><option value="0.5">1/16 (onaltılık)</option><option value="1">1/8 (sekizlik)</option><option value="2">1/4 (vuruş)</option></select>
         </div>
         <div class="field" id="tickMusicField" style="display:none">
           <span>Müzik track'i (kilitli)</span>

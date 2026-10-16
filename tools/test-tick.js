@@ -243,6 +243,83 @@ test('riff notes do not depend on the analysed range (beat tracking, no global g
         part.forEach(t => assert(whole.some(q => Math.abs(q - t) <= 0.012), 'tutarsiz nota ' + t + ' / ' + JSON.stringify(whole)));
     } finally { fs.unlinkSync(file); }
 });
+// --- Müzik ritmi (akış) hedefi ---
+// Davul: kick (55 Hz, keskin atak), trampet (gürültü, orta bant), zil (tiz gürültü, kısa).
+function synthDrums(dur, hits) {
+    const n = Math.round(dur * SR), s = new Float64Array(n);
+    for (const h of hits) {
+        const i0 = Math.round(h.at * SR), len = Math.round((h.kind === 'kick' ? 0.25 : h.kind === 'snare' ? 0.15 : 0.04) * SR);
+        let lp = 0, prev = 0;
+        for (let i = i0; i < Math.min(n, i0 + len); i++) {
+            const t = (i - i0) / SR, r = rand() * 2 - 1;
+            if (h.kind === 'kick') s[i] += 12000 * Math.exp(-t / 0.08) * Math.sin(2 * Math.PI * (55 + 80 * Math.exp(-t / 0.02)) * t);
+            else if (h.kind === 'snare') { lp += 0.3 * (r - lp); s[i] += 7000 * Math.exp(-t / 0.05) * lp; }
+            else { s[i] += (h.amp || 2500) * Math.exp(-t / 0.012) * (r - prev); prev = r; } // zil: türev = tiz
+        }
+    }
+    return writeWav(s);
+}
+function rockBeat(bpm, t0, dur) {
+    const beat = 60 / bpm, hits = [], truth = [];
+    for (let k = 0; t0 + k * beat / 2 < dur - 0.3; k++) {
+        const at = t0 + k * beat / 2;
+        truth.push(at);
+        hits.push({ at: at, kind: 'hat' });
+        if (k % 2 === 0) hits.push({ at: at, kind: (k / 2) % 2 === 0 ? 'kick' : 'snare' });
+    }
+    return { hits: hits, truth: truth, beat: beat };
+}
+test('beat grid: eighths of a rock beat within 10 ms, tempo and beat phase (kick/snare on the beat)', () => {
+    const bpm = 112, t0 = 0.37, dur = 16, rb = rockBeat(bpm, t0, dur), file = synthDrums(dur, rb.hits);
+    try {
+        const g = analyzer.detectBeatGrid(fs, file, [0, dur]);
+        assert(Math.abs(g.bpm - bpm) <= 1, 'tempo ' + g.bpm);
+        const inner = rb.truth.filter(t => t > 1 && t < dur - 1);
+        inner.forEach(t => assert(g.eighths.some(e => Math.abs(e - t) <= 0.01), 'sekizlik ' + t.toFixed(3) + ' yok'));
+        const beats = g.eighths.filter((t, i) => i % 2 === g.beatParity && t > 1 && t < dur - 1);
+        beats.forEach(t => assert(Math.abs(((t - t0) / rb.beat) - Math.round((t - t0) / rb.beat)) < 0.05, 'vurus ara vurusta: ' + t.toFixed(3)));
+    } finally { fs.unlinkSync(file); }
+});
+test('beat grid: four-on-the-floor with loud off-beat hats still puts the beat on the kick', () => {
+    // Sky High (EDM) canlı: ara vuruşta açık zil/bas; tek bant (orta) fazı ters buluyordu.
+    const bpm = 128, beat = 60 / bpm, t0 = 0.21, dur = 16, hits = [];
+    for (let k = 0; t0 + k * beat < dur - 0.3; k++) {
+        hits.push({ at: t0 + k * beat, kind: 'kick' });
+        hits.push({ at: t0 + (k + 0.5) * beat, kind: 'hat', amp: 6000 });
+    }
+    const file = synthDrums(dur, hits);
+    try {
+        const g = analyzer.detectBeatGrid(fs, file, [0, dur]);
+        assert(Math.abs(g.bpm - bpm) <= 1, 'tempo ' + g.bpm);
+        const beats = g.eighths.filter((t, i) => i % 2 === g.beatParity && t > 1 && t < dur - 1);
+        assert(beats.length > 20);
+        beats.forEach(t => assert(Math.abs(((t - t0) / beat) - Math.round((t - t0) / beat)) < 0.05, 'vurus ara vurusta: ' + t.toFixed(3)));
+    } finally { fs.unlinkSync(file); }
+});
+test('flow targets: automatic step follows the natural click interval; beats are the beat-phase eighths', () => {
+    const grid = { eighths: [0.1, 0.4, 0.7, 1.0, 1.3, 1.6, 1.9, 2.2], beatParity: 1 };
+    assert.strictEqual(plan.flowTargets(grid, 0.4, 'auto').label, 'sekizlik'); // 0.3 >= 0.55 * 0.4
+    assert.strictEqual(plan.flowTargets(grid, 0.25, 'auto').label, 'onaltılık'); // 0.15 >= 0.1375
+    assert.strictEqual(plan.flowTargets(grid, 1.2, 'auto').label, 'vuruş'); // hiçbiri yetmez -> vuruş
+    assert.strictEqual(plan.flowTargets(grid, null, 'auto').label, 'sekizlik');
+    assert.deepStrictEqual(plan.flowTargets(grid, 0.4, '2').times, [0.4, 1.0, 1.6, 2.2]);
+    const s16 = plan.flowTargets(grid, 0.4, '0.5').times;
+    assert.strictEqual(s16.length, 15);
+    assert(near(s16[1], 0.25) && near(s16[2], 0.4));
+});
+test('flow: clicks at an uneven natural pace land on consecutive eighths; footage is only cut, never slowed', () => {
+    // Doğal aralık 0.36–0.46 sn, hedef sekizlik 0.3 sn: her tık bir sonraki sekizliğe, aradaki görüntü kesilir.
+    const clicks = [], targets = [];
+    let t = 1.0;
+    for (let k = 0; k < 24; k++) { clicks.push(+t.toFixed(4)); t += 0.36 + 0.1 * rand(); }
+    for (let x = 1.2; x < 12; x += 0.3) targets.push(+x.toFixed(4));
+    const p = plan.alignToNotes(clicks, targets, { fps: 60, holdFrames: 3, minSpeed: 0.5, maxSpeed: 4, regionStart: 0.8 });
+    assert(p.clicks.length >= 22, 'eslesen ' + p.clicks.length);
+    const steps = p.noteTimes.slice(1).map((x, i) => Math.round((x - p.noteTimes[i]) / 0.3));
+    assert(steps.filter(s => s === 1).length >= steps.length - 1, 'adimlar ' + JSON.stringify(steps));
+    assert.strictEqual(p.freezes, 0);
+    p.gaps.forEach(g => assert(g.target === 0 || g.speed >= 1 - 1e-9, 'yavaslatilan ara ' + JSON.stringify(g)));
+});
 const cutOpts = { fps: 30, holdFrames: 3, minSpeed: 0.5, maxSpeed: 4, regionStart: 0 };
 const gapRows = p => p.gaps.map(x => [+x.start.toFixed(4), +x.end.toFixed(4), +x.target.toFixed(4), +x.speed.toFixed(4)]);
 // Planın çıktısı: kaynak zamanı x'in timeline'daki yeri (x hiçbir aranın içinde değilken)
