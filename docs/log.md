@@ -11,6 +11,16 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-10-18 — Jira HOODOO-39 güncellendi
+
+- Kullanıcının isteği ("Genel İşler Müdürü" oturumu üzerinden): Jira'da HOODOO-39 "Premiere pro extension optimizasyon" işine ilerleme işlendi.
+- Açıklama dolduruldu: amaç, kapsam, yapılan optimizasyonlar, kalan işler. Tarihli ilerleme yorumu eklendi (0.9.3.4 → 0.9.9.5 sürüm/commit/ölçüm tablosu).
+- Durum "Devam Ediyor" bırakıldı; kalan işler: tık ritmi uygulamasını hızlandırmak (2.5–4 dk), akış hedefinin canlı testi, canlı doğrulanmayan undo/ripple ([[HooDoo Cut Bilinen Sınırlar]]).
+
+## 2026-10-16 — Kullanıcı kararı: tık sıklığı
+
+- Kullanıcı HDsky'yi izledi: "şimdiki sıklık iyi". 16'lık bölümlerde ek tık eklenmeyecek ([[HooDoo Cut Tık Ritmi]]).
+
 ## 2026-10-16 — Sky High riff'i, kaçan notalar (CEP 0.9.9.5)
 
 - Kullanıcı: HDmel'de "bazı yerlerde nota kaçırıyorsun"; Sky High ile 46. saniyeden sonraki riff'te edit istedi.

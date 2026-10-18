@@ -63,6 +63,8 @@ Sky High ile 46. saniyeden sonraki riff'te edit istedi.
   - 149 tık; ilk tık riff başında (46.99 sn, G). Riff: G G D# C C A# G# …
   - Beat This sekizliklerine (yanlılık düzeltilmiş) medyan 5.6 ms, %97 ≤ 20 ms.
   - Donma 0.9 sn.
+- **Kullanıcı kararı (HDsky'yi izledikten sonra):** "şimdiki sıklık iyi". 16'lık hızlı bölümlerde ek tık konmaz;
+  seçim sekizliklerden kalır.
 
 ## 0.9.9.4: kullanıcının elle editinden üç kural (melodi ve akış)
 
