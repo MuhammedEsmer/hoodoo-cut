@@ -135,5 +135,53 @@ if (rbp.cuts.length === 1) {
 }
 fs.unlinkSync(tmpBp);
 
+console.log('\n[7] Nefes: konuşma önü/arkasındaki hışırtı bulunur, kelime içi "s" sayılmaz');
+// Sesli konuşma = 140 Hz ve harmonikleri; nefes/s = 2.5 kHz / 5 kHz bant geçiren gürültü.
+function bandNoise(n, f0, amp) {
+    const w0 = 2 * Math.PI * f0 / SR, al = Math.sin(w0) / (2 * 0.7), a0 = 1 + al;
+    const b0 = al / a0, b2 = -al / a0, a1 = -2 * Math.cos(w0) / a0, a2 = (1 - al) / a0;
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    const out = [];
+    for (let k = 0; k < n; k++) {
+        const x = rand() * 2 - 1, y = b0 * x + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1; x1 = x; y2 = y1; y1 = y;
+        out.push(y * amp);
+    }
+    return out;
+}
+function writeSamples(samples, file) {
+    const data = Buffer.alloc(samples.length * 2);
+    samples.forEach((v, k) => data.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(v * 32767))), k * 2));
+    const head = makeWav([]).subarray(0, 44);
+    head.writeUInt32LE(36 + data.length, 4);
+    head.writeUInt32LE(data.length, 40);
+    fs.writeFileSync(file, Buffer.concat([head, data]));
+}
+const parts = [];
+function floor(d) { for (let k = 0; k < Math.round(d * SR); k++) parts.push((rand() * 2 - 1) * 0.002); }
+function voiced(d) {
+    const n = Math.round(d * SR);
+    for (let k = 0; k < n; k++) {
+        let v = 0;
+        for (let h = 1; h <= 8; h++) v += Math.sin(2 * Math.PI * 140 * h * k / SR) / h;
+        parts.push(v * 0.15 + (rand() * 2 - 1) * 0.002);
+    }
+}
+function hiss(d, f0, amp) { bandNoise(Math.round(d * SR), f0, amp).forEach(v => parts.push(v + (rand() * 2 - 1) * 0.002)); }
+floor(0.5); hiss(0.4, 2500, 0.08);          // 0.5-0.9 cumle onu nefes
+voiced(0.7); hiss(0.2, 5000, 0.12); voiced(0.6); // 1.6-1.8 kelime ici "s"
+floor(0.15); hiss(0.35, 2500, 0.08);        // 2.55-2.9 cumle sonu nefes
+floor(1.1); voiced(1.0); floor(1.0);
+const tmpBr = path.join(os.tmpdir(), 'acs_breath.wav');
+writeSamples(parts, tmpBr);
+const br = analyzer.detectBreaths(fs, tmpBr);
+console.log('  bulunan nefes: ' + JSON.stringify(br));
+check('iki nefes bulundu', br.length === 2, 'adet=' + br.length);
+const near = (b, s, e) => b && Math.abs(b.start - s) <= 0.06 && Math.abs(b.end - e) <= 0.06;
+check('cümle önü nefes ~0.5-0.9', near(br[0], 0.5, 0.9), JSON.stringify(br[0]));
+check('cümle sonu nefes ~2.55-2.9', near(br[1], 2.55, 2.9), JSON.stringify(br[1]));
+check('kelime içi "s" (1.6-1.8) nefes sayılmadı', !br.some(b => b.start < 1.85 && b.end > 1.55));
+fs.unlinkSync(tmpBr);
+
 console.log('\nSonuc: ' + pass + ' PASS, ' + fail + ' FAIL');
 process.exit(fail > 0 ? 1 : 0);

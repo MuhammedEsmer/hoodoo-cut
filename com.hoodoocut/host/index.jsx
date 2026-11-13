@@ -1437,17 +1437,18 @@ function ACS_placeClickSlices(dataStr, regionStart, regionEnd) {
     }
 }
 
-/* Tik onizlemesi: bulunan tiklar sequence marker'i olarak isaretlenir.
- * Yalniz bu adla konan marker'lar silinir; kullanicinin marker'lari kalir. */
+/* Onizleme marker'lari: bulunan tiklar / nefesler sequence marker'i olarak isaretlenir.
+ * Yalniz o adla konan marker'lar silinir; kullanicinin marker'lari kalir. */
 var ACS_TICK_MARKER = 'HooDoo tik';
+var ACS_BREATH_MARKER = 'HooDoo nefes';
 
-function ACS_clearTickMarkers() {
+function ACS_clearNamedMarkers(name) {
     try {
         var seq = app.project.activeSequence;
         if (!seq) return 'ERR|Aktif sequence yok';
         var ms = seq.markers, doomed = [], m = ms.getFirstMarker();
         while (m) {
-            if (m.name === ACS_TICK_MARKER) doomed.push(m);
+            if (m.name === name) doomed.push(m);
             m = ms.getNextMarker(m);
         }
         for (var i = 0; i < doomed.length; i++) ms.deleteMarker(doomed[i]);
@@ -1455,18 +1456,22 @@ function ACS_clearTickMarkers() {
     } catch (e) { return 'ERR|' + e.toString(); }
 }
 
-function ACS_setTickMarkers(clicksStr) {
+function ACS_setNamedMarkers(name, timesStr) {
     try {
-        var cleared = ACS_clearTickMarkers();
+        var cleared = ACS_clearNamedMarkers(name);
         if (cleared.split('|')[0] !== 'OK') return cleared;
-        var seq = app.project.activeSequence, parts = ('' + clicksStr).split(';'), n = 0;
+        var seq = app.project.activeSequence, parts = ('' + timesStr).split(';'), n = 0;
         for (var i = 0; i < parts.length; i++) {
             var s = parseFloat(parts[i]);
             if (isNaN(s)) continue;
             var marker = seq.markers.createMarker(s);
-            marker.name = ACS_TICK_MARKER;
+            marker.name = name;
             n++;
         }
         return 'OK|' + n;
     } catch (e) { return 'ERR|' + e.toString(); }
 }
+
+function ACS_clearTickMarkers() { return ACS_clearNamedMarkers(ACS_TICK_MARKER); }
+function ACS_setTickMarkers(clicksStr) { return ACS_setNamedMarkers(ACS_TICK_MARKER, clicksStr); }
+function ACS_setBreathMarkers(timesStr) { return ACS_setNamedMarkers(ACS_BREATH_MARKER, timesStr); }
