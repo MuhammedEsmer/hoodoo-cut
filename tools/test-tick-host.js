@@ -143,4 +143,14 @@ test('tick markers replace previous HooDoo markers and keep user markers', () =>
     assert.strictEqual(f.host.ACS_clearTickMarkers(), 'OK|3');
     assert.deepStrictEqual(list.map(m => m.name), ['kullanici']);
 });
+test('breath markers replace only previous breath markers', () => {
+    const { f, list } = markerSetup();
+    f.host.ACS_setTickMarkers('1');
+    assert.strictEqual(f.host.ACS_setBreathMarkers('0.7;2.1'), 'OK|2');
+    assert.strictEqual(f.host.ACS_setBreathMarkers('1.4'), 'OK|1');
+    assert.deepStrictEqual(list.map(m => [m.name, m.start]),
+        [['kullanici', 0.5], ['HooDoo tik', 1], ['HooDoo nefes', 1.4]]);
+    assert.strictEqual(f.host.ACS_setBreathMarkers(''), 'OK|0');
+    assert.deepStrictEqual(list.map(m => m.name), ['kullanici', 'HooDoo tik']);
+});
 if (failed) process.exitCode = 1;

@@ -535,8 +535,23 @@
                 log('Analiz bitti: ' + r.windowCount + ' pencere, ' +
                     cuts.length + ' kesim adayı' + scopeNote);
 
+                var breathNote = '';
+                if ($('markBreaths').checked) {
+                    try {
+                        var breaths = ACSAnalyzer.detectBreaths(fs, wavPath);
+                        if (selRanges) breaths = intersectCuts(breaths, selRanges);
+                        breathNote = '<br>' + breaths.length + ' nefes marker ile işaretlendi';
+                        log('Nefes: ' + breaths.length + ' bulundu');
+                        evalJsx('ACS_setBreathMarkers("' + breaths.map(function (b) { return b.start; }).join(';') + '")', function (res) {
+                            if (res.split('|')[0] !== 'OK') log('Nefes marker\'ları konamadı: ' + res);
+                        });
+                    } catch (be) {
+                        log('Nefes tespiti HATASI: ' + (be && be.message ? be.message : be));
+                    }
+                }
+
                 if (cuts.length === 0) {
-                    showResult(true, 'Kesilecek sessizlik bulunamadı.<br>' + thrInfo);
+                    showResult(true, 'Kesilecek sessizlik bulunamadı.<br>' + thrInfo + breathNote);
                 } else {
                     showResult(true,
                         '<b>' + cuts.length + ' sessizlik</b> bulundu — toplam <b>' +
@@ -544,7 +559,7 @@
                         (selRanges ? ' <i>(sadece seçim içinde)</i>' : '') + '<br>' +
                         previewBarHtml(cuts, r.durationSec) +
                         'Video süresi: ' + fmtSec(r.durationSec) + ' → ' +
-                        fmtSec(r.durationSec - totalCut) + '<br>' + thrInfo);
+                        fmtSec(r.durationSec - totalCut) + '<br>' + thrInfo + breathNote);
                     $('btnCut').style.display = 'block';
                     $('manageRow').style.display = 'block';
                     $('backupRow').style.display = 'block';

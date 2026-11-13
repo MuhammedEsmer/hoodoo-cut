@@ -315,6 +315,50 @@
         };
     }
 
+    /* Nefes: konusmanin onunde/arkasinda perdesiz, hisirtili, kisik ses.
+     * Alcak bant (100-900 Hz) sesli konusmayi, yuksek bant (1.5-6 kHz) hisirtiyi olcer.
+     * Nefes penceresi: yuksek bant gurultu tabaninin belirgin ustunde, alcak bant ondan
+     * baskin degil (perdesiz) ve konusma seviyesinin cok altinda. Iki yani da sesli
+     * konusmaya yapisik hisirti kelime icindeki "s/s" sesidir, sayilmaz.
+     * opts: minSec, maxSec, aboveNoiseDb, tiltDb, belowSpeechDb. Donus: [{ start, end }] sn. */
+    function detectBreaths(fs, filePath, opts) {
+        opts = opts || {};
+        var WIN = 20, win = WIN / 1000, HOLE = 2, SIDE = 2;
+        var minSec = opts.minSec || 0.15, maxSec = opts.maxSec || 1.2;
+        var above = opts.aboveNoiseDb || 10, below = opts.belowSpeechDb || 15;
+        var tilt = typeof opts.tiltDb === 'number' ? opts.tiltDb : -6;
+        var lo = computeWindowDb(fs, filePath, WIN, { hpHz: 100, lpHz: 900 }).db;
+        var hi = computeWindowDb(fs, filePath, WIN, { hpHz: 1500, lpHz: 6000 }).db;
+        var n = Math.min(lo.length, hi.length), i, k;
+        function asc(a, b) { return a - b; }
+        var noiseHi = percentile(hi.slice(0, n).sort(asc), 0.1);
+        var speechLo = percentile(lo.slice(0, n).sort(asc), 0.9);
+        var voiced = [], cand = [];
+        for (i = 0; i < n; i++) {
+            voiced[i] = lo[i] > speechLo - below;
+            cand[i] = !voiced[i] && hi[i] >= noiseHi + above && hi[i] - lo[i] >= tilt;
+        }
+        function voicedIn(from, to) {
+            for (var v = Math.max(0, from); v <= Math.min(n - 1, to); v++) if (voiced[v]) return true;
+            return false;
+        }
+        var out = [];
+        i = 0;
+        while (i < n) {
+            if (!cand[i]) { i++; continue; }
+            var s = i, e = i + 1, gap = 0;
+            for (k = i + 1; k < n && gap <= HOLE; k++) {
+                if (cand[k]) { e = k + 1; gap = 0; } else if (voiced[k]) break; else gap++;
+            }
+            i = e;
+            var len = (e - s) * win;
+            if (len < minSec || len > maxSec) continue;
+            if (voicedIn(s - SIDE, s - 1) && voicedIn(e, e + SIDE - 1)) continue;
+            out.push({ start: Math.round(s * win * 1000) / 1000, end: Math.round(e * win * 1000) / 1000 });
+        }
+        return out;
+    }
+
     /* Kesilecek bolgeyi iceri yuvarla: konusma tarafindaki kare korunur.
      * Razor, silme ve kompaksiyon ayni saniye degerlerini kullanir. */
     function alignCuts(cuts, fps) {
@@ -807,6 +851,7 @@
         computeWindowDb: computeWindowDb,
         autoThresholdDb: autoThresholdDb,
         detectSilences: detectSilences,
+        detectBreaths: detectBreaths,
         analyzeFile: analyzeFile
     };
 });
