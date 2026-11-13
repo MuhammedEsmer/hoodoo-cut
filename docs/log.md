@@ -11,6 +11,24 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-11-13 — Nefes kesme yapılacaklara alındı
+
+- Kullanıcı (2026-11-11): "Nefes seslerini kesecek bir özellik ekleyebilir miyiz?"
+  - Nefesler cümle başında ve sonunda kalıyor; mikrofon ayrı track'te.
+  - Önce yalnız marker ile işaretleme; iyi çalışırsa panelde sil / kıs / dokunma seçeneği.
+- 2026-11-13: "Daha sonra yapacağız, todo'ya al."
+- Taslak kod (`detectBreaths`, "Nefesleri işaretle" kutusu, `ACS_setBreathMarkers`, 5 test) `nefes-isaretleme` dalına alındı (`ad0ceda`); `main`'e girmedi.
+- Plan ve durum: [[HooDoo Cut Bilinen Sınırlar#Yapılacaklar (kullanıcı istekleri)]].
+- "HooDoo Video Assistant" oturumu paneli dışarıdan sürmeyi sordu. Cevap: panel DOM'dan sürülür; özel aralıklar için panelde giriş yok, host fonksiyonları zinciri kullanılır; önce transkript aralıkları, sonra sessizlik kesimi.
+
+## 2026-11-04 — UXP API taraması (kod değişikliği yok)
+
+- Kullanıcı: toplu (UXP) motor "çok iyi çalışıyor"; kesme adımı da UXP'ye alınabilir mi?
+- UXP'de razor/bölme komutu yok (26.5 belgeleri). Kopya + kırpma ile dolaylı yol mümkün ama belirsiz.
+  **Kullanıcı kararı:** doğrudan komut yoksa razor UXP'ye taşınmayacak.
+- UXP'ye alınabilecekler: tık ritmi taşımaları, marker'lar, tık sesi yerleştirme, susturma, Premiere'in konuşma tanıması.
+  Ayrıntı: [[reports/2026-11-04-uxp-api-taramasi|rapor]].
+
 ## 2026-10-18 — Jira HOODOO-39 güncellendi
 
 - Kullanıcının isteği ("Genel İşler Müdürü" oturumu üzerinden): Jira'da HOODOO-39 "Premiere pro extension optimizasyon" işine ilerleme işlendi.

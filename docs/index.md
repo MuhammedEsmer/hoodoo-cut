@@ -46,6 +46,7 @@ değişiklikler: [[log]].
 - [[reports/2026-10-16-muzik-ritmi-akis|2026-10-16 CEP 0.9.9.3 Müzik ritmi (akış) hedefi: panelde ritim takibi, Beat This'e göre ölçüm, canlı HDflow]]
 - [[reports/2026-10-16-elle-edit-analizi|2026-10-16 Kullanıcının elle editi ve CEP 0.9.9.4: ızgaradaki melodi notaları, ilk tık ilk notaya, klip penceresi; canlı HDmel]]
 - [[reports/2026-10-16-sky-high-riff|2026-10-16 CEP 0.9.9.5 Sky High riff'i: güçlü geç notalar ritim noktasına, piyano eşiği 0.3; canlı HDsky]]
+- [[reports/2026-11-04-uxp-api-taramasi|2026-11-04 UXP API taraması: razor yok; taşıma, marker, tık sesi, susturma, konuşma tanıması UXP'ye alınabilir]]
 
 ## 🗂️ Planlar (`plans/`)
 

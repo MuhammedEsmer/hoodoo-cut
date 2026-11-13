@@ -10,7 +10,7 @@ sources:
   - install.ps1
   - DISTRIBUTION.md
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-11-13
 ---
 
 # HooDoo Cut Bilinen Sınırlar
@@ -19,7 +19,7 @@ updated: 2026-10-11
 
 - **Scripting API tek thread, işlem başına pahalı.** Optimizasyon azaltır, sıfırlamaz.
 - **Undo** ExtendScript'ten kapatılamaz/temizlenemez.
-- **Razor baskın maliyet:** her kesim ayrı QE çağrısı; UXP SequenceEditor'da genel razor/split action yok (clone+trim prototip gerekir).
+- **Razor baskın maliyet:** her kesim ayrı QE çağrısı; UXP'de razor/split komutu yok (26.5 belgeleri, 2026-11-04). Kullanıcı kararı: clone+trim dolaylı yolu denenmeyecek, razor CEP/QE'de kalır ([[reports/2026-11-04-uxp-api-taramasi|UXP taraması]]).
 - Çoklu track'te (bir track'te ses, diğerinde boşluk) boşluk kapatma sınırlı; "boşluk kalsın" ve "sustur" her durumda güvenli.
 - Yapısal imza gain/efekt/keyframe ve aynı yoldaki medyanın yeniden yazılmasını izlemez → yeniden analiz.
 - Uzun AME aktarımında tamamlanma sinyali dosya boyutunun sabitlenmesi; geçerli ama kısmi WAV bu korumayı aşabilir.
@@ -52,3 +52,19 @@ updated: 2026-10-11
 6. Önizleme, dinleme, iptal, kısa fade
 
 Ayrıntı: [[reports/2026-10-05-teknik-analiz|teknik analiz]] §6–7 (Yol A: XML, Yol B: CEP iyileştirme, Yol C: UXP).
+
+## Yapılacaklar (kullanıcı istekleri)
+
+- [ ] **Nefes kesme** — istek 2026-11-11, kullanıcı 2026-11-13'te "daha sonra yapacağız" dedi.
+  - **Sorun:** Kesimden sonra cümle başında ve sonunda nefes sesi kalıyor; nefes konuşma payının (Ölçülü'de 300 ms) içine düşüyor. Mikrofon ayrı track'te.
+  - **1. adım (kullanıcı kararı):**
+    - Panelde "Nefesleri işaretle" kutusu olacak. İşaretliyse "Analiz Et" nefesleri de bulur.
+    - Her nefesin başına tek noktalı `HooDoo nefes` marker'ı konur; hiçbir şey kesilmez.
+    - Kullanıcı marker'ları izleyip tespiti değerlendirir.
+  - **2. adım (1. adım iyi çalışırsa):** Panelde "nefes: sil / sesini kıs / dokunma" seçeneği; nefesler kesim sırasında işlenir.
+  - **Durum:**
+    - Taslak kod `nefes-isaretleme` dalında (`ad0ceda`). Kural: perdesiz, hışırtılı, konuşmadan kısık, 0.15–1.2 sn; iki yanı sesli konuşmaya yapışık hışırtı (kelime içi "s/ş") sayılmaz.
+    - Sentetik testler geçiyor. Gerçek kayıtta ayarlanmadı, canlı denenmedi; `main`'e alınmadı.
+  - **Ayar için aday kayıtlar:**
+    - `Videos\2026-11-13 13-35-05` (48.7 dk) ve `Videos\2026-11-12 15-20-27` (35.5 dk).
+    - İkisinde de iki ses kanalı var; mikrofonun hangisi olduğu belirlenmedi.
