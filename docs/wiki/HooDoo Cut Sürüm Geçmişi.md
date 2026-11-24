@@ -9,7 +9,7 @@ sources:
   - com.hoodoocut.bulk/manifest.json
   - README.md
 created: 2026-10-11
-updated: 2026-10-16
+updated: 2026-11-24
 ---
 
 # HooDoo Cut Sürüm Geçmişi
@@ -24,6 +24,7 @@ commit'te toplandı: `85002f9` (2026-10-11).
 
 | Tarih | CEP | UXP motor | Commit | Özet |
 |---|---|---|---|---|
+| 2026-11-24 | 0.9.9.6 | 0.9.9 | `f72cdba` | **Nefesleri işaretle** (isteğe bağlı): analizden sonra Respiro-en modeli (MIT, panelde ONNX Runtime Web WASM) nefesleri bulur, `HooDoo nefes` marker'ı koyar, kesmez. Kullanıcı dinleme kontrolü 40/40. Canlı: 57 dk ses, 265 nefes, 55 sn, çökme yok. Paket `HooDooCut-Kurulum-v0.9.9.6.zip` (15.2 MB, SHA-256 `FACDF0D1…5498D0284`; model + wasm ile ~14 MB büyüdü). Release yok |
 | 2026-10-16 | 0.9.9.5 | 0.9.9 | `7ffe894` | **Güçlü geç notalar ritim noktasına** (kayan synth lead: Basic Pitch nota başını 40–100 ms geç buluyordu), piyano kanalı eşiği 0.4 → 0.3. Canlı HDsky (Sky High 46. saniyeden): ilk tık riff başında, Beat This'e medyan 5.6 ms. Paket `HooDooCut-Kurulum-v0.9.9.5.zip` (SHA-256 `7D1F1804…06A42023`). Release yok |
 | 2026-10-16 | 0.9.9.4 | 0.9.9 | `ebcc6cc` | Kullanıcının elle editinden: **ritimdeki melodi notaları** (ızgara dışı notalar elenir), **ilk tık ilk notaya**, **klip penceresi** tıktan önce 45 ms / sonra 200 ms, kesimde tıktan sonrası tutulur; ızgara ilk belirgin atakta başlar. Canlı HDmel: ilk 6 sn kullanıcının seçimiyle birebir, Kong notasına %74 (önce %49). Paket `HooDooCut-Kurulum-v0.9.9.4.zip` (SHA-256 `512DBBC9…AF012940`). Release yok |
 | 2026-10-16 | 0.9.9.3 | 0.9.9 | `fbc16d8` | **Hedef = Müzik ritmi (akış)**: tıklar müziğin ritim ızgarasında sabit aralıkla (1/16, 1/8, 1/4, otomatik). Panelde ritim takibi (`detectBeatGrid`), bant oylamalı vuruş fazı. Canlı HDflow: 158/158 tık sekizlikte, Beat This'e medyan 3.9 ms (%91 ≤10 ms). Paket `HooDooCut-Kurulum-v0.9.9.3.zip` (SHA-256 `53DCDC38…2D4BBC3A`). Release yok |

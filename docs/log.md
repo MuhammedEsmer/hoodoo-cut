@@ -21,7 +21,9 @@ updated: 2026-10-11
 - Panel yalnız A1, Ölçülü, "Nefesleri işaretle" ile çalıştırıldı:
   - Export 9.8 sn, 287 sessizlik, 265 nefes (55.2 sn), toplam 70 sn. **Çökme yok.**
   - 265 marker'ın 264'ü Node JS çalıştırmasıyla, 262'si Python referansıyla aynı yerde. İlk marker 6.92 sn, dinleme dosyasının 1. nefesi.
-- Sürüm 0.9.9.6; `nefes-isaretleme` ana dala alındı. README, Analiz Motoru ve Bilinen Sınırlar güncellendi. Release yok.
+- Sürüm 0.9.9.6; `nefes-isaretleme` ana dala alındı (`f72cdba`). README, Analiz Motoru ve Bilinen Sınırlar güncellendi. Release yok.
+- `core.autocrlf` paketlenmiş `ort.js`'nin satır sonlarını değiştirmişti. `.gitattributes`'e `com.hoodoocut/client/lib/** -text` eklendi; test edilen dosya ile kurulan dosya aynı.
+- Paket `HooDooCut-Kurulum-v0.9.9.6.zip`: 15.2 MB, SHA-256 `FACDF0D1708CCE0BB115F282E90CA7777A1836212ACAEFD76B20AAE5498D0284`.
 
 ## 2026-11-24 — Nefes tespiti modele geçti (`nefes-isaretleme` dalı, canlı panel testi yok)
 

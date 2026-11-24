@@ -1,0 +1,3 @@
+# Paketlenmiş üçüncü taraf kütüphaneler (Basic Pitch, ONNX Runtime Web) olduğu gibi kalır:
+# core.autocrlf satır sonlarını değiştirmesin, test edilen dosya ile kurulan dosya aynı olsun.
+com.hoodoocut/client/lib/** -text
