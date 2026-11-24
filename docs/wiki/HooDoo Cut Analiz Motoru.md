@@ -8,7 +8,7 @@ sources:
   - com.hoodoocut/client/js/analyzer.js
   - com.hoodoocut/host/index.jsx
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-11-24
 ---
 
 # HooDoo Cut Analiz Motoru
@@ -45,6 +45,21 @@ Hesaplanan değer kaydırıcıya yansır; kaydırıcı elle oynatılırsa otomat
 - `minSpeech`'ten kısa ses patlamaları (klavye tıkı vb.) sessizliğe yedirilir — *click bağışıklığı*.
 - `minSilence`'tan kısa sessizlikler atılır; şablonun öncesi/sonrası payları uygulanır.
 - Kesim sınırları tam kareye hizalanır: başlangıç yukarı, bitiş aşağı (konuşma korunur).
+
+## 5. Nefes işaretleme (0.9.9.6, isteğe bağlı)
+
+"Nefesleri işaretle" kutusu işaretliyse sessizlik analizinden sonra aynı WAV'da nefesler aranır.
+Her nefesin başına `HooDoo nefes` marker'ı konur. Hiçbir şey kesilmez; nefesi silme ya da kısma
+seçeneği 2. adım olarak bekliyor ([[HooDoo Cut Bilinen Sınırlar#Yapılacaklar (kullanıcı istekleri)]]).
+
+- **Model:** Respiro-en (MIT, Conformer + BiLSTM). Panelde ONNX Runtime Web 1.31.1, WASM, tek iş parçacığı (`client/lib/respiro`, 25.6 MB; kaynak `tools/respiro`).
+- **Yükleme:** Yükleyici pakete gömülü. `.wasm` ve model bellekten verilir. Dosya yolundan `import()` ile yükleyen giriş CEP 12 panelini çökertti.
+- **Girdi** (`respiroFeatures`): 16 kHz, n_fft 400 (karışık tabanlı FFT), hop 160, 128 Slaney mel, dB (ref = parçanın en büyüğü, top_db 80), mel varyansı, sıfır geçiş oranı. Python/librosa tanımıyla fark ≤ 0.001 dB.
+- **Parçalama** (`detectBreaths`): 25 sn parça + iki yanda 2.5 sn bağlam, ortadaki kareler alınır; tamamen sessiz parça atlanır.
+- **Nefes kuralı** (`breathSegments`): olasılık > 0.064, en az 21 kare (0.21 sn).
+- **Süre:** Bitene kadar analiz WAV'ı silinmez ve "Kes" kapalıdır, çünkü marker'lar analiz anındaki zamana konur.
+- **Canlı ölçüm** (2026-11-24, 57 dk kayıt, yalnız mikrofon A1): 265 nefes, 55 sn. Kullanıcı eşit aralıklı 40 örneği dinledi: hepsi nefes.
+- Ayrıntı: [[reports/2026-11-24-nefes-tespiti-arastirma|nefes raporu]].
 
 ## Şablonlar (`MODES`)
 

@@ -10,7 +10,7 @@ sources:
   - install.ps1
   - DISTRIBUTION.md
 created: 2026-10-11
-updated: 2026-11-13
+updated: 2026-11-24
 ---
 
 # HooDoo Cut Bilinen Sınırlar
@@ -62,10 +62,11 @@ Ayrıntı: [[reports/2026-10-05-teknik-analiz|teknik analiz]] §6–7 (Yol A: XM
     - Her nefesin başına tek noktalı `HooDoo nefes` marker'ı konur; hiçbir şey kesilmez.
     - Kullanıcı marker'ları izleyip tespiti değerlendirir.
   - **2. adım (1. adım iyi çalışırsa):** Panelde "nefes: sil / sesini kıs / dokunma" seçeneği; nefesler kesim sırasında işlenir.
-  - **Durum (2026-11-24):**
-    - `nefes-isaretleme` dalında. Kural tabanlı taslak bırakıldı (yanlış alarmı çok); yerine **Respiro-en** modeli (MIT) girdi.
-    - Model panelde ONNX Runtime Web (WASM) ile çalışır: `client/lib/respiro`, `tools/respiro`.
-    - Kullanıcının kaydında (`Videos\2026-11-24 14-28-13`, mikrofon Track 1) 271 nefes buldu. Kullanıcı eşit aralıklı 40 örneği dinledi: **hepsi nefes**.
-    - **Canlı panel testi yapılmadı.** İlk deneme (dosya yoluyla yüklenen ORT Node girişi) CEP 12 panelini çökertti. Yükleyicisi gömülü pakete geçildi; Node 17'de çalışıyor.
-    - Premiere boşken panelde bir kez doğrulanacak.
+  - **Durum (2026-11-24): 1. adım tamam, CEP 0.9.9.6.**
+    - Kural tabanlı taslak bırakıldı (yanlış alarmı çok); yerine **Respiro-en** modeli (MIT) girdi. Ayrıntı: [[HooDoo Cut Analiz Motoru#5. Nefes işaretleme (0.9.9.6, isteğe bağlı)]].
+    - Kullanıcının kaydında (`Videos\2026-11-24 14-28-13`, mikrofon Track 1) eşit aralıklı 40 örneğin **hepsi nefes** çıktı.
+    - Canlı panel testi (test projesi `Belgeler\Adobe\Premiere Pro\26.0\HooDoo nefes test.prproj`, sequence "Nefes test"): 265 marker, 55 sn, çökme yok.
     - Ayrıntı: [[reports/2026-11-24-nefes-tespiti-arastirma|araştırma ve sonuç raporu]].
+  - **Kalan:**
+    - 2. adım: sil / kıs seçeneği.
+    - "Seçili clipler" kapsamında yalnız seçimi işlemek (şu an tüm ses işleniyor).

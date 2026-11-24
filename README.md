@@ -33,6 +33,11 @@ içindeki Node.js ile yapılır.
   kompaksiyon idempotent taşımayla senkronu korur (ayrı relink adımı gerekmez).
 - **Yedek sequence:** işlemden önce otomatik kopya (kapatılabilir).
 - **Kesim haritası:** analiz sonrası yeşil/kırmızı önizleme şeridi.
+- **Nefesleri işaretle (0.9.9.6):** isteğe bağlı kutu. Analizden sonra nefesler
+  **Respiro-en** modeliyle (MIT; panelde ONNX Runtime Web, Python gerekmez) bulunur ve
+  her nefesin başına `HooDoo nefes` marker'ı konur. Hiçbir şey kesilmez. 1 saatlik seste
+  yaklaşık 1 dakika sürer. Paket: `tools/respiro`. Ayrıntı:
+  [docs/reports/2026-11-24-nefes-tespiti-arastirma.md](docs/reports/2026-11-24-nefes-tespiti-arastirma.md).
 - **Tık ritmi (0.9.5.0):** Mod → Tık ritmi. Seçili bölgede oyun sesindeki blok
   koyma/kırma tıklarını bulur (marker olarak gösterir), her tıktan sonraki arayı
   hızlandırıp/yavaşlatarak tıkları sabit aralığa (sn ya da BPM) oturtur; tık anı

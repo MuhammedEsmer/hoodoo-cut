@@ -11,6 +11,18 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-11-24 — Nefes işaretleme canlı doğrulandı (CEP 0.9.9.6)
+
+- Kullanıcı "Contained Opolis EP 1" projesini kapattı.
+- Test projesi `123tets.prproj` artık yok. Yerine "2k test" projesinin kopyası açıldı: `Belgeler\Adobe\Premiere Pro\26.0\HooDoo nefes test.prproj`.
+  - İlk kopya geçici klasördeydi; Premiere o yolu açamadı, Belgeler'e taşındı.
+  - Premiere boşken kapatılıp yeniden açıldı; proje dosyası komut satırından açılmadı, kullanıcı elle açtı.
+- Bugünkü kayıttan "Nefes test" sequence'i (A1 mikrofon, A2 oyun) kuruldu.
+- Panel yalnız A1, Ölçülü, "Nefesleri işaretle" ile çalıştırıldı:
+  - Export 9.8 sn, 287 sessizlik, 265 nefes (55.2 sn), toplam 70 sn. **Çökme yok.**
+  - 265 marker'ın 264'ü Node JS çalıştırmasıyla, 262'si Python referansıyla aynı yerde. İlk marker 6.92 sn, dinleme dosyasının 1. nefesi.
+- Sürüm 0.9.9.6; `nefes-isaretleme` ana dala alındı. README, Analiz Motoru ve Bilinen Sınırlar güncellendi. Release yok.
+
 ## 2026-11-24 — Nefes tespiti modele geçti (`nefes-isaretleme` dalı, canlı panel testi yok)
 
 - Kullanıcı nefes kesmeye bugünkü kayıtla devam etmek istedi. Önce araştırma yapıldı:
