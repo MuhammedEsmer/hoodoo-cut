@@ -127,7 +127,19 @@
       <p class="hint" style="margin:0">Şablona tıkla → değerler dolar. Elle değiştir → özel ayar. <b>Özel 1/2</b> kalıcıdır.</p>
       <button id="btnSavePreset" class="ghost">💾 Kaydet</button>
     </div>
-    <label class="row" style="margin-top:8px"><input type="checkbox" id="markBreaths"><span>Nefesleri işaretle (marker koyar, kesmez; 1 saatlik seste ~1 dk sürer)</span></label>
+    <label class="row" style="margin-top:8px"><span>Nefesler</span>
+      <select id="breathMode">
+        <option value="none" selected>Dokunma</option>
+        <option value="mark">İşaretle (marker)</option>
+        <option value="duck">Kıs</option>
+      </select>
+      <select id="breathDb" style="display:none">
+        <option value="6">−6 dB</option>
+        <option value="12">−12 dB</option>
+        <option value="20">−20 dB</option>
+        <option value="mute" selected>Tam sessiz</option>
+      </select></label>
+    <p class="hint" id="breathHint" style="display:none">Nefesler analiz sesinde aranır (1 saatlik seste ~1 dk). <b>Kıs</b>: Kes'e basınca analiz sesi track'lerinde nefesin sesi düşer (20 ms geçişle), görüntü kesilmez.</p>
   </section>
 
   <section class="card">

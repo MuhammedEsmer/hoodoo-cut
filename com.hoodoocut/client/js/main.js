@@ -29,7 +29,7 @@
         'C:\\Program Files\\Adobe\\Adobe Media Encoder 2026\\MediaIO\\systempresets\\3F3F3F3F_57415645\\Waveform Audio 48kHz 16-bit.epr'
     ];
 
-    var ACS_VERSION = '0.9.9.6'; // manifest.xml ile ayni
+    var ACS_VERSION = '0.9.9.7'; // manifest.xml ile ayni
     var bulkBridge = null;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -528,45 +528,51 @@
                 }
                 cuts = ACSAnalyzer.alignCuts(cuts, state.fps);
                 state.lastCuts = cuts;
-
-                var totalCut = 0;
-                for (var i = 0; i < cuts.length; i++) totalCut += cuts[i].end - cuts[i].start;
-                totalCut = Math.round(totalCut * 100) / 100;
+                state.lastBreaths = null;
 
                 log('Analiz bitti: ' + r.windowCount + ' pencere, ' +
                     cuts.length + ' kesim adayı' + scopeNote);
 
-                if (cuts.length === 0) {
-                    showResult(true, 'Kesilecek sessizlik bulunamadı.<br>' + thrInfo);
-                } else {
-                    showResult(true,
-                        '<b>' + cuts.length + ' sessizlik</b> bulundu — toplam <b>' +
-                        fmtSec(totalCut) + '</b> kesilecek' +
-                        (selRanges ? ' <i>(sadece seçim içinde)</i>' : '') + '<br>' +
-                        previewBarHtml(cuts, r.durationSec) +
-                        'Video süresi: ' + fmtSec(r.durationSec) + ' → ' +
-                        fmtSec(r.durationSec - totalCut) + '<br>' + thrInfo);
-                    $('btnCut').style.display = 'block';
-                    $('manageRow').style.display = 'block';
-                    $('backupRow').style.display = 'block';
-                    resetCutButton();
-                }
-                breathJob = $('markBreaths').checked;
+                state.lastResult = { durationSec: r.durationSec, thrInfo: thrInfo, selRanges: selRanges };
+                showSilenceResult('');
+                breathJob = $('breathMode').value !== 'none';
             } catch (e) {
                 state.lastCuts = null;
                 state.planContext = null;
                 log('Analiz HATASI: ' + (e && e.message ? e.message : e));
                 showResult(false, 'Analiz başarısız. Günlüğe bakın.');
             }
-            if (breathJob) markBreaths(wavPath, selRanges, resetAnalyzeButton);
+            if (breathJob) findBreaths(wavPath, selRanges, $('breathMode').value, resetAnalyzeButton);
             else resetAnalyzeButton();
         }, 50);
     }
 
-    /* Nefes marker'ları: Respiro-en modeli (client/lib/respiro, ONNX Runtime Web WASM, tek iş parçacığı).
+    /* Sessizlik sonucu state.lastCuts / state.lastResult'tan çizilir. */
+    function showSilenceResult(note) {
+        var L = state.lastResult, cuts = state.lastCuts, totalCut = 0;
+        for (var i = 0; i < cuts.length; i++) totalCut += cuts[i].end - cuts[i].start;
+        totalCut = Math.round(totalCut * 100) / 100;
+        if (cuts.length === 0) {
+            showResult(true, 'Kesilecek sessizlik bulunamadı.<br>' + L.thrInfo + note);
+            return;
+        }
+        showResult(true,
+            '<b>' + cuts.length + ' sessizlik</b> bulundu — toplam <b>' +
+            fmtSec(totalCut) + '</b> kesilecek' +
+            (L.selRanges ? ' <i>(sadece seçim içinde)</i>' : '') + '<br>' +
+            previewBarHtml(cuts, L.durationSec) +
+            'Video süresi: ' + fmtSec(L.durationSec) + ' → ' +
+            fmtSec(L.durationSec - totalCut) + '<br>' + L.thrInfo + note);
+        $('btnCut').style.display = 'block';
+        $('manageRow').style.display = 'block';
+        $('backupRow').style.display = 'block';
+        resetCutButton();
+    }
+
+    /* Nefesler: Respiro-en modeli (client/lib/respiro, ONNX Runtime Web WASM, tek iş parçacığı).
      * Yükleyici pakete gömülü; .wasm ve model bellekten verilir (import() ile yükleyen Node girişi CEP 12
-     * panelini çökertti). Bitene kadar analiz WAV'ı silinmez ve kesim kapalıdır: marker'lar analiz
-     * anındaki timeline zamanına konur. */
+     * panelini çökertti). Bitene kadar analiz WAV'ı silinmez ve kesim kapalıdır (zamanlar analiz anındaki
+     * timeline'a göre). mode: 'mark' marker, 'duck' Kes'te kısılacak nefesler. */
     var respiro = null;
     function respiroModel() {
         if (!respiro) {
@@ -580,7 +586,7 @@
         return respiro;
     }
 
-    function markBreaths(wavPath, selRanges, done) {
+    function findBreaths(wavPath, selRanges, mode, done) {
         var t0 = Date.now(), btn = $('btnAnalyze'), job;
         $('btnCut').disabled = true;
         btn.textContent = '⏳ Nefesler aranıyor…';
@@ -595,6 +601,14 @@
         job.then(function (breaths) {
             if (selRanges) breaths = intersectCuts(breaths, selRanges);
             log('Nefes: ' + breaths.length + ' bulundu (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)');
+            if (mode === 'duck') {
+                state.lastBreaths = breaths;
+                var db = $('breathDb').value;
+                $('analysisResult').innerHTML += '<br>' + breaths.length + ' nefes bulundu; Kes\'e basınca ' +
+                    (db === 'mute' ? 'susturulacak' : db + ' dB kısılacak');
+                done();
+                return;
+            }
             $('analysisResult').innerHTML += '<br>' + breaths.length + ' nefes marker ile işaretlendi';
             evalJsx('ACS_setBreathMarkers("' + breaths.map(function (b) { return b.start; }).join(';') + '")', function (res) {
                 if (res.split('|')[0] !== 'OK') log('Nefes marker\'ları konamadı: ' + res);
@@ -961,6 +975,7 @@
     // Razor en yavaş işlem (player taşıma içeriyor), partisi küçük tutulur.
     var CHUNK_RAZOR = 20;
     var CHUNK_REMOVE = 60;
+    var CHUNK_DUCK = 25;
 
     function pairsStr(cutsArr) {
         var out = [];
@@ -1002,7 +1017,11 @@
         var t0 = Date.now();
         var tPhase = Date.now();
         var prog = { razored: 0, razorErr: 0, removed: 0, muted: 0, compacted: 0, compactErr: 0,
-                     linked: 0, linkMiss: 0, razorMode: '', tcMode: '' };
+                     linked: 0, linkMiss: 0, razorMode: '', tcMode: '', ducked: 0 };
+        // Nefesler = Kıs: analizde bulunan nefesler, Kes'te seçili dB ile
+        var duck = $('breathMode').value === 'duck' && state.lastBreaths && state.lastBreaths.length
+            ? state.lastBreaths.slice(0) : null;
+        var duckDb = $('breathDb').value;
 
         function phaseElapsed() {
             var s = ((Date.now() - tPhase) / 1000).toFixed(1);
@@ -1038,7 +1057,7 @@
 
         // Faz 0: yedek sequence (istenirse)
         function backupStep() {
-            if (!$('makeBackup').checked) { razorStep(0); return; }
+            if (!$('makeBackup').checked) { duckStep(0); return; }
             btn.textContent = '⏳ Yedek oluşturuluyor…';
             evalJsx('ACS_backupSequence()', function (res) {
                 var p = res.split('|');
@@ -1048,7 +1067,27 @@
                 } else {
                     log('Yedek sequence oluşturuldu: "' + p[1] + '" kopyası Project panelinde.');
                 }
+                duckStep(0);
+            });
+        }
+
+        // Faz 0b: nefesleri kıs — analiz sesi track'lerinde ses seviyesi anahtar kareleri. Kareler klibe
+        // bağlı olduğu için razor ve boşluk kapatmada klip parçalarıyla birlikte kayar; razor'dan önce konur.
+        function duckStep(idx) {
+            if (!duck || idx >= duck.length) {
+                if (duck) log('Nefesler ' + (duckDb === 'mute' ? 'susturuldu' : duckDb + ' dB kısıldı') + ': ' +
+                    prog.ducked + ' klip parçası (' + phaseElapsed() + ')');
                 razorStep(0);
+                return;
+            }
+            var chunk = duck.slice(idx, idx + CHUNK_DUCK);
+            btn.textContent = '⏳ Nefesler kısılıyor: ' + Math.min(idx + chunk.length, duck.length) + '/' + duck.length;
+            mutationStarted = true;
+            evalJsx('ACS_duckBreaths("' + pairsStr(chunk) + '", "' + getAudioSelection() + '", "' + duckDb + '")', function (res) {
+                var p = res.split('|');
+                if (p[0] !== 'OK') { cutFailed('nefes kısma: ' + p.slice(1).join('|')); return; }
+                prog.ducked += parseInt(p[1], 10) || 0;
+                setTimeout(function () { duckStep(idx + CHUNK_DUCK); }, 30);
             });
         }
 
@@ -1240,6 +1279,7 @@
                     (prog.compactErr ? ' | taşımaHatası=' + prog.compactErr : '');
             }
             if (manage === 'mute') summary += ' | susturulan=' + prog.muted;
+            if (duck) summary += ' | kısılan nefes=' + duck.length;
             summary += ' | süre=' + elapsed + 'sn';
             log('İşlem tamamlandı: ' + summary);
             showResult(true, 'İşlem tamamlandı ✓ (' + MANAGE_LABELS[manage] + ')<br>' + summary +
@@ -1312,6 +1352,11 @@
     for (var w = 0; w < workModes.length; w++) workModes[w].addEventListener('change', applyWorkMode);
     $('tickTarget').addEventListener('change', applyWorkMode);
     applyWorkMode();
+    // Nefesler: dB seçimi yalnız "Kıs"ta, açıklama nefes açıkken görünür
+    $('breathMode').addEventListener('change', function () {
+        $('breathDb').style.display = $('breathMode').value === 'duck' ? '' : 'none';
+        $('breathHint').style.display = $('breathMode').value === 'none' ? 'none' : '';
+    });
 
     // Şablon chipleri
     var chips = document.querySelectorAll('.chip');

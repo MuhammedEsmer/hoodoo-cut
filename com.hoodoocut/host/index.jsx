@@ -1472,6 +1472,78 @@ function ACS_setNamedMarkers(name, timesStr) {
     } catch (e) { return 'ERR|' + e.toString(); }
 }
 
+/* Nefes kisma (Nefesler = Kis): analiz sesi track'lerinde her nefes araligina Volume > Level anahtar
+ * kareleri. Volume = matchName "Internal Volume ..." (yoksa components[0]), Level = properties[1].
+ * Kare zamani klibin medya zamaninda: inPoint + (sequence zamani - start) * hiz. Deger olcegi
+ * 10^((dB-15)/20): N dB kisma = mevcut degeri 10^(-N/20) ile carpmak, 'mute' = 0. Kenarlarda 20 ms
+ * dogrusal gecis; mevcut otomasyon korunur (her karede o anki deger okunup carpilir). Kilitli track
+ * (muzik) atlanir. Kareler klibe bagli: sonraki razor / bosluk kapatmada klip parcasiyla kayar.
+ * pairsStr "bas,son;..." (sequence sn), tracksSel 'all' ya da '0,2'. Donus: OK|islenen klip parcasi */
+var ACS_DUCK_RAMP = 0.02;
+
+function ACS_volumeLevel(clip) {
+    var comps = clip.components, vol = null, i;
+    if (!comps || !comps.numItems) return null;
+    for (i = 0; i < comps.numItems && !vol; i++) {
+        var mn = '' + comps[i].matchName;
+        if (mn.indexOf('Internal Volume') === 0) vol = comps[i];
+    }
+    if (!vol) vol = comps[0];
+    return vol && vol.properties && vol.properties.numItems > 1 ? vol.properties[1] : null;
+}
+
+function ACS_duckBreaths(pairsStr, tracksSel, db) {
+    try {
+        ACS_checkEditSequence();
+        var seq = app.project.activeSequence;
+        if (!seq) return 'ERR|Aktif sequence yok';
+        var gain = db === 'mute' ? 0 : Math.pow(10, -parseFloat(db) / 20);
+        if (!(gain >= 0 && gain < 1)) return 'ERR|Gecersiz kisma degeri: ' + db;
+        var ivs = ACS_parseSilences(pairsStr), idx = [], i, k, t, n = 0, R = ACS_DUCK_RAMP;
+        if (tracksSel === 'all') idx = ACS_getContentTrackIndices(seq).a;
+        else {
+            var parts = ('' + tracksSel).split(',');
+            for (i = 0; i < parts.length; i++) if (parts[i] !== '') idx.push(parseInt(parts[i], 10));
+        }
+        for (t = 0; t < idx.length; t++) {
+            var tr = seq.audioTracks[idx[t]];
+            if (!tr || ACS_trackLocked(tr, 1, idx[t])) continue;
+            for (k = 0; k < tr.clips.numItems; k++) {
+                var c = tr.clips[k], cs = c.start.seconds, ce = c.end.seconds, p = null, speed = 1, base = null, inP = 0;
+                for (i = 0; i < ivs.length; i++) {
+                    var s = Math.max(ivs[i].start, cs), e = Math.min(ivs[i].end, ce);
+                    if (e - s < 2 * R + 0.01) continue;
+                    if (!p) {
+                        p = ACS_volumeLevel(c);
+                        if (!p) throw new Error('Ses seviyesi parametresi bulunamadi (A' + (idx[t] + 1) + ')');
+                        if (typeof c.getSpeed === 'function') speed = Math.abs(c.getSpeed()) || 1;
+                        inP = c.inPoint.seconds;
+                        // sabit seviye: anahtar kare yoksa deger her yerde ayni, bir kez okunur
+                        if (!p.isTimeVarying()) { base = p.getValue(); p.setTimeVarying(true); }
+                    }
+                    var times = [s, s + R, e - R, e], vals = [], j;
+                    for (j = 0; j < 4; j++) times[j] = inP + (times[j] - cs) * speed;
+                    // degerler kareler eklenmeden once okunur; ic kisimdaki mevcut kareler de kisilir
+                    for (j = 0; j < 4; j++) vals.push(base !== null ? base : p.getValueAtTime(times[j]));
+                    var keys = p.getKeys(), inner = [];
+                    for (j = 0; keys && j < keys.length; j++) {
+                        var kt = keys[j].seconds !== undefined ? keys[j].seconds : keys[j];
+                        if (kt > times[1] && kt < times[2]) inner.push(kt);
+                    }
+                    for (j = 0; j < inner.length; j++) p.setValueAtKey(inner[j], p.getValueAtKey(inner[j]) * gain, false);
+                    for (j = 0; j < 4; j++) {
+                        p.addKey(times[j]);
+                        p.setValueAtKey(times[j], j === 1 || j === 2 ? vals[j] * gain : vals[j], false);
+                        p.setInterpolationTypeAtKey(times[j], 0, false);
+                    }
+                    n++;
+                }
+            }
+        }
+        return 'OK|' + n;
+    } catch (e) { return 'ERR|' + e.toString(); }
+}
+
 function ACS_clearTickMarkers() { return ACS_clearNamedMarkers(ACS_TICK_MARKER); }
 function ACS_setTickMarkers(clicksStr) { return ACS_setNamedMarkers(ACS_TICK_MARKER, clicksStr); }
 function ACS_setBreathMarkers(timesStr) { return ACS_setNamedMarkers(ACS_BREATH_MARKER, timesStr); }

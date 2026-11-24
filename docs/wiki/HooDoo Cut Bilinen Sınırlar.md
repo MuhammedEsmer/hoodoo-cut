@@ -67,6 +67,6 @@ Ayrıntı: [[reports/2026-10-05-teknik-analiz|teknik analiz]] §6–7 (Yol A: XM
     - Kullanıcının kaydında (`Videos\2026-11-24 14-28-13`, mikrofon Track 1) eşit aralıklı 40 örneğin **hepsi nefes** çıktı.
     - Canlı panel testi (test projesi `Belgeler\Adobe\Premiere Pro\26.0\HooDoo nefes test.prproj`, sequence "Nefes test"): 265 marker, 55 sn, çökme yok.
     - Ayrıntı: [[reports/2026-11-24-nefes-tespiti-arastirma|araştırma ve sonuç raporu]].
-  - **Kalan:**
-    - 2. adım: sil / kıs seçeneği.
-    - "Seçili clipler" kapsamında yalnız seçimi işlemek (şu an tüm ses işleniyor).
+  - **2. adım tamam (CEP 0.9.9.7):** "Nefesler: Kıs" (6 / 12 / 20 dB / tam sessiz, varsayılan tam sessiz) canlı doğrulandı.
+    - "Sil" kullanıcı kararıyla kaldırıldı: nefesler kesilmeyen kısa duraklamalarda (ortanca 0.41 sn).
+  - **Kalan:** "Seçili clipler" kapsamında yalnız seçimi işlemek (şu an tüm ses işleniyor).

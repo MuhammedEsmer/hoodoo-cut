@@ -46,11 +46,19 @@ Hesaplanan değer kaydırıcıya yansır; kaydırıcı elle oynatılırsa otomat
 - `minSilence`'tan kısa sessizlikler atılır; şablonun öncesi/sonrası payları uygulanır.
 - Kesim sınırları tam kareye hizalanır: başlangıç yukarı, bitiş aşağı (konuşma korunur).
 
-## 5. Nefes işaretleme (0.9.9.6, isteğe bağlı)
+## 5. Nefesler (0.9.9.6 işaretle, 0.9.9.7 kıs; isteğe bağlı)
 
-"Nefesleri işaretle" kutusu işaretliyse sessizlik analizinden sonra aynı WAV'da nefesler aranır.
-Her nefesin başına `HooDoo nefes` marker'ı konur. Hiçbir şey kesilmez; nefesi silme ya da kısma
-seçeneği 2. adım olarak bekliyor ([[HooDoo Cut Bilinen Sınırlar#Yapılacaklar (kullanıcı istekleri)]]).
+"Nefesler" seçimi **Dokunma** (varsayılan) değilse, sessizlik analizinden sonra aynı WAV'da nefesler
+aranır.
+
+- **İşaretle:** Her nefesin başına `HooDoo nefes` marker'ı konur; hiçbir şey kesilmez.
+- **Kıs:** Kes'e basınca, razor'dan önce, analiz sesi track'lerinde her nefese Volume > Level anahtar karesi konur (`ACS_duckBreaths`).
+  - Seviye seçenekleri 6 / 12 / 20 dB ya da tam sessiz (varsayılan tam sessiz).
+  - 4 doğrusal kare, 20 ms geçiş. Değer, karenin olduğu andaki mevcut değerle çarpılır; nefes içindeki mevcut kareler de kısılır.
+  - Kare zamanı klibin medya zamanında: `inPoint + (t − start) × hız`. Ölçek 10^((dB−15)/20).
+  - Kilitli track (müzik) atlanır. Kareler klibe bağlı olduğu için razor ve boşluk kapatmadan sonra parçalarla kayar (canlı doğrulandı).
+  - Görüntüye dokunulmaz.
+- **Sil kaldırıldı** (kullanıcı kararı, 2026-11-24): Kullanıcının konuşmasında nefes + çevresindeki sessizlik ortanca 0.41 sn. Sessizlik kesimine katma 264 nefesin yalnız 15'ini yakalıyordu.
 
 - **Model:** Respiro-en (MIT, Conformer + BiLSTM). Panelde ONNX Runtime Web 1.31.1, WASM, tek iş parçacığı (`client/lib/respiro`, 25.6 MB; kaynak `tools/respiro`).
 - **Yükleme:** Yükleyici pakete gömülü. `.wasm` ve model bellekten verilir. Dosya yolundan `import()` ile yükleyen giriş CEP 12 panelini çökertti.

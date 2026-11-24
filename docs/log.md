@@ -11,6 +11,34 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-11-24 — Nefes kısma (CEP 0.9.9.7), "Sil" kaldırıldı
+
+- Kullanıcı 2. adımı istedi. Kararlar:
+  - "Kıs" dB'si panelden seçilsin; varsayılan **tam sessiz** (seçenekler 6 / 12 / 20 dB).
+  - Yalnız analiz sesi track'leri değişsin.
+  - "Sil" duraklamayla birlikte kessin (sonra kaldırıldı, aşağıda).
+- **Araştırma** (alt ajan, kaynaklar topluluk + Adobe örnekleri):
+  - Volume = matchName `Internal Volume Stereo` (yoksa `components[0]`), Level = `properties[1]`.
+  - Anahtar kare zamanı klibin medya zamanında. Değer ölçeği 10^((dB−15)/20), bu yüzden N dB kısma = değeri 10^(−N/20) ile çarpmak.
+- **Panel:**
+  - "Nefesler" seçimi: Dokunma / İşaretle / Kıs.
+  - Kıs'ta analizde bulunan nefesler Kes'te razor'dan önce `ACS_duckBreaths` ile kısılır: 4 doğrusal anahtar kare, 20 ms geçiş, mevcut otomasyona göreli. Kilitli track atlanır.
+  - Analiz sonucu `showSilenceResult` fonksiyonuna ayrıldı.
+- **Canlı test** (test projesi, "Nefes kis", 2 dk, yalnız A1, tam sessiz, Klasik motor, sil + boşlukları kapat):
+  - 9 nefes susturuldu (0.1 sn), toplam işlem 3.7 sn.
+  - Razor sonrası 16 klip parçasının her biri anahtar karelerini taşıyor (Volume = `Internal Volume Stereo` / Level).
+  - Kesilmiş sequence yeniden arandı: 9 → 1 nefes.
+- **"Sil (duraklamayla)" canlıda 9 nefesin 0'ını katamadı.**
+  - Ölçüm: kullanıcının konuşmasında nefes + iki yanındaki sessizlik ortanca 0.41 sn (p90 0.58). Ölçülü şablon 0.6 sn'den kısa duraklamayı kesmiyor; tüm kayıtta 264 nefesin yalnız 15'i bir kesimin yanında.
+  - Nefesi sessizlik saymak da yalnız 24/264 yakaladı.
+  - Kullanıcıya sunuldu; kullanıcı: **"sil kısmını kaldır"**. `mergeBreathCuts` ve testleri silindi.
+- Kendi test betiğimin hatası: bekleme, işlem bitince butonda kalan "⏳"yi beklediği için kullanıcı 10 dk bekledi. Asıl işlem 10 sn sürmüştü. Betik artık bitişi günlükten algılıyor.
+- Testler 151 PASS (yeni `tools/test-breath-host.js`: 5).
+
+## 2026-11-24 — Kullanıcı nefes marker'larını onayladı
+
+- Kullanıcı "Nefes test" sequence'inde marker'lara bakıp dinledi: "gayet güzel". 1. adım (marker) kabul edildi ([[HooDoo Cut Bilinen Sınırlar#Yapılacaklar (kullanıcı istekleri)]]).
+
 ## 2026-11-24 — Nefes işaretleme canlı doğrulandı (CEP 0.9.9.6)
 
 - Kullanıcı "Contained Opolis EP 1" projesini kapattı.

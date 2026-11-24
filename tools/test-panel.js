@@ -21,6 +21,7 @@ function panel(responses = {}, manage = 'remove_keep', workMode = 'silence') {
         getElementsByName: name => name === 'manage' ? [{ checked: true, value: manage }] :
             name === 'workMode' ? [{ checked: true, value: workMode, addEventListener() {} }] : [] };
     element('makeBackup');
+    element('breathMode').value = 'none'; // panelin varsayılanı: nefese dokunma
     function CSInterface() {}
     CSInterface.prototype.getSystemPath = () => path.resolve(__dirname, '../com.hoodoocut');
     CSInterface.prototype.evalScript = (script, cb) => {
