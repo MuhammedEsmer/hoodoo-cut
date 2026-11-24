@@ -24,7 +24,7 @@ node tools/test-analyzer.js
 
 | Dosya | Kapsam |
 |---|---|
-| `tools/test-analyzer.js` | Sentetik WAV ile eşik + tespit (15) |
+| `tools/test-analyzer.js` | Sentetik WAV ile eşik + tespit; nefes modeli girdisi (kare sayısı, mel bandı, dB tabanı, sıfır geçiş, varyans), olasılık→nefes, 25 sn parçalama ve sessiz parça atlama, gerçek `client/lib/respiro` paketi (25; `nefes-isaretleme` dalı) |
 | `tools/test-regressions.js` | Ses/host regresyonları (26) |
 | `tools/test-panel.js` | Panel ↔ host köprüsü akışı (19) |
 | `tools/test-bulk.js` | Toplu motor: kanal karışımı, tek action/transaction, uyuşmazlıklar (17) |

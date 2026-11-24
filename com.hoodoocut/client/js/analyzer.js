@@ -315,48 +315,141 @@
         };
     }
 
-    /* Nefes: konusmanin onunde/arkasinda perdesiz, hisirtili, kisik ses.
-     * Alcak bant (100-900 Hz) sesli konusmayi, yuksek bant (1.5-6 kHz) hisirtiyi olcer.
-     * Nefes penceresi: yuksek bant gurultu tabaninin belirgin ustunde, alcak bant ondan
-     * baskin degil (perdesiz) ve konusma seviyesinin cok altinda. Iki yani da sesli
-     * konusmaya yapisik hisirti kelime icindeki "s/s" sesidir, sayilmaz.
-     * opts: minSec, maxSec, aboveNoiseDb, tiltDb, belowSpeechDb. Donus: [{ start, end }] sn. */
-    function detectBreaths(fs, filePath, opts) {
-        opts = opts || {};
-        var WIN = 20, win = WIN / 1000, HOLE = 2, SIDE = 2;
-        var minSec = opts.minSec || 0.15, maxSec = opts.maxSec || 1.2;
-        var above = opts.aboveNoiseDb || 10, below = opts.belowSpeechDb || 15;
-        var tilt = typeof opts.tiltDb === 'number' ? opts.tiltDb : -6;
-        var lo = computeWindowDb(fs, filePath, WIN, { hpHz: 100, lpHz: 900 }).db;
-        var hi = computeWindowDb(fs, filePath, WIN, { hpHz: 1500, lpHz: 6000 }).db;
-        var n = Math.min(lo.length, hi.length), i, k;
-        function asc(a, b) { return a - b; }
-        var noiseHi = percentile(hi.slice(0, n).sort(asc), 0.1);
-        var speechLo = percentile(lo.slice(0, n).sort(asc), 0.9);
-        var voiced = [], cand = [];
-        for (i = 0; i < n; i++) {
-            voiced[i] = lo[i] > speechLo - below;
-            cand[i] = !voiced[i] && hi[i] >= noiseHi + above && hi[i] - lo[i] >= tilt;
-        }
-        function voicedIn(from, to) {
-            for (var v = Math.max(0, from); v <= Math.min(n - 1, to); v++) if (voiced[v]) return true;
-            return false;
-        }
-        var out = [];
-        i = 0;
-        while (i < n) {
-            if (!cand[i]) { i++; continue; }
-            var s = i, e = i + 1, gap = 0;
-            for (k = i + 1; k < n && gap <= HOLE; k++) {
-                if (cand[k]) { e = k + 1; gap = 0; } else if (voiced[k]) break; else gap++;
+    /* Karışık tabanlı (4, 2, 3, 5 …) karmaşık FFT planı: n_fft 400 gibi 2'nin kuvveti olmayan boylar için. */
+    function fftPlan(n) {
+        var f = [], m = n, p, k;
+        while (m % 4 === 0) { f.push(4); m /= 4; }
+        while (m % 2 === 0) { f.push(2); m /= 2; }
+        for (p = 3; m > 1; p += 2) while (m % p === 0) { f.push(p); m /= p; }
+        var c = new Float64Array(n), s = new Float64Array(n);
+        for (k = 0; k < n; k++) { c[k] = Math.cos(2 * Math.PI * k / n); s[k] = -Math.sin(2 * Math.PI * k / n); }
+        return { n: n, f: f, c: c, s: s, tr: new Float64Array(8), ti: new Float64Array(8) };
+    }
+
+    /* Zamanda seyreltmeli FFT: x'in xo'dan 'st' adımlı n elemanı -> y[yo .. yo+n) (doğal sıra). */
+    function fftRec(P, xr, xi, xo, st, n, fi, yr, yi, yo) {
+        if (n === 1) { yr[yo] = xr[xo]; yi[yo] = xi[xo]; return; }
+        var p = P.f[fi], m = n / p, N = P.n, step = N / n, q, k, s;
+        for (q = 0; q < p; q++) fftRec(P, xr, xi, xo + q * st, st * p, m, fi + 1, yr, yi, yo + q * m);
+        var tr = P.tr, ti = P.ti;
+        for (k = 0; k < m; k++) {
+            for (q = 0; q < p; q++) {
+                var w = (q * k * step) % N, a = yr[yo + q * m + k], b = yi[yo + q * m + k];
+                tr[q] = a * P.c[w] - b * P.s[w]; ti[q] = a * P.s[w] + b * P.c[w];
             }
-            i = e;
-            var len = (e - s) * win;
-            if (len < minSec || len > maxSec) continue;
-            if (voicedIn(s - SIDE, s - 1) && voicedIn(e, e + SIDE - 1)) continue;
-            out.push({ start: Math.round(s * win * 1000) / 1000, end: Math.round(e * win * 1000) / 1000 });
+            for (s = 0; s < p; s++) {
+                var re = 0, im = 0;
+                for (q = 0; q < p; q++) {
+                    var j = (q * s * (N / p)) % N;
+                    re += tr[q] * P.c[j] - ti[q] * P.s[j]; im += tr[q] * P.s[j] + ti[q] * P.c[j];
+                }
+                yr[yo + s * m + k] = re; yi[yo + s * m + k] = im;
+            }
+        }
+    }
+
+    /* Respiro-en girdisi, Respiro'nun feature_extractor'u (librosa) ile aynı tanım: 16 kHz, n_fft 400,
+     * hop 160, Hann, ortalı (sıfır dolgulu) kareler, 128 Slaney mel, power_to_db(ref = parçanın en
+     * büyüğü, top_db 80); kanal 1 = karedeki mel dB varyansı (n-1), kanal 2 = sıfır geçiş oranı.
+     * x: 16 kHz Float32Array. Dönüş: { data: Float32Array [3, 128, T], T }. */
+    var RESPIRO_TABLES = null;
+    function respiroFeatures(x) {
+        var SR = 16000, NFFT = 400, HOP = 160, NM = 128, NB = 201, PAD = 200, t, k, m;
+        if (!RESPIRO_TABLES) {
+            var hz2mel = function (f) { return f < 1000 ? f / (200 / 3) : 15 + Math.log(f / 1000) / (Math.log(6.4) / 27); };
+            var mel2hz = function (v) { return v < 15 ? v * 200 / 3 : 1000 * Math.exp((Math.log(6.4) / 27) * (v - 15)); };
+            var pts = [], top = hz2mel(SR / 2), filters = [];
+            for (m = 0; m < NM + 2; m++) pts.push(mel2hz(top * m / (NM + 1)));
+            for (m = 0; m < NM; m++) {
+                var w = [], k0 = -1, enorm = 2 / (pts[m + 2] - pts[m]);
+                for (k = 0; k < NB; k++) {
+                    var f = k * SR / NFFT;
+                    var v = Math.max(0, Math.min((f - pts[m]) / (pts[m + 1] - pts[m]), (pts[m + 2] - f) / (pts[m + 2] - pts[m + 1])));
+                    if (v > 0) { if (k0 < 0) k0 = k; w[k - k0] = v * enorm; } else if (k0 >= 0) break;
+                }
+                filters.push({ k0: k0, w: w });
+            }
+            var win = new Float64Array(NFFT);
+            for (k = 0; k < NFFT; k++) win[k] = 0.5 - 0.5 * Math.cos(2 * Math.PI * k / NFFT);
+            RESPIRO_TABLES = { filters: filters, win: win, fft: fftPlan(NFFT) };
+        }
+        var R = RESPIRO_TABLES, T = 1 + Math.floor(x.length / HOP);
+        var mel = new Float64Array(NM * T), out = new Float32Array(3 * NM * T), maxMel = 0;
+        var fr = new Float64Array(NFFT), fi = new Float64Array(NFFT), yr = new Float64Array(NFFT), yi = new Float64Array(NFFT);
+        for (t = 0; t < T; t++) {
+            var s0 = t * HOP - PAD, z = 0, prev = 0;
+            for (k = 0; k < NFFT; k++) {
+                var x0 = s0 + k >= 0 && s0 + k < x.length ? x[s0 + k] : 0, sg = x0 > 0 ? 1 : (x0 < 0 ? -1 : 0);
+                if (k > 0) z += Math.abs(sg - prev);
+                prev = sg; fr[k] = x0 * R.win[k]; fi[k] = 0;
+            }
+            fftRec(R.fft, fr, fi, 0, 1, NFFT, 0, yr, yi, 0);
+            for (m = 0; m < NM; m++) {
+                var F = R.filters[m], acc = 0;
+                for (k = 0; k < F.w.length; k++) { var b = F.k0 + k; acc += F.w[k] * (yr[b] * yr[b] + yi[b] * yi[b]); }
+                mel[m * T + t] = acc;
+                if (acc > maxMel) maxMel = acc;
+            }
+            for (m = 0; m < NM; m++) out[2 * NM * T + m * T + t] = z * 0.5 / NFFT;
+        }
+        var ref = 10 * Math.log10(Math.max(1e-10, maxMel)), floorDb = -Infinity, i;
+        for (i = 0; i < NM * T; i++) {
+            mel[i] = 10 * Math.log10(Math.max(1e-10, mel[i])) - ref;
+            if (mel[i] > floorDb) floorDb = mel[i];
+        }
+        floorDb -= 80;
+        for (t = 0; t < T; t++) {
+            var sum = 0, sq = 0;
+            for (m = 0; m < NM; m++) {
+                var d = Math.max(mel[m * T + t], floorDb);
+                out[m * T + t] = d; sum += d; sq += d * d;
+            }
+            var vr = (sq - sum * sum / NM) / (NM - 1);
+            for (m = 0; m < NM; m++) out[NM * T + m * T + t] = vr;
+        }
+        return { data: out, T: T };
+    }
+
+    /* Kare başına nefes olasılığı (10 ms) -> nefesler: eşiği aşan ardışık kareler, en az 21 kare
+     * (Respiro BreathDetector: threshold 0.064, min_length 20). Bitiş = son karenin zamanı. */
+    function breathSegments(prob, threshold) {
+        var thr = threshold || 0.064, out = [], i = 0;
+        while (i < prob.length) {
+            if (!(prob[i] > thr)) { i++; continue; }
+            var s = i;
+            while (i < prob.length && prob[i] > thr) i++;
+            if (i - s > 20) out.push({ start: Math.round(s) / 100, end: Math.round(i - 1) / 100 });
         }
         return out;
+    }
+
+    /* Nefes tespiti (Respiro-en, bkz. docs/reports/2026-11-24-nefes-tespiti-arastirma.md): ses 25 sn'lik
+     * parçalara bölünür, iki yanına 2.5 sn bağlam eklenir (model girdisi parça başına normalize edilir),
+     * ortadaki kareler alınır; tamamen sessiz parça atlanır. runModel(data, T) -> Promise<Float32Array>
+     * (kare başına olasılık). opts: threshold, onProgress(0..1). Dönüş: Promise<[{ start, end }]> sn. */
+    function detectBreaths(fs, filePath, runModel, opts) {
+        opts = opts || {};
+        var STEP = 25, OV = 2.5, fd = fs.openSync(filePath, 'r'), dur;
+        try {
+            var h = readWavHeader(fs, fd);
+            dur = h.dataSize / (h.bitsPerSample / 8 * h.numChannels) / h.sampleRate;
+        } finally { fs.closeSync(fd); }
+        var nfr = 1 + Math.floor(dur * 100), prob = new Float32Array(nfr), pos = 0;
+        function next() {
+            if (pos >= dur) return Promise.resolve(breathSegments(prob, opts.threshold));
+            var a = Math.max(0, pos - OV), here = pos, x = readMonoResampled(fs, filePath, [a, Math.min(dur, pos + STEP + OV)], 16000), i;
+            pos += STEP;
+            for (i = 0; i < x.length && Math.abs(x[i]) < 1e-4; i++) {}
+            if (i === x.length) return next();
+            var F = respiroFeatures(x);
+            return runModel(F.data, F.T).then(function (p) {
+                var f0 = Math.round(a * 100), k0 = Math.round((here - a) * 100), k1 = Math.min(p.length, k0 + STEP * 100);
+                for (var k = k0; k < k1 && f0 + k < nfr; k++) prob[f0 + k] = p[k];
+                if (opts.onProgress) opts.onProgress(Math.min(1, pos / dur));
+                return next();
+            });
+        }
+        return next();
     }
 
     /* Kesilecek bolgeyi iceri yuvarla: konusma tarafindaki kare korunur.
@@ -851,6 +944,8 @@
         computeWindowDb: computeWindowDb,
         autoThresholdDb: autoThresholdDb,
         detectSilences: detectSilences,
+        respiroFeatures: respiroFeatures,
+        breathSegments: breathSegments,
         detectBreaths: detectBreaths,
         analyzeFile: analyzeFile
     };

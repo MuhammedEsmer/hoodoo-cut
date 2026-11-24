@@ -1,0 +1,9 @@
+{
+  "name": "hoodoo-respiro-build",
+  "private": true,
+  "description": "Respiro-en nefes modelini ve ONNX Runtime Web'i CEP paneline kopyalar (node build.js)",
+  "devDependencies": {
+    "esbuild": "0.24.2",
+    "onnxruntime-web": "1.31.1"
+  }
+}

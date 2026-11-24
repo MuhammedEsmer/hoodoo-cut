@@ -135,53 +135,70 @@ if (rbp.cuts.length === 1) {
 }
 fs.unlinkSync(tmpBp);
 
-console.log('\n[7] Nefes: konuşma önü/arkasındaki hışırtı bulunur, kelime içi "s" sayılmaz');
-// Sesli konuşma = 140 Hz ve harmonikleri; nefes/s = 2.5 kHz / 5 kHz bant geçiren gürültü.
-function bandNoise(n, f0, amp) {
-    const w0 = 2 * Math.PI * f0 / SR, al = Math.sin(w0) / (2 * 0.7), a0 = 1 + al;
-    const b0 = al / a0, b2 = -al / a0, a1 = -2 * Math.cos(w0) / a0, a2 = (1 - al) / a0;
-    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-    const out = [];
-    for (let k = 0; k < n; k++) {
-        const x = rand() * 2 - 1, y = b0 * x + b2 * x2 - a1 * y1 - a2 * y2;
-        x2 = x1; x1 = x; y2 = y1; y1 = y;
-        out.push(y * amp);
-    }
-    return out;
-}
-function writeSamples(samples, file) {
-    const data = Buffer.alloc(samples.length * 2);
-    samples.forEach((v, k) => data.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(v * 32767))), k * 2));
-    const head = makeWav([]).subarray(0, 44);
-    head.writeUInt32LE(36 + data.length, 4);
-    head.writeUInt32LE(data.length, 40);
-    fs.writeFileSync(file, Buffer.concat([head, data]));
-}
-const parts = [];
-function floor(d) { for (let k = 0; k < Math.round(d * SR); k++) parts.push((rand() * 2 - 1) * 0.002); }
-function voiced(d) {
-    const n = Math.round(d * SR);
-    for (let k = 0; k < n; k++) {
-        let v = 0;
-        for (let h = 1; h <= 8; h++) v += Math.sin(2 * Math.PI * 140 * h * k / SR) / h;
-        parts.push(v * 0.15 + (rand() * 2 - 1) * 0.002);
-    }
-}
-function hiss(d, f0, amp) { bandNoise(Math.round(d * SR), f0, amp).forEach(v => parts.push(v + (rand() * 2 - 1) * 0.002)); }
-floor(0.5); hiss(0.4, 2500, 0.08);          // 0.5-0.9 cumle onu nefes
-voiced(0.7); hiss(0.2, 5000, 0.12); voiced(0.6); // 1.6-1.8 kelime ici "s"
-floor(0.15); hiss(0.35, 2500, 0.08);        // 2.55-2.9 cumle sonu nefes
-floor(1.1); voiced(1.0); floor(1.0);
-const tmpBr = path.join(os.tmpdir(), 'acs_breath.wav');
-writeSamples(parts, tmpBr);
-const br = analyzer.detectBreaths(fs, tmpBr);
-console.log('  bulunan nefes: ' + JSON.stringify(br));
-check('iki nefes bulundu', br.length === 2, 'adet=' + br.length);
-const near = (b, s, e) => b && Math.abs(b.start - s) <= 0.06 && Math.abs(b.end - e) <= 0.06;
-check('cümle önü nefes ~0.5-0.9', near(br[0], 0.5, 0.9), JSON.stringify(br[0]));
-check('cümle sonu nefes ~2.55-2.9', near(br[1], 2.55, 2.9), JSON.stringify(br[1]));
-check('kelime içi "s" (1.6-1.8) nefes sayılmadı', !br.some(b => b.start < 1.85 && b.end > 1.55));
-fs.unlinkSync(tmpBr);
+console.log('\n[7] Nefes modeli girdisi (Respiro-en: 16 kHz, n_fft 400, hop 160, 128 Slaney mel)');
+// 1 kHz sinüs: en güçlü mel bandı 1 kHz'i kapsar, sıfır geçiş oranı 2*1000/16000 = 0.125.
+const sine = new Float32Array(16000);
+for (let k = 0; k < sine.length; k++) sine[k] = 0.5 * Math.sin(2 * Math.PI * 1000 * k / 16000);
+const feat = analyzer.respiroFeatures(sine), T = feat.T;
+check('kare sayısı 1 + N/160 (ortalı)', T === 101 && feat.data.length === 3 * 128 * T, 'T=' + T);
+const mid = 50, col = c => Array.from({ length: 128 }, (_, m) => feat.data[c * 128 * T + m * T + mid]);
+const melCol = col(0), peak = melCol.indexOf(Math.max(...melCol));
+// Slaney mel: 1000 Hz = 15 mel; 8 kHz = 45.25 mel; 128 bant -> 1 kHz bandı ~ 15 / (45.25 / 129) - 1 = 41.8
+check('en güçlü mel bandı 1 kHz (41-43)', peak >= 41 && peak <= 43, 'bant=' + peak);
+check('dB: en büyük 0, taban -80', Math.max(...feat.data.subarray(0, 128 * T)) === 0 &&
+    Math.min(...feat.data.subarray(0, 128 * T)) >= -80);
+const zc = col(2)[0];
+check('sıfır geçiş oranı ~0.125', Math.abs(zc - 0.125) < 0.005, 'zcr=' + zc);
+const mean = melCol.reduce((a, b) => a + b, 0) / 128;
+const vr = melCol.reduce((a, b) => a + (b - mean) * (b - mean), 0) / 127;
+check('kanal 1 = karedeki mel varyansı (n-1)', Math.abs(col(1)[0] - vr) < 1e-3 * vr, col(1)[0] + ' / ' + vr);
 
-console.log('\nSonuc: ' + pass + ' PASS, ' + fail + ' FAIL');
-process.exit(fail > 0 ? 1 : 0);
+console.log('\n[8] Olasılık -> nefes (eşik 0.064, en az 21 kare)');
+const prob = new Float32Array(300);
+prob.fill(0.9, 10, 31);   // 21 kare -> nefes
+prob.fill(0.9, 100, 120); // 20 kare -> kısa, sayılmaz
+prob.fill(0.05, 200, 260); // eşik altı
+check('21 karelik koşu nefes, 20 karelik ve eşik altı değil',
+    JSON.stringify(analyzer.breathSegments(prob)) === JSON.stringify([{ start: 0.1, end: 0.3 }]),
+    JSON.stringify(analyzer.breathSegments(prob)));
+
+console.log('\n[9] Nefes tespiti: 25 sn parçalar + 2.5 sn bağlam, parça sınırında kayıp yok, sessiz parça atlanır');
+// Dijital sessizlik üzerinde 1 kHz tonlar; sahte model sıfır geçiş oranı yüksek karelere 1 verir.
+const BUR = [[10.0, 10.5], [24.8, 25.3], [60.0, 60.4]];
+const long = makeWav([{ dur: 10.0, amp: 0 }, { dur: 0.5, amp: 0.3, freq: 1000 }, { dur: 14.3, amp: 0 },
+    { dur: 0.5, amp: 0.3, freq: 1000 }, { dur: 34.7, amp: 0 }, { dur: 0.4, amp: 0.3, freq: 1000 }, { dur: 19.6, amp: 0 }]);
+const tmpLong = path.join(os.tmpdir(), 'acs_breath_long.wav');
+fs.writeFileSync(tmpLong, long);
+let calls = 0, shapeOk = true;
+const fake = (data, n) => {
+    calls++;
+    if (data.length !== 3 * 128 * n) shapeOk = false;
+    const p = new Float32Array(n);
+    for (let t = 0; t < n; t++) p[t] = data[2 * 128 * n + t] > 0.05 ? 1 : 0;
+    return Promise.resolve(p);
+};
+(async () => {
+    const segs = await analyzer.detectBreaths(fs, tmpLong, fake);
+    fs.unlinkSync(tmpLong);
+    console.log('  bulunan: ' + JSON.stringify(segs));
+    check('üç ton bulundu, sınırdaki dahil', segs.length === 3 &&
+        segs.every((s, i) => Math.abs(s.start - BUR[i][0]) <= 0.03 && Math.abs(s.end - BUR[i][1]) <= 0.03),
+        JSON.stringify(segs));
+    check('model 3 kez çağrıldı (son parça tamamen sessiz)', calls === 3, 'cagri=' + calls);
+    check('girdi boyu 3 x 128 x T', shapeOk);
+
+    // Panel paketi (client/lib/respiro): gerçek ONNX Runtime Web + Respiro-en, bellekten yüklenir.
+    const dir = path.join(__dirname, '..', 'com.hoodoocut', 'client', 'lib', 'respiro');
+    const ort = require(path.join(dir, 'ort.js'));
+    ort.env.wasm.numThreads = 1;
+    ort.env.wasm.wasmBinary = fs.readFileSync(path.join(dir, 'ort-wasm-simd-threaded.wasm'));
+    const sess = await ort.InferenceSession.create(new Uint8Array(fs.readFileSync(path.join(dir, 'respiro-en.onnx'))),
+        { executionProviders: ['wasm'] });
+    const out = await sess.run({ feat: new ort.Tensor('float32', feat.data, [1, 3, 128, T]) });
+    const p = out[sess.outputNames[0]].data;
+    check('gerçek paket: kare başına olasılık (T adet, 0-1)', p.length === T && Array.from(p).every(v => v >= 0 && v <= 1),
+        'uzunluk=' + p.length);
+
+    console.log('\nSonuc: ' + pass + ' PASS, ' + fail + ' FAIL');
+    process.exit(fail > 0 ? 1 : 0);
+})().catch(e => { console.log('  FAIL: ' + (e && e.stack || e)); process.exit(1); });

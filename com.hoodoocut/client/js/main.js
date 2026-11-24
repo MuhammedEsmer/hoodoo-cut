@@ -500,6 +500,7 @@
 
         // setTimeout: UI bir kez boyansın, sonra senkron analiz çalışsın
         setTimeout(function () {
+            var breathJob = false;
             try {
                 var overrides = getParams();
                 var r = ACSAnalyzer.analyzeFile(fs, wavPath, 'olculu', overrides);
@@ -535,23 +536,8 @@
                 log('Analiz bitti: ' + r.windowCount + ' pencere, ' +
                     cuts.length + ' kesim adayı' + scopeNote);
 
-                var breathNote = '';
-                if ($('markBreaths').checked) {
-                    try {
-                        var breaths = ACSAnalyzer.detectBreaths(fs, wavPath);
-                        if (selRanges) breaths = intersectCuts(breaths, selRanges);
-                        breathNote = '<br>' + breaths.length + ' nefes marker ile işaretlendi';
-                        log('Nefes: ' + breaths.length + ' bulundu');
-                        evalJsx('ACS_setBreathMarkers("' + breaths.map(function (b) { return b.start; }).join(';') + '")', function (res) {
-                            if (res.split('|')[0] !== 'OK') log('Nefes marker\'ları konamadı: ' + res);
-                        });
-                    } catch (be) {
-                        log('Nefes tespiti HATASI: ' + (be && be.message ? be.message : be));
-                    }
-                }
-
                 if (cuts.length === 0) {
-                    showResult(true, 'Kesilecek sessizlik bulunamadı.<br>' + thrInfo + breathNote);
+                    showResult(true, 'Kesilecek sessizlik bulunamadı.<br>' + thrInfo);
                 } else {
                     showResult(true,
                         '<b>' + cuts.length + ' sessizlik</b> bulundu — toplam <b>' +
@@ -559,20 +545,65 @@
                         (selRanges ? ' <i>(sadece seçim içinde)</i>' : '') + '<br>' +
                         previewBarHtml(cuts, r.durationSec) +
                         'Video süresi: ' + fmtSec(r.durationSec) + ' → ' +
-                        fmtSec(r.durationSec - totalCut) + '<br>' + thrInfo + breathNote);
+                        fmtSec(r.durationSec - totalCut) + '<br>' + thrInfo);
                     $('btnCut').style.display = 'block';
                     $('manageRow').style.display = 'block';
                     $('backupRow').style.display = 'block';
                     resetCutButton();
                 }
+                breathJob = $('markBreaths').checked;
             } catch (e) {
                 state.lastCuts = null;
                 state.planContext = null;
                 log('Analiz HATASI: ' + (e && e.message ? e.message : e));
                 showResult(false, 'Analiz başarısız. Günlüğe bakın.');
             }
-            resetAnalyzeButton();
+            if (breathJob) markBreaths(wavPath, selRanges, resetAnalyzeButton);
+            else resetAnalyzeButton();
         }, 50);
+    }
+
+    /* Nefes marker'ları: Respiro-en modeli (client/lib/respiro, ONNX Runtime Web WASM, tek iş parçacığı).
+     * Yükleyici pakete gömülü; .wasm ve model bellekten verilir (import() ile yükleyen Node girişi CEP 12
+     * panelini çökertti). Bitene kadar analiz WAV'ı silinmez ve kesim kapalıdır: marker'lar analiz
+     * anındaki timeline zamanına konur. */
+    var respiro = null;
+    function respiroModel() {
+        if (!respiro) {
+            var dir = extPath + '/client/lib/respiro/', ort = nodeRequire(dir + 'ort.js');
+            ort.env.wasm.numThreads = 1;
+            ort.env.wasm.wasmBinary = fs.readFileSync(dir + 'ort-wasm-simd-threaded.wasm');
+            respiro = ort.InferenceSession.create(new Uint8Array(fs.readFileSync(dir + 'respiro-en.onnx')),
+                { executionProviders: ['wasm'] }).then(function (s) { return { ort: ort, s: s }; });
+            respiro.catch(function () { respiro = null; });
+        }
+        return respiro;
+    }
+
+    function markBreaths(wavPath, selRanges, done) {
+        var t0 = Date.now(), btn = $('btnAnalyze'), job;
+        $('btnCut').disabled = true;
+        btn.textContent = '⏳ Nefesler aranıyor…';
+        try {
+            job = respiroModel().then(function (m) {
+                return ACSAnalyzer.detectBreaths(fs, wavPath, function (data, T) {
+                    return m.s.run({ feat: new m.ort.Tensor('float32', data, [1, 3, 128, T]) })
+                        .then(function (o) { return o[m.s.outputNames[0]].data; });
+                }, { onProgress: function (f) { btn.textContent = '⏳ Nefesler aranıyor… %' + Math.round(f * 100); } });
+            });
+        } catch (e) { job = Promise.reject(e); }
+        job.then(function (breaths) {
+            if (selRanges) breaths = intersectCuts(breaths, selRanges);
+            log('Nefes: ' + breaths.length + ' bulundu (' + ((Date.now() - t0) / 1000).toFixed(1) + ' sn)');
+            $('analysisResult').innerHTML += '<br>' + breaths.length + ' nefes marker ile işaretlendi';
+            evalJsx('ACS_setBreathMarkers("' + breaths.map(function (b) { return b.start; }).join(';') + '")', function (res) {
+                if (res.split('|')[0] !== 'OK') log('Nefes marker\'ları konamadı: ' + res);
+                done();
+            });
+        }, function (e) {
+            log('Nefes tespiti HATASI: ' + (e && e.message ? e.message : e));
+            done();
+        });
     }
 
     /* ---- tık ritmi ---- */

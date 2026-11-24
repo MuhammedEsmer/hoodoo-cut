@@ -11,6 +11,21 @@ updated: 2026-10-11
 
 > Append-only. En yeni girdi en üstte. Eski girdileri silme — bkz. [[CLAUDE]].
 
+## 2026-11-24 — Nefes tespiti modele geçti (`nefes-isaretleme` dalı, canlı panel testi yok)
+
+- Kullanıcı nefes kesmeye bugünkü kayıtla devam etmek istedi. Önce araştırma yapıldı:
+  [[reports/2026-11-24-nefes-tespiti-arastirma|rapor]].
+- Kural tabanlı taslak bırakıldı; yerine Respiro-en (MIT) girdi.
+- Kullanıcının kaydında 271 nefes bulundu. Kullanıcı eşit aralıklı 40 örneği dinledi: "hepsinde nefes sesi var".
+- Panel:
+  - `client/lib/respiro`: ONNX Runtime Web 1.31.1, WASM, model. Kaynak `tools/respiro`; build modeli SHA-256 ile doğrular.
+  - `analyzer.respiroFeatures` / `breathSegments` / `detectBreaths` (25 sn parçalar).
+  - `main.markBreaths`: analizden sonra, ilerleme gösterir, bitene kadar kesim kapalı.
+- Kullanıcının onayıyla indirilenler: model (11.9 MB), onnxruntime-gpu (scratch venv), onnxruntime-web, taşınabilir Node 17.7.2.
+- **Olay:** ORT'nin Node girişi canlı panelde denenince HooDoo Cut paneli çöktü ve yeniden yüklendi (17:53). Premiere ve açık proje ("Contained Opolis EP 1") etkilenmedi. Video asistanı oturumuna haber verildi.
+  - Yükleyicisi gömülü pakete geçildi; Node 17'de çalışıyor. Panelde yeniden denenmedi.
+- Testler 146 PASS (analyzer 25: girdi, olasılık→nefes, parçalama, gerçek paket).
+
 ## 2026-11-13 — Nefes kesme yapılacaklara alındı
 
 - Kullanıcı (2026-11-11): "Nefes seslerini kesecek bir özellik ekleyebilir miyiz?"

@@ -62,9 +62,10 @@ Ayrıntı: [[reports/2026-10-05-teknik-analiz|teknik analiz]] §6–7 (Yol A: XM
     - Her nefesin başına tek noktalı `HooDoo nefes` marker'ı konur; hiçbir şey kesilmez.
     - Kullanıcı marker'ları izleyip tespiti değerlendirir.
   - **2. adım (1. adım iyi çalışırsa):** Panelde "nefes: sil / sesini kıs / dokunma" seçeneği; nefesler kesim sırasında işlenir.
-  - **Durum:**
-    - Taslak kod `nefes-isaretleme` dalında (`ad0ceda`). Kural: perdesiz, hışırtılı, konuşmadan kısık, 0.15–1.2 sn; iki yanı sesli konuşmaya yapışık hışırtı (kelime içi "s/ş") sayılmaz.
-    - Sentetik testler geçiyor. Gerçek kayıtta ayarlanmadı, canlı denenmedi; `main`'e alınmadı.
-  - **Ayar için aday kayıtlar:**
-    - `Videos\2026-11-13 13-35-05` (48.7 dk) ve `Videos\2026-11-12 15-20-27` (35.5 dk).
-    - İkisinde de iki ses kanalı var; mikrofonun hangisi olduğu belirlenmedi.
+  - **Durum (2026-11-24):**
+    - `nefes-isaretleme` dalında. Kural tabanlı taslak bırakıldı (yanlış alarmı çok); yerine **Respiro-en** modeli (MIT) girdi.
+    - Model panelde ONNX Runtime Web (WASM) ile çalışır: `client/lib/respiro`, `tools/respiro`.
+    - Kullanıcının kaydında (`Videos\2026-11-24 14-28-13`, mikrofon Track 1) 271 nefes buldu. Kullanıcı eşit aralıklı 40 örneği dinledi: **hepsi nefes**.
+    - **Canlı panel testi yapılmadı.** İlk deneme (dosya yoluyla yüklenen ORT Node girişi) CEP 12 panelini çökertti. Yükleyicisi gömülü pakete geçildi; Node 17'de çalışıyor.
+    - Premiere boşken panelde bir kez doğrulanacak.
+    - Ayrıntı: [[reports/2026-11-24-nefes-tespiti-arastirma|araştırma ve sonuç raporu]].
